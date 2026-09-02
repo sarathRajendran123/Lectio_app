@@ -124,7 +124,10 @@ async def list_reports(
     return [
         {
             "id":            str(r.id),
+<<<<<<< HEAD
             "run_id":        str(r.run_id),
+=======
+>>>>>>> 0769384aa5cfe90c2fafe2f4f7f21aeb558648b0
             "report_type":   r.report_type,
             "overall_score": float(r.overall_score or 0),
             "status":        r.status,

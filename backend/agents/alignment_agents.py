@@ -52,6 +52,7 @@ class MetadataAssessmentAlignmentAgent(BaseAgent):
             clo_text  = clo["text"]
             clo_code  = clo.get("code", "CLO?")
 
+<<<<<<< HEAD
             # Retrieve from assessment artifacts ONLY. Syllabus/content
             # artifacts must be excluded here: a CLO's own definition always
             # appears in the syllabus (that's where it's stated), so
@@ -59,11 +60,18 @@ class MetadataAssessmentAlignmentAgent(BaseAgent):
             # text and register as "assessed" even when no actual assessment
             # tests it. This agent's whole purpose is to check assessments
             # in isolation, bypassing content — the filter needs to match that.
+=======
+            # Retrieve from assessment artifacts
+>>>>>>> 0769384aa5cfe90c2fafe2f4f7f21aeb558648b0
             chunks = self._retrieve(
                 query=clo_text,
                 course_id=course_id,
                 top_k=6,
+<<<<<<< HEAD
                 where={"artifact_type": {"$in": ["assignment"]}},
+=======
+                where={"artifact_type": {"$in": ["assignment", "syllabus"]}},
+>>>>>>> 0769384aa5cfe90c2fafe2f4f7f21aeb558648b0
             )
 
             best_score = max((c.score for c in chunks), default=0.0)

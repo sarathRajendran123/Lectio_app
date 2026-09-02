@@ -113,6 +113,7 @@ class HybridRetriever:
             if r.chunk_id not in chunk_map:
                 chunk_map[r.chunk_id] = r
 
+<<<<<<< HEAD
         # Assemble final results with fused scores, normalized to a 0-1 range.
         # Raw RRF scores are tiny (e.g. ~0.03 for a top-ranked chunk with
         # k=60) — nowhere near the 0-1 similarity fraction every downstream
@@ -134,6 +135,17 @@ class HybridRetriever:
                     chunk_id=r.chunk_id,
                     text=r.text,
                     score=normalized_score,
+=======
+        # Assemble final results with fused scores
+        fused_results: List[RetrievedChunk] = []
+        for chunk_id, rrf_score in sorted(fused.items(), key=lambda x: x[1], reverse=True)[:final_k]:
+            if chunk_id in chunk_map:
+                r = chunk_map[chunk_id]
+                fused_results.append(RetrievedChunk(
+                    chunk_id=r.chunk_id,
+                    text=r.text,
+                    score=rrf_score,
+>>>>>>> 0769384aa5cfe90c2fafe2f4f7f21aeb558648b0
                     artifact_id=r.artifact_id,
                     artifact_type=r.artifact_type,
                     course_id=r.course_id,

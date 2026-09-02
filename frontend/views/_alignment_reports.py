@@ -1,6 +1,9 @@
 """LECTIO — Alignment Reports Page"""
+<<<<<<< HEAD
 from typing import List
 
+=======
+>>>>>>> 0769384aa5cfe90c2fafe2f4f7f21aeb558648b0
 import streamlit as st
 import plotly.graph_objects as go
 import plotly.express as px
@@ -40,6 +43,7 @@ def show_reports():
         empty_state("No Reports Yet", "Run an alignment audit from the Upload page."); return
 
     # ── Report selector ────────────────────────────────────────────────────
+<<<<<<< HEAD
     # Group by the actual run_id, NOT by calendar day. Grouping by day used
     # to silently merge every audit run from the same day into one bucket —
     # if you ran the audit twice today, you'd see 8 duplicated tabs instead
@@ -60,6 +64,16 @@ def show_reports():
         return f"Run at {ts} ({len(reports_for_run)} checks)"
 
     selected_run = st.selectbox("Audit Run", run_order, format_func=_run_label)
+=======
+    by_run: dict = {}
+    for r in reports:
+        run_key = r["generated_at"][:10]
+        by_run.setdefault(run_key, []).append(r)
+
+    run_keys = sorted(by_run.keys(), reverse=True)
+    selected_run = st.selectbox("Audit Run", run_keys,
+                                format_func=lambda k: f"Run from {k} ({len(by_run[k])} checks)")
+>>>>>>> 0769384aa5cfe90c2fafe2f4f7f21aeb558648b0
     run_reports  = by_run[selected_run]
 
     # ── Overall score cards ────────────────────────────────────────────────

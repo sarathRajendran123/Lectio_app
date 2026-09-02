@@ -20,7 +20,10 @@ Threshold filtering:
 """
 
 import logging
+<<<<<<< HEAD
 import math
+=======
+>>>>>>> 0769384aa5cfe90c2fafe2f4f7f21aeb558648b0
 from typing import List, Optional
 
 from rag.chunking.chunk_models import RetrievedChunk
@@ -96,6 +99,7 @@ class CrossEncoderReranker:
         )
 
         results = []
+<<<<<<< HEAD
         for chunk, raw_score in scored[:top_k]:
             if raw_score < min_score:
                 continue
@@ -108,11 +112,20 @@ class CrossEncoderReranker:
             # strong match (e.g. raw logit 4.24) was being displayed as
             # "424%" and used as-is in weighted score formulas elsewhere.
             normalized_score = 1.0 / (1.0 + math.exp(-raw_score))
+=======
+        for chunk, score in scored[:top_k]:
+            if score < min_score:
+                continue
+>>>>>>> 0769384aa5cfe90c2fafe2f4f7f21aeb558648b0
             # Replace bi-encoder score with cross-encoder score
             results.append(RetrievedChunk(
                 chunk_id=chunk.chunk_id,
                 text=chunk.text,
+<<<<<<< HEAD
                 score=normalized_score,
+=======
+                score=float(score),
+>>>>>>> 0769384aa5cfe90c2fafe2f4f7f21aeb558648b0
                 artifact_id=chunk.artifact_id,
                 artifact_type=chunk.artifact_type,
                 course_id=chunk.course_id,
@@ -124,8 +137,13 @@ class CrossEncoderReranker:
             ))
 
         logger.debug(
+<<<<<<< HEAD
             f"Reranker: {len(chunks)} -> {len(results)} chunks "
             f"(top normalized score: {results[0].score:.3f})" if results else
             f"Reranker: {len(chunks)} -> 0 chunks"
+=======
+            f"Reranker: {len(chunks)} → {len(results)} chunks "
+            f"(top score: {scored[0][1]:.3f} if scored else 'N/A')"
+>>>>>>> 0769384aa5cfe90c2fafe2f4f7f21aeb558648b0
         )
         return results
