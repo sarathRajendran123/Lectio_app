@@ -45,5 +45,5 @@ httpx==0.27.2
 aiofiles==24.1.0
 pillow==10.4.0
 numpy==1.26.4
-tenacity==8.5.0                # was 9.0.0 -- conflicted with langchain (needs <9.0.0), this alone broke `pip install`
-python-json-logger==2.0.7      # was MISSING -- utils/logging_config.py imports this; backend crashed on every startup without it
+tenacity==8.5.0                
+python-json-logger==2.0.7      
