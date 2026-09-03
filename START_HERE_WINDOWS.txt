@@ -1,0 +1,72 @@
+LECTIO — Windows Quick Start
+=============================
+
+WHAT WAS FIXED IN THIS ZIP
+---------------------------
+backend/rag/rag_service.py:
+  - Ingestion status (parsing/chunking/embedding/storing/done) now commits
+    to the database at every step, so the app can actually show live
+    progress instead of appearing stuck.
+  - Blocking/CPU-heavy work (parsing, chunking, embedding, storing to
+    ChromaDB) now runs on a background thread instead of freezing the
+    whole server, so status polling keeps working WHILE a file is
+    processing.
+  - If ingestion fails, the "error" status is now saved properly instead
+    of silently disappearing.
+
+frontend/views/_upload.py:
+  - The live status display on the Upload page now tolerates brief
+    network hiccups instead of going silent on the first one.
+
+REQUIREMENTS
+------------
+1. Docker Desktop for Windows, installed and RUNNING
+   https://www.docker.com/products/docker-desktop/
+2. That's it — Postgres, ChromaDB, the backend, and the frontend all run
+   inside Docker, so you do not need to install Python, Postgres, etc.
+   separately.
+
+HOW TO RUN
+----------
+1. Unzip this file anywhere, e.g. C:\LECTIO_APP
+2. Open the folder, check the ".env" file. It should already have real
+   values filled in for POSTGRES_PASSWORD, SECRET_KEY, CHROMA_AUTH_TOKEN,
+   and GROQ_API_KEY. If GROQ_API_KEY still says "gsk_your_groq_api_key_here",
+   get a free key at https://console.groq.com and paste it in there.
+3. Open PowerShell (or CMD) in that folder:
+     - In File Explorer, click the address bar, type: powershell
+       and press Enter. It opens a PowerShell window already in that folder.
+4. Run:
+     docker compose up --build
+   First run will take a while (downloads the embedding model + builds
+   images). Leave this window open — it's your live server log.
+5. Once it says the backend and frontend are up, open your browser to:
+     http://localhost:8501
+6. Log in with:
+     Email:    (value of ADMIN_EMAIL in .env)
+     Password: (value of ADMIN_PASSWORD in .env)
+
+STOPPING THE APP
+-----------------
+In the same PowerShell window: press Ctrl+C, then run:
+     docker compose down
+(add " -v" at the end, i.e. "docker compose down -v", if you also want to
+wipe the database and vector store and start completely fresh next time)
+
+TROUBLESHOOTING
+----------------
+- "port is already allocated" error:
+    Something else on your PC is using port 8501, 8000, or 5432.
+    Edit docker-compose.yml, find the "ports:" line for that service, and
+    change the LEFT number, e.g. "8501:8501" -> "8600:8501", then use
+    that new number in your browser instead.
+
+- First upload seems slow:
+    Normal. The embedding model has to load into memory the first time
+    (30-90+ seconds). You should now see live status updates the whole
+    time (parsing -> chunking -> embedding -> storing -> done) instead of
+    the page going silent.
+
+- Docker Desktop won't start / "WSL" errors:
+    Docker Desktop on Windows needs WSL2. If prompted, let Docker Desktop
+    install/update WSL2, then restart your PC once.
