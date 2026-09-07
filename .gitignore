@@ -1,0 +1,29 @@
+# Environment / secrets — never commit real API keys or passwords
+.env
+.env.local
+.env.*.local
+
+# Python bytecode / cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Docker volumes / local data (if any get created alongside the app)
+postgres_data/
+chroma_data/
