@@ -52,7 +52,8 @@ def execute_agent(agent, state, dimension=None):
             from config import settings
             if settings.runtime_mode == "live" and settings.active_api_key and settings.active_model:
                 from agents.live_review import augment
-                output=augment(agent,output,dimension)
+                from agents.live_review_fallback import try_live_review
+                output, error = try_live_review(agent, output, dimension, augment)
     except Exception as exc:
         error=str(exc)[:500]
         if dimension is None: raise

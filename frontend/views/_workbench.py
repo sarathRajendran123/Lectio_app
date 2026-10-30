@@ -106,6 +106,7 @@ def show_workbench():
                     findings=report.get('findings') or {}
                     details=findings.get('findings') or {}
                     if details.get('note') or details.get('error'):st.info(details.get('note') or details['error'])
+                    if details.get('live_review_failure'):st.warning(details['live_review_failure'])
                     if meta['report_type'] == 'metadata_content':
                         if details.get('translation_notice'):
                             st.warning(details['translation_notice'])
