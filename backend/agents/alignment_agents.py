@@ -35,8 +35,8 @@ class MetadataAssessmentAlignmentAgent(BaseAgent):
             return self._store(state, AlignmentResult(
                 agent_name=self.name,
                 report_type="metadata_assessment",
-                overall_score=1.0,
-                status="pass",
+                overall_score=0.0,
+                status="needs_review",
                 findings={"note": "Insufficient data (no CLOs or no assessments)."},
             ))
 
@@ -63,7 +63,7 @@ class MetadataAssessmentAlignmentAgent(BaseAgent):
                 query=clo_text,
                 course_id=course_id,
                 top_k=6,
-                where={"artifact_type": {"$in": ["assignment"]}},
+                where={"artifact_type": {"$in": ["assignment", "exam", "assessment"]}},
             )
 
             best_score = max((c.score for c in chunks), default=0.0)
@@ -74,6 +74,7 @@ class MetadataAssessmentAlignmentAgent(BaseAgent):
                 "code":    clo_code,
                 "text":    clo_text[:100],
                 "covered": covered,
+                "evidence_chunk_ids": [c.chunk_id for c in chunks[:3]],
                 "score":   round(best_score, 3),
             })
 
@@ -83,9 +84,9 @@ class MetadataAssessmentAlignmentAgent(BaseAgent):
                 gaps.append(AlignmentGap(
                     gap_id=str(uuid.uuid4()),
                     gap_type="clo_not_assessed",
-                    severity="critical",
+                    severity="warning",
                     description=(
-                        f"{clo_code} is not evaluated by any assessment. "
+                        f"{clo_code} has no matching evidence in the supplied assessments; confirm completeness. "
                         f"CLO: '{clo_text[:100]}'"
                     ),
                     affected_entity_type="clo",
@@ -152,8 +153,8 @@ class ContentDeliveryAlignmentAgent(BaseAgent):
             return self._store(state, AlignmentResult(
                 agent_name=self.name,
                 report_type="content_delivery",
-                overall_score=1.0,
-                status="pass",
+                overall_score=0.0,
+                status="needs_review",
                 findings={"note": "No modules to check."},
             ))
 
@@ -162,6 +163,7 @@ class ContentDeliveryAlignmentAgent(BaseAgent):
         findings: dict               = {
             "topic_coverage":   [],
             "sequencing_issues": [],
+            "note": "Checks planned material availability only. Actual delivery is unverified.",
         }
 
         for mod in modules:
@@ -176,7 +178,7 @@ class ContentDeliveryAlignmentAgent(BaseAgent):
                         "topic":       topic["title"],
                         "week":        week_num,
                         "score":       round(score, 3),
-                        "delivered":   score >= 0.5,
+                        "planned_material_available": score >= 0.5,
                     })
                     if gap:
                         gaps.append(gap)
@@ -197,7 +199,7 @@ class ContentDeliveryAlignmentAgent(BaseAgent):
             ))
 
         overall = sum(scores) / len(scores) if scores else 1.0
-        status  = "pass" if overall >= 0.75 else "warning" if overall >= 0.55 else "fail"
+        status = ("pass" if overall >= 0.75 else "warning" if overall >= 0.55 else "fail") if scores else "needs_review"
 
         result = AlignmentResult(
             agent_name=self.name,
@@ -225,7 +227,7 @@ class ContentDeliveryAlignmentAgent(BaseAgent):
             return 0.0, AlignmentGap(
                 gap_id=str(uuid.uuid4()),
                 gap_type="topic_not_delivered",
-                severity="critical",
+                severity="warning",
                 description=(
                     f"Week {week_num} topic '{title}' has no corresponding "
                     "slides or transcript content."

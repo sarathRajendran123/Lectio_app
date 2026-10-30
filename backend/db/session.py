@@ -26,7 +26,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
     Usage:
         @router.get("/example")
-        async def example(db: AsyncSession = Depends(get_db)):
+        async def example(db: AsyncSession = Depends(get_db, scope="function")):
             ...
     """
     async with AsyncSessionLocal() as session:

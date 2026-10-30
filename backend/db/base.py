@@ -35,3 +35,10 @@ class Base(AsyncAttrs, DeclarativeBase):
     defines its own created_at/updated_at columns individually.
     """
     pass
+# Enforce referential integrity in the explicit local-test SQLite mode.
+if settings.database_url.startswith("sqlite"):
+    from sqlalchemy import event
+    @event.listens_for(engine.sync_engine, "connect")
+    def sqlite_integrity(connection, record):
+        connection.execute("PRAGMA foreign_keys=ON")
+        connection.execute("PRAGMA busy_timeout=15000")

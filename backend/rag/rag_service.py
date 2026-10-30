@@ -25,13 +25,8 @@ from config import settings
 from db.repositories.artifact_repository import ArtifactRepository
 from rag.chunking.chunk_models import RetrievedChunk
 from rag.chunking.semantic_chunker import SemanticChunker
-from rag.embedding.bge_embedder import BGEEmbedder
 from rag.generation.grounded_generator import GeneratedItem, GroundedGenerator
 from rag.parsers import get_parser
-from rag.retrieval.bm25_retriever import bm25_retriever
-from rag.retrieval.hybrid_retriever import HybridRetriever
-from rag.retrieval.reranker import CrossEncoderReranker
-from vector_db.chroma_client import ChromaCollectionManager
 
 logger = logging.getLogger(__name__)
 
@@ -46,19 +41,29 @@ class RAGService:
     _instance: Optional["RAGService"] = None
 
     def __init__(self):
+        from rag.embedding.bge_embedder import BGEEmbedder
+        from rag.retrieval.bm25_retriever import bm25_retriever
+        from rag.retrieval.hybrid_retriever import HybridRetriever
+        from rag.retrieval.reranker import CrossEncoderReranker
+        from vector_db.sql_vector_store import SQLVectorStore
+        self._bm25 = bm25_retriever
+
         self._embedder  = BGEEmbedder.get_instance(device=settings.embedding_device)
-        self._chroma    = ChromaCollectionManager.get_instance()
-        self._chunker   = SemanticChunker()
+        self._vectors    = SQLVectorStore()
+        self._chunker   = SemanticChunker(use_semantic_split=True)
         self._reranker  = CrossEncoderReranker.get_instance()
         self._generator = GroundedGenerator()
         self._hybrid    = HybridRetriever(
             embedder=self._embedder,
-            chroma=self._chroma,
+            vectors=self._vectors,
             bm25=bm25_retriever,
         )
 
     @classmethod
     def get_instance(cls) -> "RAGService":
+        if settings.runtime_mode == "local_test" or settings.retrieval_backend == "lexical":
+            from rag.local_service import LocalRAGService
+            return LocalRAGService()
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
@@ -82,9 +87,11 @@ class RAGService:
           1. Parse   → ParsedDocument
           2. Chunk   → List[RawChunk]
           3. Embed   → List[EmbeddedChunk]
-          4. Store   → ChromaDB + PostgreSQL chunks table
+          4. Store   → transactional SQL chunk/vector storage
           5. BM25    → Invalidate + rebuild index
         """
+        import uuid
+        artifact_id = uuid.UUID(str(artifact_id))
         repo = ArtifactRepository(db)
 
         try:
@@ -100,7 +107,8 @@ class RAGService:
             # the loop free to keep serving other requests concurrently.
             logger.info(f"Parsing artifact {artifact_id} ({file_type})")
             parser = get_parser(file_type)
-            parsed = await asyncio.to_thread(parser.parse, file_path, artifact_type)
+            from services.safe_parser import parse_document
+            parsed = await parse_document(file_path, file_type, artifact_type)
 
             # Update counts from parsing
             await repo.update_counts(
@@ -118,15 +126,13 @@ class RAGService:
             raw_chunks = await asyncio.to_thread(
                 self._chunker.chunk,
                 doc=parsed,
-                artifact_id=artifact_id,
-                course_id=course_id,
+                artifact_id=str(artifact_id),
+                course_id=str(course_id),
             )
 
             if not raw_chunks:
                 logger.warning(f"No chunks produced for artifact {artifact_id}")
-                await repo.set_status(artifact_id, "done")
-                await db.commit()
-                return 0
+                raise ValueError("No usable text extracted; OCR may be required.")
 
             # 3. Embed — the slowest, most CPU-heavy step (local model
             # inference on CPU, plus a one-off model load on first use).
@@ -135,16 +141,16 @@ class RAGService:
             logger.info(f"Embedding {len(raw_chunks)} chunks for artifact {artifact_id}")
             embedded = await asyncio.to_thread(self._embedder.embed_chunks, raw_chunks)
 
-            # 4a. Store in ChromaDB (synchronous HTTP client — also offloaded)
+            # 4a. Validate vectors before committing them with source chunks
             await repo.set_status(artifact_id, "storing")
             await db.commit()
-            await asyncio.to_thread(self._chroma.upsert_chunks, course_id, embedded)
+            await asyncio.to_thread(self._vectors.upsert_chunks, course_id, embedded)
 
             # 4b. Store chunk records in PostgreSQL
             await self._store_chunks_in_db(embedded, db)
 
             # 5. Rebuild BM25 index
-            bm25_retriever.invalidate(course_id)
+            self._bm25.invalidate(course_id)
             # Lazy rebuild happens on next retrieval query
 
             await repo.set_status(artifact_id, "done")
@@ -185,8 +191,9 @@ class RAGService:
                 section_title=c.section_title,
                 week_number=c.week_number,
                 document_position=c.document_position,
-                chroma_id=ec.chunk_id,
+                chroma_id=ec.chunk_id,  # retained legacy column; canonical ID is Chunk.id
                 embedding_model=settings.embedding_model,
+                metadata_={"artifact_type":c.artifact_type,"vector":ec.embedding,"parser_metadata":c.extra_metadata},
             )
             db.add(chunk_record)
 
@@ -210,20 +217,24 @@ class RAGService:
             query:     the alignment check question or generation prompt
             course_id: target course
             top_k:     final number of chunks to return
-            where:     optional ChromaDB filter (e.g. {"artifact_type": "slides"})
+            where:     optional source metadata filter (e.g. {"artifact_type": "slides"})
             rerank:    whether to apply cross-encoder reranking
 
         Returns:
             Ordered list of RetrievedChunk (best first)
         """
+        source_rows=self._load_sparse_chunks(course_id)
+        allowed_ids={c["chunk_id"] for c in source_rows}
         # Hybrid retrieval (dense + BM25)
         candidates = self._hybrid.retrieve(
             query=query,
             course_id=course_id,
             top_k=top_k * 4,   # over-retrieve for reranker
             where=where,
+            bm25_chunks_loader=lambda: source_rows,
         )
 
+        candidates=[c for c in candidates if c.chunk_id in allowed_ids and c.course_id==str(course_id)]
         if not candidates:
             logger.warning(f"No candidates retrieved for query: '{query[:80]}'")
             return []
@@ -257,7 +268,7 @@ class RAGService:
             task_prompt:        What to generate (e.g. "Write 3 CLOs for Module 2")
             course_id:          Target course
             top_k:              Context chunks to retrieve
-            where:              ChromaDB filter
+            where:              source metadata filter
             extra_instructions: Reviewer preferences from episodic memory
 
         Returns:
@@ -276,3 +287,12 @@ class RAGService:
             context_chunks=context,
             extra_instructions=extra_instructions,
         )
+
+    def _load_sparse_chunks(self, course_id):
+        from agents.base_agent import BaseAgent
+        from rag.local_service import LocalRAGService
+        return [{"chunk_id": c.chunk_id, "text": c.text, "metadata": dict(c.metadata,
+            artifact_id=c.artifact_id, course_id=c.course_id, artifact_type=c.artifact_type,
+            page_number=c.page_number or -1, slide_number=c.slide_number or -1,
+            section_title=c.section_title or "", week_number=c.week_number or -1)}
+            for c in BaseAgent._run_async(LocalRAGService().load(course_id))]

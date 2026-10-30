@@ -33,6 +33,8 @@ class StakeholderAgent(BaseAgent):
         initiated_by = state.get("initiated_by", "")
         generated    = state.get("generated_items", [])
 
+        from agents.quality_broker import broker
+        state = {**state, "broker_review": broker(state.get("alignment_results",{}))}
         # 1. Load reviewer preferences from episodic memory
         preferences = self._load_preferences(initiated_by)
 
@@ -110,6 +112,7 @@ class StakeholderAgent(BaseAgent):
             self._run_async(self._async_persist_reports(state, run_id, course_id))
         except Exception as e:
             logger.error(f"[Stakeholder] Failed to persist reports: {e}", exc_info=True)
+            raise
 
     async def _async_persist_reports(self, state, run_id, course_id):
         from db.session import AsyncSessionLocal
@@ -117,6 +120,10 @@ class StakeholderAgent(BaseAgent):
 
         async with AsyncSessionLocal() as db:
             for report_type, result in state.get("alignment_results", {}).items():
+                result.findings["broker_review"] = state.get("broker_review",{})
+                result.findings["source_manifest"] = state.get("source_manifest",[])
+                result.findings["analysis_method"] = __import__("config").settings.runtime_mode
+                result.findings["score_notice"] = "Heuristic evidence score, not a calibrated probability"
                 if not hasattr(result, "to_dict"):
                     continue
                 report = AlignmentReport(
@@ -134,6 +141,7 @@ class StakeholderAgent(BaseAgent):
 
                 for gap in result.gaps:
                     db.add(AlignmentGapRecord(
+                        id=uuid.UUID(gap.gap_id),
                         report_id=report.id,
                         gap_type=gap.gap_type,
                         severity=gap.severity,
@@ -163,7 +171,7 @@ class StakeholderAgent(BaseAgent):
             )
         except Exception as e:
             logger.error(f"[Stakeholder] Failed to create approval queue: {e}", exc_info=True)
-            return []
+            raise
 
     async def _async_create_queue(self, generated, run_id, course_id, reviewer_id):
         from db.session import AsyncSessionLocal
@@ -183,6 +191,8 @@ class StakeholderAgent(BaseAgent):
                     citations=item.citations,
                     confidence_score=item.confidence,
                     approval_status="pending",
+                    model_used=__import__("config").settings.groq_model if __import__("config").settings.runtime_mode == "live" else "local-test-template",
+                    source_gap_id=item.source_gap_id,
                 )
                 db.add(record)
                 pending.append(ApprovalRequest(

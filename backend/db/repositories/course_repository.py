@@ -52,7 +52,7 @@ class CourseRepository:
                 .selectinload(Week.topics),
                 selectinload(Course.modules)
                 .selectinload(Module.learning_objectives),
-                selectinload(Course.assessments),
+                selectinload(Course.assessments).selectinload(Assessment.questions),
             )
             .where(Course.id == course_id)
         )
@@ -71,7 +71,7 @@ class CourseRepository:
         """
         q = select(Course)
 
-        privileged = {"coordinator", "dept_head", "admin"}
+        privileged = {"admin"}
         if not any(r in privileged for r in roles):
             # Lecturer: only own courses
             q = q.where(Course.coordinator_id == user_id)
@@ -206,7 +206,7 @@ class CourseRepository:
         roles: List[str],
     ) -> bool:
         """Returns True if user has access to this course."""
-        privileged = {"coordinator", "dept_head", "admin"}
+        privileged = {"admin"}
         if any(r in privileged for r in roles):
             return True
         course = await self.get_by_id(course_id)

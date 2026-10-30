@@ -8,7 +8,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from jose import jwt
+import jwt
 
 from config import settings
 
@@ -47,6 +47,8 @@ def create_refresh_token() -> tuple[str, str]:
 
 
 # ── Token Validation ───────────────────────────────────────────────────────────
+
+
 
 class TokenPayload:
     def __init__(self, payload: dict):

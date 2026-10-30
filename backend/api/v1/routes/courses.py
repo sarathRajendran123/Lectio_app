@@ -52,7 +52,7 @@ async def list_courses(
     skip:  int          = Query(0, ge=0),
     limit: int          = Query(20, ge=1, le=100),
     user:  CurrentUser  = Depends(get_current_user),
-    db:    AsyncSession = Depends(get_db),
+    db:    AsyncSession = Depends(get_db, scope="function"),
 ):
     """List courses visible to the current user (role-filtered)."""
     repo = CourseRepository(db)
@@ -77,11 +77,15 @@ async def list_courses(
 @router.post("", response_model=CourseResponse, status_code=status.HTTP_201_CREATED)
 async def create_course(
     body: CourseCreate,
-    user: CurrentUser  = Depends(require_role("coordinator")),
-    db:   AsyncSession = Depends(get_db),
+    user: CurrentUser  = Depends(require_role("lecturer")),
+    db:   AsyncSession = Depends(get_db, scope="function"),
 ):
     """Create a new course. Requires coordinator role or above."""
     repo = CourseRepository(db)
+    from sqlalchemy import select
+    from db.models.course import Course
+    if await db.scalar(select(Course.id).where(Course.code == body.code)):
+        raise HTTPException(409, "Course code already exists.")
     course = await repo.create(body, coordinator_id=UUID(user.id))
     logger.info(f"Course {course.code} created by {user.email}")
     return CourseResponse(
@@ -96,7 +100,7 @@ async def create_course(
 async def get_course(
     course_id: UUID,
     user: CurrentUser  = Depends(get_current_user),
-    db:   AsyncSession = Depends(get_db),
+    db:   AsyncSession = Depends(get_db, scope="function"),
 ):
     await _assert_course_access(course_id, user, db)
     repo   = CourseRepository(db)
@@ -114,10 +118,14 @@ async def get_course(
 async def update_course(
     course_id: UUID,
     body: CourseUpdate,
-    user: CurrentUser  = Depends(require_role("coordinator")),
-    db:   AsyncSession = Depends(get_db),
+    user: CurrentUser  = Depends(require_role("lecturer")),
+    db:   AsyncSession = Depends(get_db, scope="function"),
 ):
     await _assert_course_access(course_id, user, db)
+    from services.admission import assert_idle
+    await assert_idle(course_id,db)
+    from services.model_version import touch_course
+    await touch_course(course_id,db)
     repo   = CourseRepository(db)
     course = await repo.update(course_id, body)
     if not course:
@@ -134,7 +142,7 @@ async def update_course(
 async def delete_course(
     course_id: UUID,
     user: CurrentUser  = Depends(require_role("admin")),
-    db:   AsyncSession = Depends(get_db),
+    db:   AsyncSession = Depends(get_db, scope="function"),
 ):
     """Delete a course. Admin only."""
     repo = CourseRepository(db)
@@ -151,7 +159,7 @@ async def delete_course(
 async def list_modules(
     course_id: UUID,
     user: CurrentUser  = Depends(get_current_user),
-    db:   AsyncSession = Depends(get_db),
+    db:   AsyncSession = Depends(get_db, scope="function"),
 ):
     await _assert_course_access(course_id, user, db)
     repo = CourseRepository(db)
@@ -163,9 +171,13 @@ async def create_module(
     course_id: UUID,
     body: ModuleCreate,
     user: CurrentUser  = Depends(get_current_user),
-    db:   AsyncSession = Depends(get_db),
+    db:   AsyncSession = Depends(get_db, scope="function"),
 ):
     await _assert_course_access(course_id, user, db)
+    from services.admission import assert_idle
+    await assert_idle(course_id,db)
+    from services.model_version import touch_course
+    await touch_course(course_id,db)
     repo   = CourseRepository(db)
     module = await repo.create_module(course_id, body)
     return module
@@ -180,10 +192,13 @@ async def list_weeks(
     course_id: UUID,
     module_id: UUID,
     user: CurrentUser  = Depends(get_current_user),
-    db:   AsyncSession = Depends(get_db),
+    db:   AsyncSession = Depends(get_db, scope="function"),
 ):
     await _assert_course_access(course_id, user, db)
     repo = CourseRepository(db)
+    module = await repo.get_module(module_id)
+    if not module or module.course_id != course_id:
+        raise HTTPException(status_code=404, detail="Module not found in this course.")
     return await repo.get_weeks(module_id)
 
 
@@ -193,10 +208,17 @@ async def create_week(
     module_id: UUID,
     body: WeekCreate,
     user: CurrentUser  = Depends(get_current_user),
-    db:   AsyncSession = Depends(get_db),
+    db:   AsyncSession = Depends(get_db, scope="function"),
 ):
     await _assert_course_access(course_id, user, db)
+    from services.admission import assert_idle
+    await assert_idle(course_id,db)
+    from services.model_version import touch_course
+    await touch_course(course_id,db)
     repo = CourseRepository(db)
+    module = await repo.get_module(module_id)
+    if not module or module.course_id != course_id:
+        raise HTTPException(status_code=404, detail="Module not found in this course.")
     return await repo.create_week(module_id, body)
 
 
@@ -210,10 +232,17 @@ async def list_topics(
     module_id: UUID,
     week_id:   UUID,
     user: CurrentUser  = Depends(get_current_user),
-    db:   AsyncSession = Depends(get_db),
+    db:   AsyncSession = Depends(get_db, scope="function"),
 ):
     await _assert_course_access(course_id, user, db)
     repo = CourseRepository(db)
+    module = await repo.get_module(module_id)
+    if not module or module.course_id != course_id:
+        raise HTTPException(status_code=404, detail="Module not found in this course.")
+    from db.models.course import Week
+    week = await db.get(Week, week_id)
+    if not week or week.module_id != module_id:
+        raise HTTPException(status_code=404, detail="Week not found in this module.")
     return await repo.get_topics(week_id)
 
 
@@ -224,10 +253,21 @@ async def create_topic(
     week_id:   UUID,
     body: TopicCreate,
     user: CurrentUser  = Depends(get_current_user),
-    db:   AsyncSession = Depends(get_db),
+    db:   AsyncSession = Depends(get_db, scope="function"),
 ):
     await _assert_course_access(course_id, user, db)
+    from services.admission import assert_idle
+    await assert_idle(course_id,db)
+    from services.model_version import touch_course
+    await touch_course(course_id,db)
     repo = CourseRepository(db)
+    module = await repo.get_module(module_id)
+    if not module or module.course_id != course_id:
+        raise HTTPException(status_code=404, detail="Module not found in this course.")
+    from db.models.course import Week
+    week = await db.get(Week, week_id)
+    if not week or week.module_id != module_id:
+        raise HTTPException(status_code=404, detail="Week not found in this module.")
     return await repo.create_topic(week_id, body)
 
 
@@ -240,10 +280,13 @@ async def list_clos(
     course_id: UUID,
     module_id: UUID,
     user: CurrentUser  = Depends(get_current_user),
-    db:   AsyncSession = Depends(get_db),
+    db:   AsyncSession = Depends(get_db, scope="function"),
 ):
     await _assert_course_access(course_id, user, db)
     repo = CourseRepository(db)
+    module = await repo.get_module(module_id)
+    if not module or module.course_id != course_id:
+        raise HTTPException(status_code=404, detail="Module not found in this course.")
     return await repo.get_clos(module_id)
 
 
@@ -253,10 +296,17 @@ async def create_clo(
     module_id: UUID,
     body: LearningObjectiveCreate,
     user: CurrentUser  = Depends(get_current_user),
-    db:   AsyncSession = Depends(get_db),
+    db:   AsyncSession = Depends(get_db, scope="function"),
 ):
     await _assert_course_access(course_id, user, db)
+    from services.admission import assert_idle
+    await assert_idle(course_id,db)
+    from services.model_version import touch_course
+    await touch_course(course_id,db)
     repo = CourseRepository(db)
+    module = await repo.get_module(module_id)
+    if not module or module.course_id != course_id:
+        raise HTTPException(status_code=404, detail="Module not found in this course.")
     return await repo.create_clo(module_id, body)
 
 
@@ -268,7 +318,7 @@ async def create_clo(
 async def list_assessments(
     course_id: UUID,
     user: CurrentUser  = Depends(get_current_user),
-    db:   AsyncSession = Depends(get_db),
+    db:   AsyncSession = Depends(get_db, scope="function"),
 ):
     await _assert_course_access(course_id, user, db)
     repo = CourseRepository(db)
@@ -280,8 +330,12 @@ async def create_assessment(
     course_id: UUID,
     body: AssessmentCreate,
     user: CurrentUser  = Depends(get_current_user),
-    db:   AsyncSession = Depends(get_db),
+    db:   AsyncSession = Depends(get_db, scope="function"),
 ):
     await _assert_course_access(course_id, user, db)
+    from services.admission import assert_idle
+    await assert_idle(course_id,db)
+    from services.model_version import touch_course
+    await touch_course(course_id,db)
     repo = CourseRepository(db)
     return await repo.create_assessment(course_id, body)

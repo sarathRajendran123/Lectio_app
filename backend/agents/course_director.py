@@ -63,8 +63,14 @@ class CourseDirectorAgent(BaseAgent):
             context = self._load_course_context(state["course_id"])
             updates.update(context)
 
+        state = {**state, **updates}
+
         # ── Step 2: Determine next node ────────────────────────────────────────
         completed = set(state.get("alignment_results", {}).keys())
+        # Merge before routing, otherwise generation is skipped on the fourth report.
+        if len(completed) == 4:
+            updates["all_gaps"] = self._merge_gaps(state.get("alignment_results", {}))
+            state = {**state, **updates}
         next_node  = self._route(completed, state)
         updates["current_node"] = next_node
 
@@ -107,13 +113,14 @@ class CourseDirectorAgent(BaseAgent):
 
         # All alignment done — decide on generation
         gaps = state.get("all_gaps") or []
-        needs_generation = any(
+        from config import settings
+        needs_generation = settings.generation_auto_enabled and any(
             g.severity in ("critical", "warning") for g in gaps
             if isinstance(g, AlignmentGap)
         )
-        generated = state.get("generated_items", [])
+        already_attempted = state.get("generation_attempted", False)
 
-        if needs_generation and not generated:
+        if needs_generation and not already_attempted:
             return Node.CONTENT_GENERATION
 
         # Nothing left to do — go to HITL
@@ -135,7 +142,7 @@ class CourseDirectorAgent(BaseAgent):
 
         async with AsyncSessionLocal() as db:
             repo   = CourseRepository(db)
-            course = await repo.get_by_id_with_modules(course_id)
+            course = await repo.get_by_id_with_modules(__import__("uuid").UUID(course_id))
 
             if not course:
                 return {"course_metadata": {}, "modules": [], "assessments": []}
@@ -148,6 +155,8 @@ class CourseDirectorAgent(BaseAgent):
                 "credits":  course.credits,
                 "semester": course.semester,
                 "year":     course.year,
+                "description": course.description,
+                "model_version": course.updated_at.isoformat(),
             }
 
             modules = []
@@ -187,11 +196,20 @@ class CourseDirectorAgent(BaseAgent):
                     "type":           a.type,
                     "weight_percent": float(a.weight_percent or 0),
                     "week_due":       a.week_due,
+                    "description": a.description,
+                    "questions": [{"id":str(q.id),"text":q.text,"bloom_level":q.bloom_level} for q in a.questions],
                 }
                 for a in course.assessments
             ]
 
+            from sqlalchemy import select
+            from db.models.artifact import CourseArtifact
+            import uuid
+            artifacts=list((await db.scalars(select(CourseArtifact).where(CourseArtifact.course_id==uuid.UUID(course_id)))).all())
+            manifest=[{"id":str(a.id),"filename":a.original_filename,"checksum":a.checksum,"type":a.artifact_type,"status":a.processing_status,"processed_at":a.processed_at.isoformat() if a.processed_at else None} for a in artifacts]
             return {
+                "source_manifest": manifest,
+                "artifact_ids": [a["id"] for a in manifest if a["status"]=="done"],
                 "course_metadata": metadata,
                 "modules":         modules,
                 "assessments":     assessments,

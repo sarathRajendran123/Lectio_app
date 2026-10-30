@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 VALID_ARTIFACT_TYPES = [
     "syllabus", "slides", "assignment",
-    "transcript", "module_manual", "other",
+    "transcript", "module_manual", "other", "exam", "assessment", "schedule", "reading",
 ]
 
 

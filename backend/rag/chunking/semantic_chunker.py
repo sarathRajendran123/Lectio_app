@@ -78,59 +78,39 @@ class SemanticChunker:
         """
         Main entry point. Returns ordered list of RawChunks.
         """
-        # Step 1 — group blocks by structural section
-        sections = self._group_into_sections(doc.blocks)
-
-        # Step 2 — within each section, apply size + optional semantic splitting
-        raw_chunks: List[RawChunk] = []
-        total_blocks = max(sum(len(s) for s in sections.values()), 1)
-        block_offset = 0
-
-        for section_title, section_blocks in sections.items():
-            section_text_parts = [b.text for b in section_blocks]
-            combined_text      = "\n".join(section_text_parts)
-
-            # Positional metadata from first block in section
-            first = section_blocks[0]
-            meta  = {
-                "page_number":  first.page_number,
-                "slide_number": first.slide_number,
-                "week_number":  self._infer_week(section_title, first),
-            }
-
-            # Level 2/3 — split section into sub-chunks
-            sub_texts = self._split_section(combined_text)
-
-            for sub_text in sub_texts:
-                token_count = _naive_token_count(sub_text)
-                if token_count < self.min_tokens:
-                    continue
-
-                doc_position = block_offset / total_blocks
-
-                raw_chunks.append(RawChunk(
-                    text=sub_text.strip(),
-                    chunk_index=len(raw_chunks),
-                    artifact_id=artifact_id,
-                    course_id=course_id,
-                    file_type=doc.file_type,
-                    artifact_type=doc.artifact_type,
-                    page_number=meta["page_number"],
-                    slide_number=meta["slide_number"],
-                    section_title=section_title or None,
-                    week_number=meta["week_number"],
-                    document_position=round(doc_position, 4),
-                    char_count=len(sub_text),
-                    token_count=token_count,
-                ))
-
-            block_offset += len(section_blocks)
-
-        logger.info(
-            f"Chunked '{doc.source_path}' → {len(raw_chunks)} chunks "
-            f"from {len(doc.blocks)} blocks"
-        )
+        raw_chunks = []
+        for block in doc.blocks:
+            sections=self._semantic_sections(block.text) if self.use_semantic_split else [block.text]
+            for text in [piece for section in sections for piece in self._split_section(section)]:
+                # Preserve even short outcomes, question prompts and headings.
+                if not text.strip(): continue
+                raw_chunks.append(RawChunk(text=text, chunk_index=len(raw_chunks),
+                    artifact_id=artifact_id, course_id=course_id, file_type=doc.file_type,
+                    artifact_type=doc.artifact_type, page_number=block.page_number,
+                    slide_number=block.slide_number, section_title=block.section_title,
+                    week_number=self._infer_week(block.section_title, block),
+                    char_count=len(text), token_count=_naive_token_count(text),
+                    extra_metadata=block.metadata))
         return raw_chunks
+
+    def _semantic_sections(self, text):
+        # Retain original slices rather than rejoining sentences or inventing locations.
+        import numpy as np
+        spans=list(re.finditer(r'[^.!?]+(?:[.!?]+(?:\s+|$)|$)',text))
+        if len(spans)<3:return [text]
+        if self._encoder is None:
+            from rag.embedding.bge_embedder import BGEEmbedder
+            self._encoder=BGEEmbedder.get_instance()
+        spans=spans[:100]
+        vectors=self._encoder.embed_texts([m.group() for m in spans])
+        boundaries=[0]
+        for index in range(1,len(vectors)):
+            a=np.asarray(vectors[index-1]);b=np.asarray(vectors[index])
+            cosine=float(a@b)/(float(np.linalg.norm(a)*np.linalg.norm(b)) or 1)
+            if cosine<self.sim_threshold and spans[index].start()-boundaries[-1]>80:
+                boundaries.append(spans[index].start())
+        boundaries.append(len(text))
+        return [text[a:b] for a,b in zip(boundaries,boundaries[1:]) if text[a:b].strip()]
 
     # ── Level 1: Structural Grouping ──────────────────────────────────────────
 
@@ -168,33 +148,16 @@ class SemanticChunker:
         Uses sentence boundaries for clean splits.
         Applies overlap so context is not lost at boundaries.
         """
-        if _naive_token_count(text) <= self.max_tokens:
-            return [text]
-
-        sentences    = _split_sentences(text)
-        chunks:  List[str] = []
-        current: List[str] = []
-        current_tok  = 0
-
-        overlap_count = max(1, int(len(sentences) * OVERLAP_RATIO / max(len(sentences), 1)))
-
-        for sent in sentences:
-            sent_tok = _naive_token_count(sent)
-
-            if current_tok + sent_tok > self.max_tokens and current:
-                chunks.append(" ".join(current))
-                # Keep last N sentences as overlap for next chunk
-                overlap = current[-overlap_count:] if overlap_count < len(current) else current[:]
-                current     = overlap + [sent]
-                current_tok = sum(_naive_token_count(s) for s in current)
-            else:
-                current.append(sent)
-                current_tok += sent_tok
-
-        if current:
-            chunks.append(" ".join(current))
-
-        return chunks if chunks else [text]
+        # Contiguous slices preserve exact source text, including whitespace.
+        limit = self.max_tokens * 4
+        parts = []
+        while len(text) > limit:
+            boundary = max(text.rfind(". ", 0, limit), text.rfind("\n", 0, limit))
+            boundary = boundary + 1 if boundary > limit // 2 else limit
+            parts.append(text[:boundary])
+            text = text[boundary:]
+        if text.strip(): parts.append(text)
+        return parts
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 

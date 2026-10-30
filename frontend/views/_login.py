@@ -13,13 +13,14 @@ def show_login():
     _, col, _ = st.columns([1, 2, 1])
     with col:
         st.markdown("## LECTIO")
-        st.markdown("**AI Course Curation Platform**")
+        st.markdown("**A clearer view of your course.**")
+        st.caption("Audit alignment, inspect evidence, and shape better learning materials.")
         st.divider()
 
         with st.form("login_form"):
-            email    = st.text_input("Email", placeholder="you@university.ac.za")
+            email    = st.text_input("Email", placeholder="you@university.edu")
             password = st.text_input("Password", type="password")
-            submitted = st.form_submit_button("Login", use_container_width=True, type="primary")
+            submitted = st.form_submit_button("Login", width="stretch", type="primary")
 
         if submitted:
             if not email or not password:

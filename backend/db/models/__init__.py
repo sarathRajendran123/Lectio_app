@@ -25,3 +25,6 @@ __all__ = [
 
 def _resolve():
     pass
+from db.models.review import FindingDecision
+from db.models.source_link import AssessmentSource
+from db.models.review import AppliedSuggestion

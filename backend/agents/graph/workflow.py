@@ -38,26 +38,45 @@ _stakeholder  = StakeholderAgent()
 
 # ── Node wrappers (LangGraph expects plain functions) ─────────────────────────
 
-def director_node(state: LectioWorkflowState) -> LectioWorkflowState:
-    return _director.run(state)
+def execute_agent(agent, state, dimension=None):
+    import time, uuid
+    from db.models.generated_content import AgentStep
+    from db.session import AsyncSessionLocal
+    from agents.graph.state import AlignmentResult
+    started=time.monotonic(); error=None
+    try:
+        output=agent.run(state)
+        if dimension:
+            from agents.audit_checks import enrich
+            output=enrich(agent,output,dimension)
+            from config import settings
+            if settings.runtime_mode == "live" and settings.groq_api_key:
+                from agents.live_review import augment
+                output=augment(agent,output,dimension)
+    except Exception as exc:
+        error=str(exc)[:500]
+        if dimension is None: raise
+        output=agent._log_error(state, error)
+        output['alignment_results']={**state.get('alignment_results',{}), dimension: AlignmentResult(
+            agent.name,dimension,0.,'failed',findings={'error':error})}
+    async def log():
+        async with AsyncSessionLocal() as db:
+            db.add(AgentStep(run_id=uuid.UUID(state['run_id']),agent_name=agent.name,
+                step_type=dimension or 'coordination',status='failed' if error else 'completed',
+                input_summary='Course '+state['course_id'],output_summary='Node completed' if not error else 'Node failed',
+                duration_ms=int((time.monotonic()-started)*1000),error_message=error,
+                tokens_used=output.get('total_tokens',0)-state.get('total_tokens',0)))
+            await db.commit()
+    agent._run_async(log())
+    return output
 
-def meta_content_node(state: LectioWorkflowState) -> LectioWorkflowState:
-    return _meta_content.run(state)
-
-def content_assessment_node(state: LectioWorkflowState) -> LectioWorkflowState:
-    return _cont_assess.run(state)
-
-def meta_assessment_node(state: LectioWorkflowState) -> LectioWorkflowState:
-    return _meta_assess.run(state)
-
-def content_delivery_node(state: LectioWorkflowState) -> LectioWorkflowState:
-    return _cont_deliver.run(state)
-
-def generation_node(state: LectioWorkflowState) -> LectioWorkflowState:
-    return _generation.run(state)
-
-def stakeholder_node(state: LectioWorkflowState) -> LectioWorkflowState:
-    return _stakeholder.run(state)
+def director_node(state): return execute_agent(_director,state)
+def meta_content_node(state): return execute_agent(_meta_content,state,'metadata_content')
+def content_assessment_node(state): return execute_agent(_cont_assess,state,'content_assessment')
+def meta_assessment_node(state): return execute_agent(_meta_assess,state,'metadata_assessment')
+def content_delivery_node(state): return execute_agent(_cont_deliver,state,'content_delivery')
+def generation_node(state): return execute_agent(_generation,state)
+def stakeholder_node(state): return execute_agent(_stakeholder,state)
 
 
 # ── Conditional edge: Director decides where to go next ──────────────────────

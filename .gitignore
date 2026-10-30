@@ -27,3 +27,6 @@ Thumbs.db
 # Docker volumes / local data (if any get created alongside the app)
 postgres_data/
 chroma_data/
+
+# Private development data, uploads, vector files and browser QA captures
+data/

@@ -22,6 +22,10 @@ logger = logging.getLogger(__name__)
 
 
 class WorkflowService:
+    def __init__(self):
+        self.tasks = {}
+        self.processes = {}
+
 
     # ── Launch a new audit run ─────────────────────────────────────────────────
 
@@ -48,7 +52,7 @@ class WorkflowService:
         )
         if db:
             db.add(run)
-            await db.flush()
+            await db.commit()
         else:
             async with AsyncSessionLocal() as session:
                 session.add(run)
@@ -56,7 +60,9 @@ class WorkflowService:
 
         # Run the workflow in a background thread (non-blocking)
         import asyncio
-        asyncio.create_task(self._execute_workflow(run_id, course_id, initiated_by))
+        task = asyncio.create_task(self._execute_workflow(run_id, course_id, initiated_by))
+        self.tasks[run_id] = task
+        task.add_done_callback(lambda _: self.tasks.pop(run_id, None))
         logger.info(f"[WorkflowService] Run {run_id} started for course {course_id}")
         return run_id
 
@@ -67,35 +73,44 @@ class WorkflowService:
         initiated_by: str,
     ) -> None:
         """Execute LangGraph workflow in background. Updates DB on completion."""
-        from agents.graph.workflow import workflow_app
-
-        state = initial_state(
-            run_id=run_id,
-            course_id=course_id,
-            initiated_by=initiated_by,
-        )
-
+        import asyncio, json, sys
+        from pathlib import Path
+        from config import settings
+        process = None
         try:
-            logger.info(f"[WorkflowService] Executing workflow for run {run_id}")
-            final_state = workflow_app.invoke(state)
-            status      = final_state.get("workflow_status", WorkflowStatus.COMPLETED)
-            tokens      = final_state.get("total_tokens", 0)
+            process = await asyncio.create_subprocess_exec(
+                sys.executable, '-m', 'services.workflow_worker', run_id, course_id, initiated_by,
+                cwd=str(Path(__file__).resolve().parents[1]),
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+            self.processes[run_id] = process
+            stdout, stderr = await asyncio.wait_for(process.communicate(), settings.workflow_timeout_seconds)
+            if process.returncode:
+                logger.error("Workflow worker failed: %s", stderr.decode(errors='replace')[-2000:])
+                raise RuntimeError('Workflow worker failed. Check configuration and backend logs.')
+            final_state=json.loads(stdout)
+            errors=final_state.get('error_log') or []
+            status=final_state.get('workflow_status','failed')
+            if errors and status == 'completed': status='needs_review'
+            await self._update_run(run_id, status, final_state.get('total_tokens',0), final_state,
+                ' | '.join(e.get('message','Agent error') for e in errors) or None)
+        except asyncio.CancelledError:
+            if process and process.returncode is None:
+                process.kill(); await process.communicate()
+            await self._update_run(run_id,'cancelled',error='Cancelled by lecturer or server shutdown.')
+        except Exception as exc:
+            if process and process.returncode is None:
+                process.kill(); await process.communicate()
+            await self._update_run(run_id,'failed',error=str(exc)[:500] or 'Workflow exceeded time limit.')
+        finally:
+            self.processes.pop(run_id,None)
 
-            await self._update_run(
-                run_id=run_id,
-                status=str(status),
-                tokens=tokens,
-                final_state=self._serialise_state(final_state),
-            )
-            logger.info(f"[WorkflowService] Run {run_id} completed with status={status}")
-
-        except Exception as e:
-            logger.error(f"[WorkflowService] Run {run_id} FAILED: {e}", exc_info=True)
-            await self._update_run(
-                run_id=run_id,
-                status="failed",
-                error=str(e)[:500],
-            )
+    async def cancel(self, run_id):
+        task=self.tasks.get(str(run_id))
+        if task:
+            task.cancel()
+            await task
+            return True
+        return False
 
     async def _update_run(
         self,
@@ -166,6 +181,10 @@ class WorkflowService:
         db: AsyncSession,
     ) -> dict:
         """Record a human approval decision and update content status."""
+        if decision not in {"approved", "rejected", "revised"}:
+            raise ValueError("Invalid decision")
+        if decision == "revised" and not (revision or "").strip():
+            raise ValueError("Revision is required")
         # Record the decision
         record = ApprovalRecord(
             content_id=uuid.UUID(content_id),
@@ -173,6 +192,7 @@ class WorkflowService:
             decision=decision,
             comment=comment,
             revision_text=revision,
+            decided_at=datetime.now(timezone.utc),
         )
         db.add(record)
 
@@ -183,7 +203,7 @@ class WorkflowService:
             .where(GeneratedContentRecord.id == uuid.UUID(content_id))
             .values(
                 approval_status=decision,
-                content=final_content if final_content else GeneratedContentRecord.content,
+
             )
         )
 
@@ -196,6 +216,17 @@ class WorkflowService:
                 db=db,
             )
 
+        item = await db.get(GeneratedContentRecord, uuid.UUID(content_id))
+        if item and item.run_id:
+            await db.flush()
+            from sqlalchemy import func
+            pending = await db.scalar(select(func.count()).select_from(GeneratedContentRecord).where(
+                GeneratedContentRecord.run_id == item.run_id, GeneratedContentRecord.approval_status.in_(['pending','revised'])))
+            if pending and decision == "revised":
+                await db.execute(update(AgentRun).where(AgentRun.id == item.run_id, AgentRun.status == "completed").values(status="waiting_for_human"))
+            if not pending:
+                await db.execute(update(AgentRun).where(AgentRun.id == item.run_id,
+                    AgentRun.status == 'waiting_for_human').values(status='completed'))
         await db.flush()
         return {"content_id": content_id, "decision": decision, "recorded": True}
 

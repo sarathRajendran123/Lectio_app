@@ -18,7 +18,7 @@ from agents.base_agent import BaseAgent
 from agents.graph.state import (
     AlignmentGap, AlignmentResult, LectioWorkflowState, Node,
 )
-from knowledge.bloom_classifier import classify_text, compare_levels
+from knowledge.bloom_classifier import classify_text, compare_levels, level_to_int
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +37,8 @@ class ContentAssessmentAlignmentAgent(BaseAgent):
             return self._store(state, AlignmentResult(
                 agent_name=self.name,
                 report_type="content_assessment",
-                overall_score=1.0,
-                status="pass",
+                overall_score=0.0,
+                status="needs_review",
                 findings={"note": "No assessments defined — skipping check."},
             ))
 
@@ -117,8 +117,8 @@ class ContentAssessmentAlignmentAgent(BaseAgent):
         tokens = 0
 
         # Use assessment title + type as query
-        query  = f"{title} {a_type} questions covering course topics"
-        chunks = self._retrieve(query, course_id, top_k=8)
+        query = " ".join(q["text"] for q in assessment.get("questions", [])) or assessment.get("description") or title
+        chunks = self._retrieve(query, course_id, top_k=8, where={"artifact_type": {"$in": ["slides", "transcript", "reading", "other"]}})
 
         if not chunks:
             gap = AlignmentGap(
@@ -138,13 +138,19 @@ class ContentAssessmentAlignmentAgent(BaseAgent):
 
         best_score = max(c.score for c in chunks)
 
+        if best_score < COVERAGE_THRESHOLD:
+            gaps.append(AlignmentGap(str(uuid.uuid4()),"assessment_weak_support","warning",
+                f"Assessment {title!r} has weak support in the supplied teaching materials. Confirm missing documents and independent-study expectations before changing it.",
+                "assessment",assessment.get("id"),round(best_score,4),
+                "Review the cited materials and the intended assessment scope.",[c.chunk_id for c in chunks[:3]]))
+
         # Bloom level check
-        q_level, _  = classify_text(title)
+        q_level, _  = classify_text(query)
         content_text = " ".join(c.text for c in chunks[:3])
         c_level, _   = classify_text(content_text[:1500])
 
         if q_level and c_level:
-            diff = compare_levels(q_level, c_level)
+            diff = level_to_int(q_level) - level_to_int(c_level)
             if diff > 1:
                 gaps.append(AlignmentGap(
                     gap_id=str(uuid.uuid4()),
@@ -152,8 +158,8 @@ class ContentAssessmentAlignmentAgent(BaseAgent):
                     severity="warning",
                     description=(
                         f"Assessment '{title}' targets '{q_level}' level but "
-                        f"content only reaches '{c_level}'. Students are assessed "
-                        "above the level they are taught."
+                        f"content only reaches '{c_level}'. The verb heuristic suggests a possible mismatch "
+                        "requiring lecturer review."
                     ),
                     affected_entity_type="assessment",
                     affected_entity_id=assessment.get("id"),

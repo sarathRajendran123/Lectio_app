@@ -6,7 +6,7 @@ All settings loaded from environment / .env file via Pydantic BaseSettings.
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,7 +21,19 @@ class Settings(BaseSettings):
     # ── Application ──────────────────────────────────
     app_name: str = "LECTIO"
     app_env: Literal["development", "production"] = "development"
-    debug: bool = True
+    debug: bool = False
+    runtime_mode: Literal["live", "local_test"] = "live"
+    retrieval_backend: Literal["neural", "lexical"] = "neural"
+    generation_auto_enabled: bool = True
+    paperclip_api_url: str = ""
+    paperclip_api_key: str = ""
+    paperclip_company_id: str = ""
+    paperclip_agent_id: str = ""
+    parser_timeout_seconds: int = 60
+    workflow_timeout_seconds: int = 600
+    max_concurrent_runs: int = 2
+    llm_timeout_seconds: int = 45
+    paperclip_enabled: bool = False
     log_level: str = "INFO"
 
     # ── Database ─────────────────────────────────────
@@ -30,12 +42,9 @@ class Settings(BaseSettings):
     postgres_port: int = 5432
     postgres_db: str = "lectio_db"
     postgres_user: str = "lectio_user"
-    postgres_password: str
+    postgres_password: str = ""
 
-    # ── ChromaDB ─────────────────────────────────────
-    chroma_host: str = "chromadb"
-    chroma_port: int = 8000
-    chroma_auth_token: str
+    # Dense vectors are stored transactionally with course chunks.
 
     # ── Security ─────────────────────────────────────
     secret_key: str
@@ -44,8 +53,14 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = 7
 
     # ── LLM — Groq (Free) ────────────────────────────
-    groq_api_key: str
-    groq_model: str = "llama-3.3-70b-versatile"
+    groq_api_key: str = ""
+    # llama-3.3-70b-versatile was decommissioned by Groq on 2026-08-16 (announced
+    # 2026-06-17) -- every call using it now fails with a "model_decommissioned"
+    # error. openai/gpt-oss-120b is Groq's official recommended replacement.
+    # Overridable via GROQ_MODEL env var so future Groq deprecations don't
+    # require a code change again.
+    groq_model_variants: list[str] = []
+    groq_model: str = "openai/gpt-oss-120b"
 
     # ── LangSmith (Optional) ─────────────────────────
     langchain_api_key: str = ""
@@ -62,8 +77,18 @@ class Settings(BaseSettings):
 
     # ── Auto-provisioned Admin (created on startup if missing) ─
     admin_email: str = "admin@lectio.ac.za"
-    admin_password: str = "Admin@Lectio2025!"
+    admin_password: str = ""
     admin_full_name: str = "System Administrator"
+
+    @model_validator(mode="after")
+    def secure_configuration(self):
+        if any(marker in self.secret_key.lower() for marker in ("replace_with", "change_me", "changeme", "your-secret")):
+            raise ValueError("SECRET_KEY is still a placeholder; generate a fresh random secret")
+        if len(self.secret_key) < 32:
+            raise ValueError("SECRET_KEY must contain at least 32 characters")
+        if self.app_env == "production" and (self.runtime_mode != "live" or self.debug):
+            raise ValueError("Production requires live mode and DEBUG=false")
+        return self
 
     @field_validator("log_level")
     @classmethod
@@ -76,10 +101,6 @@ class Settings(BaseSettings):
     @property
     def max_upload_size_bytes(self) -> int:
         return self.max_upload_size_mb * 1024 * 1024
-
-    @property
-    def chroma_url(self) -> str:
-        return f"http://{self.chroma_host}:{self.chroma_port}"
 
     @property
     def is_development(self) -> bool:

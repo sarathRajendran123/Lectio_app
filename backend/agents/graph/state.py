@@ -151,6 +151,8 @@ class LectioWorkflowState(TypedDict, total=False):
     course_metadata: Dict[str, Any]   # code, title, level, credits, semester …
     modules:         List[Dict]       # [{id, title, sequence_number, clos: [...]}]
     assessments:     List[Dict]       # [{id, title, type, weight_percent, questions: [...]}]
+    broker_review: dict
+    source_manifest: List[dict]
     artifact_ids:    List[str]        # IDs of uploaded + processed artifacts
 
     # Alignment results (populated by alignment agents)
@@ -162,6 +164,7 @@ class LectioWorkflowState(TypedDict, total=False):
 
     # Generation outputs
     generated_items: List[GeneratedContentItem]
+    generation_attempted: bool   # set once CONTENT_GENERATION has run, even on total failure
 
     # HITL
     pending_approvals:   List[ApprovalRequest]
@@ -209,6 +212,7 @@ def initial_state(
         alignment_results={},
         all_gaps=[],
         generated_items=[],
+        generation_attempted=False,
         pending_approvals=[],
         completed_approvals=[],
         reviewer_preferences="",

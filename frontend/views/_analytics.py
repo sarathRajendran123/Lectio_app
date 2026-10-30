@@ -91,7 +91,7 @@ def _show_alignment_analytics(client, courses):
     fig.add_hline(y=0.55, line_dash="dash", line_color="orange",
                   annotation_text="Warning (0.55)")
     fig.update_layout(yaxis_tickformat=".0%", margin=dict(t=50, b=20))
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     # Summary table
     summary = df.groupby("Course")["Score"].mean().reset_index()
@@ -101,7 +101,7 @@ def _show_alignment_analytics(client, courses):
         lambda s: "Pass" if float(s.strip("%")) / 100 >= 0.75
         else ("Warning" if float(s.strip("%")) / 100 >= 0.55 else "Fail")
     )
-    st.dataframe(summary, use_container_width=True, hide_index=True)
+    st.dataframe(summary, width="stretch", hide_index=True)
 
 
 def _show_approval_analytics(client):
@@ -137,7 +137,7 @@ def _show_approval_analytics(client):
             title="Decisions by Status", hole=0.4,
         )
         fig.update_layout(height=300, margin=dict(t=40, b=10))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     with col2:
         type_counts = df.groupby(["content_type", "status"]).size().reset_index(name="Count")
@@ -149,7 +149,7 @@ def _show_approval_analytics(client):
             labels={"content_type": "Type", "Count": "Items"},
         )
         fig2.update_layout(height=300, margin=dict(t=40, b=10))
-        st.plotly_chart(fig2, use_container_width=True)
+        st.plotly_chart(fig2, width="stretch")
 
     # Approval rate metric
     total    = len(df)
@@ -173,7 +173,7 @@ def _show_course_table(courses):
             "Modules":    c.get("module_count", 0),
         })
     df = pd.DataFrame(rows)
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(df, width="stretch", hide_index=True)
 
     # Artifact distribution
     if any(r["Artefacts"] > 0 for r in rows):
@@ -185,4 +185,4 @@ def _show_course_table(courses):
         )
         fig.update_layout(height=300, margin=dict(t=40, b=10),
                           coloraxis_showscale=False)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")

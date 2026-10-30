@@ -1,0 +1,11 @@
+# Security changes and audit scope
+
+The original installed dependency set returned 56 advisory matches across 13 packages. The runtime was upgraded, JWT verification moved from python-jose to PyJWT, and obsolete metadata left by package upgrades was removed after verifying the active imported versions. `pip check` passed.
+
+Adding ChromaDB 1.5.9 for an actual storage test revealed four additional advisories with no listed fixed release. The project no longer includes ChromaDB in its supported dependencies, Docker services or execution paths. BGE dense vectors are stored in SQL Chunk metadata and retrieved through course-isolated backend operations. The deprecated public collection configuration/RBAC surface is absent. Primary advisory checked 2026-10-13: https://github.com/advisories/GHSA-f4j7-r4q5-qw2c
+
+The final installed-runtime `pip-audit` result reports zero known vulnerabilities; its complete machine-readable result is `DEPENDENCY_AUDIT.json`. This covers installed packages, including QA utilities and asyncpg. It does not certify all source code or uninstalled neural-model dependencies. The full neural requirements resolved in a dry-run but were not installed or audited as an active BGE runtime.
+
+Application controls added: live account/role validation, course/object ownership, nested-parent checks, failed-login persistence, refresh inactivity checks, logout revocation, login throttling, strong secret validation and randomly generated local admin credentials. Uploads use bounded reads, MIME/signature checks, validated Office packages, private directory/file permissions, atomic writes and parser isolation. SQL vectors share source deletion/rollback and only processed course sources enter retrieval. Provider/model variants are allow-listed, source IDs and exact support quotations are validated, and lecturer decisions are appended to versioned history.
+
+Production checks still needed: TLS/reverse-proxy configuration, shared rate limits if multiple instances are introduced, durable job dispatch, PostgreSQL deployment/migration rehearsal, neural-model installation and inference, real provider connectivity, retention policy and a full accessibility/load review. No unconditional security certification is claimed.

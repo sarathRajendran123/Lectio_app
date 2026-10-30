@@ -9,6 +9,9 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from auth.jwt_handler import TokenPayload, decode_access_token
+from db.session import get_db
+from db.repositories.user_repository import UserRepository
+from uuid import UUID
 
 # Role hierarchy (index = power level)
 ROLE_HIERARCHY = ["lecturer", "coordinator", "dept_head", "admin"]
@@ -45,11 +48,18 @@ class CurrentUser:
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    db = Depends(get_db, scope="function"),
 ) -> CurrentUser:
     """Extract and validate the JWT; return the current user."""
     try:
         payload = decode_access_token(credentials.credentials)
-        return CurrentUser(payload)
+        account = await UserRepository(db).get_by_id(UUID(payload.user_id))
+        if not account or not account.is_active:
+            raise ValueError("Inactive user")
+        current = CurrentUser(payload)
+        current.roles = account.roles
+        current.department_id = str(account.department_id) if account.department_id else None
+        return current
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

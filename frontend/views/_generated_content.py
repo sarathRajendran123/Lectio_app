@@ -1,5 +1,6 @@
 """LECTIO — Generated Content Page"""
 import streamlit as st
+from html import escape
 from utils.session_utils import get_client, safe_api_call
 from components.ui_components import (
     render_citations, empty_state, status_badge, BLOOM_COLOURS,
@@ -33,7 +34,7 @@ def show_generated_content():
 
     status_filter = col2.selectbox("Status", STATUS_FILTER_OPTS)
     type_filter   = col3.selectbox("Type",
-                                    ["all", "clo", "quiz", "exercise", "assessment"])
+                                    ["all", "clo", "quiz", "exercise", "assessment", "description", "assessment_suggestion"])
 
     # ── Load items ─────────────────────────────────────────────────────────
     if status_filter == "all":
@@ -90,14 +91,14 @@ def _render_content_card(item: dict):
         st.markdown(
             f"""<div style="background:#F8FAFC; padding:1rem; border-radius:8px;
             {border_style} margin-bottom:0.5rem;">
-            <span style="color:#6B7280; font-size:0.85rem; text-transform:uppercase; letter-spacing:0.05em;">{type_label}</span>
-            <strong> {item.get('title','Untitled')}</strong>
+            <span style="color:#6B7280; font-size:0.85rem; text-transform:uppercase; letter-spacing:0.05em;">{escape(type_label)}</span>
+            <strong> {escape(item.get('title') or 'Untitled')}</strong>
             &nbsp;&nbsp;
             <span style="background:{colour}; color:white; padding:2px 8px;
             border-radius:12px; font-size:0.75rem;">{bloom.title() if bloom else ''}</span>
             &nbsp;
             <span style="color:#6B7280; font-size:0.85rem;">
-            Confidence: {conf:.0%} &nbsp;|&nbsp; {status_badge(astatus)}
+            Evidence heuristic: {conf:.0%} &nbsp;|&nbsp; {status_badge(astatus)}
             </span>
             </div>""",
             unsafe_allow_html=True,

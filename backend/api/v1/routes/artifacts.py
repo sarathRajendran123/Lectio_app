@@ -49,7 +49,7 @@ async def upload_artifact(
     file:          UploadFile = File(...),
     artifact_type: str        = Form(...),
     user:          CurrentUser  = Depends(get_current_user),
-    db:            AsyncSession = Depends(get_db),
+    db:            AsyncSession = Depends(get_db, scope="function"),
 ):
     """
     Upload a course artefact (PDF, DOCX, PPTX, TXT, VTT).
@@ -57,6 +57,8 @@ async def upload_artifact(
     The RAG ingestion pipeline picks it up asynchronously (Phase 2).
     """
     await _assert_course_access(course_id, user, db)
+    from services.admission import assert_idle
+    await assert_idle(course_id,db)
 
     # Validate artifact_type form field
     if artifact_type not in VALID_ARTIFACT_TYPES:
@@ -65,7 +67,8 @@ async def upload_artifact(
             detail=f"artifact_type must be one of: {', '.join(VALID_ARTIFACT_TYPES)}",
         )
 
-    file_bytes = await file.read()
+    from config import settings
+    file_bytes = await file.read(settings.max_upload_size_bytes + 1)
     svc        = UploadService()
 
     try:
@@ -73,6 +76,7 @@ async def upload_artifact(
             file_bytes=file_bytes,
             original_filename=file.filename or "upload",
             course_id=str(course_id),
+            mime_type=file.content_type,
         )
     except UploadError as e:
         raise HTTPException(status_code=422, detail=str(e))
@@ -81,6 +85,7 @@ async def upload_artifact(
     repo       = ArtifactRepository(db)
     duplicate  = await repo.find_duplicate(course_id, checksum)
     if duplicate:
+        svc.delete(storage_path)
         raise HTTPException(
             status_code=409,
             detail=f"This file was already uploaded (artifact id: {duplicate.id}).",
@@ -98,6 +103,7 @@ async def upload_artifact(
         checksum=checksum,
     )
 
+    await db.commit()  # background task must see the artifact row
     _trigger_ingestion(
         background_tasks=background_tasks,
         artifact_id=artifact.id,
@@ -125,7 +131,7 @@ async def list_artifacts(
     skip:  int = 0,
     limit: int = 50,
     user:  CurrentUser  = Depends(get_current_user),
-    db:    AsyncSession = Depends(get_db),
+    db:    AsyncSession = Depends(get_db, scope="function"),
 ):
     await _assert_course_access(course_id, user, db)
     repo   = ArtifactRepository(db)
@@ -146,7 +152,7 @@ async def get_artifact(
     course_id:   UUID,
     artifact_id: UUID,
     user:  CurrentUser  = Depends(get_current_user),
-    db:    AsyncSession = Depends(get_db),
+    db:    AsyncSession = Depends(get_db, scope="function"),
 ):
     await _assert_course_access(course_id, user, db)
     repo     = ArtifactRepository(db)
@@ -164,7 +170,7 @@ async def get_artifact_status(
     course_id:   UUID,
     artifact_id: UUID,
     user: CurrentUser  = Depends(get_current_user),
-    db:   AsyncSession = Depends(get_db),
+    db:   AsyncSession = Depends(get_db, scope="function"),
 ):
     """Poll this endpoint to track RAG processing progress."""
     await _assert_course_access(course_id, user, db)
@@ -191,18 +197,27 @@ async def delete_artifact(
     course_id:   UUID,
     artifact_id: UUID,
     user: CurrentUser  = Depends(get_current_user),
-    db:   AsyncSession = Depends(get_db),
+    db:   AsyncSession = Depends(get_db, scope="function"),
 ):
     await _assert_course_access(course_id, user, db)
+    from services.admission import assert_idle
+    await assert_idle(course_id,db)
     repo     = ArtifactRepository(db)
     artifact = await repo.get_by_id(artifact_id)
     if not artifact or artifact.course_id != course_id:
         raise HTTPException(status_code=404, detail="Artifact not found.")
 
+    from services.document_cleanup import invalidate_artifact
+    await invalidate_artifact(course_id, artifact_id)
     # Remove from disk
     if artifact.storage_path:
         UploadService().delete(artifact.storage_path)
 
+    from sqlalchemy import select,delete
+    from db.models.source_link import AssessmentSource
+    from db.models.course import Assessment
+    derived=select(AssessmentSource.assessment_id).where(AssessmentSource.artifact_id==artifact_id)
+    await db.execute(delete(Assessment).where(Assessment.id.in_(derived)))
     await repo.delete(artifact_id)
     logger.info(f"Artifact {artifact_id} deleted by {user.email}")
 

@@ -8,7 +8,7 @@ from rag.parsers.base_parser import BaseParser, ParsedDocument
 from rag.parsers.pdf_parser import PDFParser
 from rag.parsers.pptx_parser import PptxParser
 from rag.parsers.docx_parser import DocxParser
-from rag.parsers.transcript_parser import PlainTextParser, TranscriptParser
+from rag.parsers.transcript_parser import PlainTextParser, TranscriptParser, MarkdownParser
 
 
 def get_parser(file_extension: str) -> BaseParser:
@@ -26,6 +26,7 @@ def get_parser(file_extension: str) -> BaseParser:
         "docx": DocxParser(),
         "pptx": PptxParser(),
         "txt":  PlainTextParser(),
+        "md": MarkdownParser(),
         "vtt":  TranscriptParser(),
     }
     parser = parsers.get(file_extension.lower().lstrip("."))

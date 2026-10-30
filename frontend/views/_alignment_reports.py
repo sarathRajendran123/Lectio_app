@@ -73,7 +73,7 @@ def show_reports():
             if r:
                 score = r["overall_score"]
                 delta_c = "normal" if score >= 0.75 else ("off" if score >= 0.55 else "inverse")
-                st.metric(label, f"{score:.0%}",
+                st.metric(label, "Unknown" if r["status"] in ("needs_review","failed") else f"{score:.0%}",
                           delta=r["status"].upper(), delta_color=delta_c)
             else:
                 st.metric(label, "—", delta="not run", delta_color="off")
@@ -112,7 +112,7 @@ def _render_radar(reports):
         height=350,
         margin=dict(t=50, b=20),
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 def _render_report_detail(client, report_meta):
@@ -164,7 +164,7 @@ def _render_clo_heatmap(clo_scores: list):
     fig.add_hline(y=0.55, line_dash="dash", line_color="orange",
                   annotation_text="Warning threshold")
     fig.update_layout(margin=dict(t=40, b=10), coloraxis_showscale=False)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 def _render_assessment_table(assessment_scores: list):
@@ -177,7 +177,7 @@ def _render_assessment_table(assessment_scores: list):
         "Coverage":   f"{a['score']:.0%}",
         "Status":     "Pass" if a["score"] >= 0.6 else "Fail",
     } for a in assessment_scores])
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(df, width="stretch", hide_index=True)
 
 
 def _render_topic_coverage(topics: list):
@@ -193,4 +193,4 @@ def _render_topic_coverage(topics: list):
         marker_colors=["#198754","#dc3545"],
     ))
     fig.update_layout(height=250, margin=dict(t=10, b=10), showlegend=True)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")

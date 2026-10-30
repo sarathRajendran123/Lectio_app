@@ -130,7 +130,7 @@ No explanation, no markdown, just the JSON."""
     except Exception:
         pass
 
-    return "understand", None   # Safe default
+    return None, None   # Unknown is not evidence of a cognitive level
 
 
 def compare_levels(level_a: str, level_b: str) -> int:

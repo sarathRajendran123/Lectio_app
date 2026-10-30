@@ -1,6 +1,6 @@
 """
 LECTIO — Hybrid Retriever
-Combines dense (ChromaDB) + sparse (BM25) results using
+Combines dense (SQL vectors) + sparse (BM25) results using
 Reciprocal Rank Fusion (RRF).
 
 Why RRF over weighted score combination?
@@ -25,7 +25,7 @@ from typing import Dict, List, Optional
 from rag.chunking.chunk_models import RetrievedChunk
 from rag.embedding.bge_embedder import BGEEmbedder
 from rag.retrieval.bm25_retriever import BM25Retriever
-from vector_db.chroma_client import ChromaCollectionManager
+from vector_db.sql_vector_store import SQLVectorStore
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ class HybridRetriever:
 
     Args:
         embedder:   BGEEmbedder instance
-        chroma:     ChromaCollectionManager instance
+        vectors:     SQLVectorStore instance
         bm25:       BM25Retriever instance
         dense_top_k: candidates from dense retrieval
         bm25_top_k:  candidates from BM25 retrieval
@@ -48,14 +48,14 @@ class HybridRetriever:
     def __init__(
         self,
         embedder:    BGEEmbedder,
-        chroma:      ChromaCollectionManager,
+        vectors:      SQLVectorStore,
         bm25:        BM25Retriever,
         dense_top_k: int = 20,
         bm25_top_k:  int = 20,
         final_top_k: int = 40,
     ):
         self.embedder    = embedder
-        self.chroma      = chroma
+        self.vectors     = vectors
         self.bm25        = bm25
         self.dense_top_k = dense_top_k
         self.bm25_top_k  = bm25_top_k
@@ -66,7 +66,7 @@ class HybridRetriever:
         query: str,
         course_id: str,
         top_k: Optional[int] = None,
-        where: Optional[dict] = None,          # ChromaDB metadata filter
+        where: Optional[dict] = None,          # SQL vectors metadata filter
         bm25_chunks_loader=None,               # callable for lazy BM25 rebuild
     ) -> List[RetrievedChunk]:
         """
@@ -76,7 +76,7 @@ class HybridRetriever:
             query:       natural language query
             course_id:   target course UUID (str)
             top_k:       override final result count
-            where:       optional ChromaDB metadata filter
+            where:       optional SQL vectors metadata filter
                          e.g. {"artifact_type": "slides", "week_number": 3}
             bm25_chunks_loader: callable() → List[dict] for lazy BM25 index build
 
@@ -87,7 +87,7 @@ class HybridRetriever:
 
         # ── Dense retrieval ────────────────────────────────────────────────────
         query_vec     = self.embedder.embed_query(query)
-        dense_results = self.chroma.query(
+        dense_results = self.vectors.query(
             course_id=course_id,
             query_embedding=query_vec,
             top_k=self.dense_top_k,
@@ -102,6 +102,8 @@ class HybridRetriever:
             top_k=self.bm25_top_k,
             chunks_loader=bm25_chunks_loader,
         )
+        from rag.local_service import matches
+        bm25_results = [r for r in bm25_results if r.course_id == course_id and matches(r, where)]
         logger.debug(f"BM25:  {len(bm25_results)} candidates")
 
         # ── Reciprocal Rank Fusion ─────────────────────────────────────────────
@@ -113,15 +115,7 @@ class HybridRetriever:
             if r.chunk_id not in chunk_map:
                 chunk_map[r.chunk_id] = r
 
-        # Assemble final results with fused scores, normalized to a 0-1 range.
-        # Raw RRF scores are tiny (e.g. ~0.03 for a top-ranked chunk with
-        # k=60) — nowhere near the 0-1 similarity fraction every downstream
-        # alignment agent assumes. Without normalizing here, whenever
-        # reranking gets skipped (few candidates), a genuinely strong match
-        # would still read as near-zero and trigger false "not covered" gaps.
-        # We scale relative to the best score in this batch so the top match
-        # lands near 1.0, consistent with how a normalized similarity score
-        # behaves.
+        # RRF controls ordering only. Preserve measured relevance.
         sorted_items = sorted(fused.items(), key=lambda x: x[1], reverse=True)[:final_k]
         max_rrf_score = sorted_items[0][1] if sorted_items else 1.0
 
@@ -129,7 +123,7 @@ class HybridRetriever:
         for chunk_id, rrf_score in sorted_items:
             if chunk_id in chunk_map:
                 r = chunk_map[chunk_id]
-                normalized_score = rrf_score / max_rrf_score if max_rrf_score > 0 else 0.0
+                normalized_score = r.score  # Ranking is not relevance; never force best match to 1.0
                 fused_results.append(RetrievedChunk(
                     chunk_id=r.chunk_id,
                     text=r.text,

@@ -57,6 +57,25 @@ class PlainTextParser(BaseParser):
         )
 
 
+class MarkdownParser(BaseParser):
+    def parse(self,file_path,artifact_type='other'):
+        path=Path(file_path);text=path.read_text(encoding='utf-8-sig')
+        blocks=[];section=None;buffer=[]
+        def flush():
+            if buffer:
+                value=''.join(buffer).strip()
+                if value:blocks.append(ParsedBlock(value,'paragraph',section_title=section))
+                buffer.clear()
+        for line in text.splitlines(keepends=True):
+            heading=re.match(r'^(#{1,6})\s+(.+?)\s*$',line)
+            if heading:
+                flush();section=heading.group(2)
+                blocks.append(ParsedBlock(line.strip(),'heading',section_title=section,heading_level=len(heading.group(1))))
+            else:buffer.append(line)
+        flush()
+        return ParsedDocument(str(path),'md',artifact_type,blocks,title=path.stem,word_count=self._count_words(text))
+
+
 # ── VTT Transcript ─────────────────────────────────────────────────────────────
 
 _VTT_TIMESTAMP = re.compile(

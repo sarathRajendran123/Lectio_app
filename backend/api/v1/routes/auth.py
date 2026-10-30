@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 async def login(
     body:    LoginRequest,
     request: Request,
-    db:      AsyncSession = Depends(get_db),
+    db:      AsyncSession = Depends(get_db, scope="function"),
 ) -> TokenResponse:
     """
     Authenticate with email + password.
@@ -43,6 +43,7 @@ async def login(
     user = await repo.authenticate(email=body.email, password=body.password)
 
     if not user:
+        await db.commit()  # persist failed-login counters before HTTPException rollback
         logger.warning(f"Failed login attempt for {body.email} from {request.client.host}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -73,7 +74,7 @@ async def login(
 @router.post("/refresh", response_model=TokenResponse, status_code=status.HTTP_200_OK)
 async def refresh_token(
     body: RefreshRequest,
-    db:   AsyncSession = Depends(get_db),
+    db:   AsyncSession = Depends(get_db, scope="function"),
 ) -> TokenResponse:
     """
     Exchange a valid refresh token for new access + refresh tokens.
@@ -89,6 +90,8 @@ async def refresh_token(
         )
 
     user = stored.user
+    if not user.is_active:
+        raise HTTPException(status_code=401, detail="Account is inactive.")
 
     # Revoke old refresh token (rotation)
     await repo.revoke_refresh_token(stored.id, reason="rotated")
@@ -116,12 +119,12 @@ async def refresh_token(
 async def logout(
     body:         RefreshRequest,
     current_user: CurrentUser = Depends(get_current_user),
-    db:           AsyncSession = Depends(get_db),
+    db:           AsyncSession = Depends(get_db, scope="function"),
 ) -> None:
     """Revoke the provided refresh token. Access token expires naturally."""
     repo = UserRepository(db)
     stored = await repo.get_refresh_token(body.refresh_token)
-    if stored and stored.user_id == current_user.id:  # type: ignore
+    if stored and str(stored.user_id) == current_user.id:  # type: ignore
         await repo.revoke_refresh_token(stored.id, reason="logout")
 
 
@@ -130,11 +133,11 @@ async def logout(
 @router.get("/me", response_model=UserProfileResponse, status_code=status.HTTP_200_OK)
 async def get_me(
     current_user: CurrentUser = Depends(get_current_user),
-    db:           AsyncSession = Depends(get_db),
+    db:           AsyncSession = Depends(get_db, scope="function"),
 ) -> UserProfileResponse:
     """Return the current authenticated user's profile."""
     repo = UserRepository(db)
-    user = await repo.get_by_id(current_user.id)  # type: ignore
+    user = await repo.get_by_id(__import__("uuid").UUID(current_user.id))  # type: ignore
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
     return UserProfileResponse(

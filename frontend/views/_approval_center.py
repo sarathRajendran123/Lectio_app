@@ -51,7 +51,7 @@ def _render_approval_card(client, item: dict, status_filter: str):
     header = (
         f"**{item.get('title','Untitled')}**  "
         f"&nbsp;`{type_label}`&nbsp;{bloom_chip(bloom)}&nbsp; "
-        f"Confidence: `{confidence:.0%}`"
+        f"Evidence heuristic: `{confidence:.0%}`"
     )
 
     with st.expander(header, expanded=(status_filter == "pending")):
@@ -67,7 +67,14 @@ def _render_approval_card(client, item: dict, status_filter: str):
 
         render_citations(item.get("citations", []))
 
-        if status_filter != "pending":
+        history, history_error = safe_api_call(client.workbench, f"approvals/{content_id}/history")
+        if history:
+            original, edited = st.columns(2)
+            original.caption("Original draft"); original.write(history["original"])
+            edited.caption("Current proposal"); edited.write(item.get("content", ""))
+            if history["decisions"]: st.dataframe(history["decisions"], width="stretch", hide_index=True)
+
+        if False:
             st.caption(f"Status: {status_badge(item.get('approval_status',''))}")
             return
 
@@ -79,10 +86,12 @@ def _render_approval_card(client, item: dict, status_filter: str):
         btn_col1, btn_col2, btn_col3 = st.columns(3)
         if btn_col1.button("Approve", key=f"app_{content_id}", type="primary"):
             st.session_state[action_key] = "approve"
-        if btn_col2.button("Edit & Approve", key=f"edit_{content_id}"):
+        if btn_col2.button("Edit draft", key=f"edit_{content_id}"):
             st.session_state[action_key] = "revise"
         if btn_col3.button("Reject", key=f"rej_{content_id}"):
             st.session_state[action_key] = "reject"
+
+        current = st.session_state.get(action_key, "")
 
         # ── Inline forms ───────────────────────────────────────────────────
         if current == "approve":

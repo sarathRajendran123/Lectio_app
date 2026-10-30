@@ -50,13 +50,15 @@ class ContentGenerationAgent(BaseAgent):
 
         if not actionable:
             logger.info("[Generation] No actionable gaps — skipping generation")
-            return {**state, "current_node": Node.DIRECTOR}
+            return {**state, "generation_attempted": True, "current_node": Node.DIRECTOR}
 
         logger.info(f"[Generation] Generating content for {len(actionable)} gaps")
 
         generated:   List[GeneratedContentItem] = list(state.get("generated_items", []))
         total_tokens = state.get("total_tokens", 0)
         preferences  = state.get("reviewer_preferences", "")
+        errors       = list(state.get("error_log", []))
+        failures     = 0
 
         for gap in actionable:
             item, tokens = self._generate_for_gap(
@@ -64,12 +66,37 @@ class ContentGenerationAgent(BaseAgent):
             )
             if item:
                 generated.append(item)
+            else:
+                failures += 1
             total_tokens += tokens
 
-        logger.info(f"[Generation] Produced {len(generated)} items")
+        logger.info(f"[Generation] Produced {len(generated)} items ({failures} failed)")
+
+        # If every single generation attempt failed (e.g. LLM API key invalid,
+        # model decommissioned, rate limited), record it visibly instead of
+        # silently completing with zero content and no explanation. This also
+        # marks generation as "attempted" so the Director doesn't send us back
+        # here again next iteration — without this, an unrecoverable failure
+        # (same cause every retry) would loop until max_iterations and fail
+        # the whole run with the real cause buried only in application logs.
+        if failures and not generated:
+            from agents.graph.state import WorkflowError
+            from datetime import datetime, timezone
+            errors.append(WorkflowError(
+                agent=self.name,
+                message=(
+                    f"All {failures} content generation attempt(s) failed — "
+                    "check backend logs for the underlying LLM error "
+                    "(invalid/expired API key, decommissioned model, or rate limit)."
+                ),
+                ts=datetime.now(timezone.utc).isoformat(),
+            ))
+
         return {
             **state,
-            "generated_items": generated,
+            "generated_items":     generated,
+            "generation_attempted": True,
+            "error_log":           errors,
             "total_tokens":    total_tokens,
             "current_node":    Node.DIRECTOR,
         }
@@ -109,12 +136,12 @@ class ContentGenerationAgent(BaseAgent):
             f"for a {course.get('level','undergraduate')} course '{course.get('title','')}'. "
             f"\n\nThis CLO must address the following identified gap:\n{gap.description}"
             f"\n\nThe CLO must:\n"
-            "- Start with a Bloom's Taxonomy action verb at the APPLY level or above\n"
+            "- Use a measurable Bloom action verb consistent with the stated objective and available material; do not automatically raise its cognitive level\n"
             "- Be specific, measurable, and achievable in one semester\n"
             "- Cite [SOURCE_N] for any content it references\n\n"
             "Format: 'Upon completion of this module, students will be able to [verb] ...'"
         )
-        extra = preferences or "Ensure CLOs are written in South African NQF-aligned language."
+        extra = preferences or "Preserve the course context and academic level; do not assume a national qualification framework."
         result = self._get_rag().generate(
             task_prompt=task,
             course_id=course_id,

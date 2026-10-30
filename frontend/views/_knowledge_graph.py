@@ -117,7 +117,7 @@ def show_knowledge_graph():
         margin=dict(t=20, b=20, l=20, r=20),
     )
     with col1:
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     # Legend table
     st.divider()

@@ -4,14 +4,14 @@ Request/response models for authentication endpoints.
 """
 
 from typing import Optional
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, field_validator, Field
 
 
 # ── Request Schemas ────────────────────────────────────────────────────────────
 
 class LoginRequest(BaseModel):
     email:    EmailStr
-    password: str
+    password: str = Field(max_length=256)
 
     class Config:
         json_schema_extra = {
@@ -23,7 +23,7 @@ class LoginRequest(BaseModel):
 
 
 class RefreshRequest(BaseModel):
-    refresh_token: str
+    refresh_token: str = Field(min_length=10,max_length=256)
 
 
 class ForgotPasswordRequest(BaseModel):

@@ -1,3 +1,4 @@
+
 """
 LECTIO — Admin Bootstrap
 Ensures a default admin account exists on startup. Replaces the old
@@ -21,6 +22,15 @@ logger = logging.getLogger(__name__)
 async def ensure_admin_user() -> None:
     """Create the default admin user + admin role if they don't exist yet."""
     async with AsyncSessionLocal() as db:
+        for name in ("lecturer", "coordinator", "dept_head", "admin"):
+            if not await db.scalar(select(Role).where(Role.name == name)):
+                db.add(Role(name=name, description=name.replace("_", " ").title()))
+        await db.commit()
+        if not settings.admin_password:
+            logger.info("Admin bootstrap disabled: ADMIN_PASSWORD not supplied")
+            return
+        if len(settings.admin_password) < 12:
+            raise ValueError("ADMIN_PASSWORD must be at least 12 characters")
         result = await db.execute(select(User).where(User.email == settings.admin_email))
         if result.scalar_one_or_none():
             logger.info(f"Admin user {settings.admin_email} already exists — skipping bootstrap.")
@@ -47,6 +57,6 @@ async def ensure_admin_user() -> None:
         await db.commit()
 
         logger.warning(
-            f"Bootstrapped admin user '{settings.admin_email}' with the default password "
+            f"Bootstrapped admin user '{settings.admin_email}' using the configured password "
             f"from ADMIN_PASSWORD. Log in and change it immediately."
         )

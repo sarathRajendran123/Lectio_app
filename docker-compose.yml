@@ -17,26 +17,12 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/db/migrations/versions/001_initial.sql:/docker-entrypoint-initdb.d/001_initial.sql
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
-
-  # ── ChromaDB ─────────────────────────────────────
-  chromadb:
-    image: chromadb/chroma:0.5.12
-    container_name: lectio_chromadb
-    restart: unless-stopped
-    environment:
-      CHROMA_SERVER_AUTHN_CREDENTIALS: ${CHROMA_AUTH_TOKEN}
-      CHROMA_SERVER_AUTHN_PROVIDER: chromadb.auth.token_authn.TokenAuthenticationServerProvider
-      IS_PERSISTENT: "TRUE"
-    volumes:
-      - chroma_data:/chroma/chroma
-    ports:
-      - "8002:8000"
 
   # ── Backend (FastAPI) ────────────────────────────
   backend:
@@ -48,19 +34,15 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      CHROMA_HOST: chromadb
-      CHROMA_PORT: 8000
     depends_on:
       postgres:
         condition: service_healthy
-      chromadb:
-        condition: service_started
     volumes:
       - artifact_uploads:/app/uploads
       - ./backend:/app                # Hot-reload in dev
     ports:
-      - "8000:8000"
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+      - "127.0.0.1:8000:8000"
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
 
   # ── Frontend (Streamlit) ─────────────────────────
   frontend:
@@ -75,14 +57,14 @@ services:
     depends_on:
       - backend
     volumes:
-      - ./frontend:/app             # Hot-reload in dev
+      - ./frontend:/app
+      - ./.streamlit:/app/.streamlit:ro
     ports:
-      - "8501:8501"
-    command: streamlit run app.py --server.port=8501 --server.address=0.0.0.0 --server.runOnSave=true
+      - "127.0.0.1:8501:8501"
+    command: streamlit run app.py --server.port=8501 --server.address=0.0.0.0
 
 volumes:
   postgres_data:
-  chroma_data:
   artifact_uploads:
 
 networks:

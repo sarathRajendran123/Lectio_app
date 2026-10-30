@@ -5,8 +5,8 @@ from utils.session_utils import get_client, safe_api_call, is_coordinator_or_abo
 from components.ui_components import status_badge, empty_state, confirm_action
 
 
-ARTIFACT_TYPES = ["syllabus", "slides", "assignment", "transcript", "module_manual", "other"]
-FILE_TYPES     = ["pdf", "docx", "pptx", "txt", "vtt"]
+ARTIFACT_TYPES = ["syllabus", "slides", "assignment", "transcript", "module_manual", "other", "exam", "assessment", "schedule", "reading"]
+FILE_TYPES     = ["pdf", "docx", "pptx", "txt", "md", "vtt"]
 
 
 def show_upload():
@@ -20,7 +20,7 @@ def show_upload():
 
     courses = courses_data.get("courses", [])
     if not courses:
-        if is_coordinator_or_above():
+        if True:
             _create_course_form(client)
         else:
             empty_state("No Courses Yet", "Ask your coordinator to create a course.")
@@ -33,7 +33,7 @@ def show_upload():
         selected_label = st.selectbox("Select Course", list(course_options.keys()))
     with col2:
         st.markdown("<br>", unsafe_allow_html=True)
-        if is_coordinator_or_above() and st.button("New Course"):
+        if st.button("New Course"):
             st.session_state["show_create_course"] = True
 
     if st.session_state.get("show_create_course"):
@@ -152,6 +152,12 @@ def _poll_run(client, run_id):
         if s in ("completed", "failed", "waiting_for_human"):
             if s == "completed":
                 st.success("Audit complete! Check Alignment Reports.")
+                # A "completed" status doesn't guarantee generation worked —
+                # error_message can carry a non-fatal warning (e.g. every
+                # content-generation attempt failed due to an LLM API issue)
+                # even though the workflow itself didn't crash.
+                if data.get("error_message"):
+                    st.warning(f"Note: {data['error_message']}")
             elif s == "waiting_for_human":
                 st.warning("Audit complete — items awaiting your review in Approval Center.")
             else:

@@ -47,7 +47,7 @@ class MetadataContentAlignmentAgent(BaseAgent):
                 agent_name=self.name,
                 report_type="metadata_content",
                 overall_score=0.0,
-                status="fail",
+                status="needs_review",
                 findings={"error": "No modules found in course"},
             ))
 
@@ -62,7 +62,7 @@ class MetadataContentAlignmentAgent(BaseAgent):
                 agent_name=self.name,
                 report_type="metadata_content",
                 overall_score=0.0,
-                status="fail",
+                status="needs_review",
                 findings={"error": "No CLOs defined. Add CLOs before auditing."},
             ))
 
@@ -79,6 +79,7 @@ class MetadataContentAlignmentAgent(BaseAgent):
                 "code":    clo.get("code", "?"),
                 "text":    clo["text"][:120],
                 "score":   round(score, 3),
+                "evidence_chunk_ids": getattr(self,"last_evidence",[]),
                 "status":  "pass" if score >= PASS_THRESHOLD else
                            "warning" if score >= WARNING_THRESHOLD else "fail",
             })
@@ -122,15 +123,16 @@ class MetadataContentAlignmentAgent(BaseAgent):
             query=clo_text,
             course_id=course_id,
             top_k=10,
-            where={"artifact_type": {"$in": ["slides", "transcript", "module_manual"]}},
+            where={"artifact_type": {"$in": ["slides", "transcript", "reading", "other"]}},
         )
 
+        self.last_evidence = [c.chunk_id for c in chunks[:3]]
         if not chunks:
             gap = AlignmentGap(
                 gap_id=str(uuid.uuid4()),
                 gap_type="clo_not_covered",
-                severity="critical",
-                description=f"{clo_code}: No course content found covering this objective.",
+                severity="warning",
+                description=f"{clo_code}: No supporting evidence found in the supplied materials; missing documents or independent study may explain this.",
                 affected_entity_type="clo",
                 affected_entity_id=clo.get("id"),
                 score=0.0,

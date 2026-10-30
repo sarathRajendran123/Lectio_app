@@ -78,7 +78,7 @@ class User(Base):
     def is_locked(self) -> bool:
         if self.locked_until is None:
             return False
-        return datetime.now(timezone.utc) < self.locked_until
+        return datetime.now(timezone.utc) < self.locked_until.replace(tzinfo=timezone.utc)
 
 
 class RefreshToken(Base):
@@ -96,4 +96,4 @@ class RefreshToken(Base):
 
     @property
     def is_valid(self) -> bool:
-        return self.revoked_at is None and datetime.now(timezone.utc) < self.expires_at
+        return self.revoked_at is None and datetime.now(timezone.utc) < self.expires_at.replace(tzinfo=timezone.utc)

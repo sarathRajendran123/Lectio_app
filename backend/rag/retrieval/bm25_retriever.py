@@ -74,7 +74,7 @@ class BM25Index:
             raw_score = float(scores[idx])
             if raw_score <= 0:
                 continue
-            norm_score = raw_score / max_score if max_score > 0 else 0.0
+            norm_score = raw_score / (raw_score + 5.0)  # bounded heuristic; no per-batch perfect score
 
             c    = self._chunks[idx]
             meta = c.get("metadata", {})

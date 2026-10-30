@@ -11,7 +11,9 @@ from typing import Optional
 
 from fastapi import Request, Response
 from sqlalchemy import DateTime, ForeignKey, String, Text, func
-from sqlalchemy.dialects.postgresql import INET, JSONB, UUID
+from sqlalchemy.dialects.postgresql import INET as PG_INET, UUID
+from db.types import JSONB
+INET = String(45).with_variant(PG_INET(), "postgresql")
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
@@ -145,9 +147,6 @@ class AuditMiddleware(BaseHTTPMiddleware):
         return None
 
     def _get_ip(self, request: Request) -> str:
-        forwarded = request.headers.get("x-forwarded-for")
-        if forwarded:
-            return forwarded.split(",")[0].strip()
         return request.client.host if request.client else "unknown"
 
     def _parse_resource(self, path: str) -> tuple[Optional[str], Optional[str]]:

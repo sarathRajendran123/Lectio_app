@@ -17,6 +17,12 @@ class UserCreateRequest(BaseModel):
     role:          str       = Field(default="lecturer")
     department_id: Optional[UUID] = None
 
+    @field_validator("password")
+    @classmethod
+    def bounded_password(cls,v):
+        if len(v.encode("utf-8"))>72:raise ValueError("Password must not exceed 72 UTF-8 bytes")
+        return v
+
     @field_validator("role")
     @classmethod
     def validate_role(cls, v: str) -> str:

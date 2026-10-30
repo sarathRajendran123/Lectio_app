@@ -45,7 +45,8 @@ class BGEEmbedder:
     def get_instance(cls, device: str = "cpu") -> "BGEEmbedder":
         """Return singleton instance (model loaded once per process)."""
         if cls._instance is None:
-            cls._instance = cls(device=device)
+            from config import settings
+            cls._instance = cls(model_name=settings.embedding_model, device=device)
         return cls._instance
 
     def _load(self):
@@ -55,7 +56,7 @@ class BGEEmbedder:
             from sentence_transformers import SentenceTransformer
             logger.info(f"Loading embedding model: {self.model_name} on {self.device}")
             t0           = time.time()
-            self._model  = SentenceTransformer(self.model_name, device=self.device)
+            self._model  = SentenceTransformer(self.model_name, device=self.device, trust_remote_code=False)
             logger.info(f"Model loaded in {time.time() - t0:.1f}s")
         except ImportError:
             raise ImportError(
@@ -99,6 +100,13 @@ class BGEEmbedder:
             EmbeddedChunk(chunk=chunk, embedding=emb.tolist())
             for chunk, emb in zip(chunks, embeddings)
         ]
+
+    def embed_texts(self, texts: List[str]) -> List[List[float]]:
+        """Batch passage embeddings for topic boundaries and clustering."""
+        if not texts: return []
+        self._load()
+        return self._model.encode(texts, batch_size=32, normalize_embeddings=True,
+            show_progress_bar=False, convert_to_numpy=True).tolist()
 
     def embed_query(self, query: str) -> List[float]:
         """

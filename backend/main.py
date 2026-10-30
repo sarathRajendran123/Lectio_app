@@ -29,7 +29,19 @@ async def lifespan(app: FastAPI):
     logger.info("Database tables verified.")
     await ensure_admin_user()
     logger.info(f"{settings.app_name} ready.")
+    # Recover interrupted background work instead of leaving permanent spinners.
+    from sqlalchemy import update
+    from db.models.generated_content import AgentRun
+    from db.models.artifact import CourseArtifact
+    from db.session import AsyncSessionLocal
+    async with AsyncSessionLocal() as db:
+        await db.execute(update(AgentRun).where(AgentRun.status == "running").values(status="failed", error_message="Server restarted during audit; please rerun."))
+        await db.execute(update(CourseArtifact).where(CourseArtifact.processing_status.in_(["pending","parsing","chunking","embedding","storing"])).values(processing_status="error",processing_error="Server restarted during processing; retry ingestion."))
+        await db.commit()
     yield
+    from services.workflow_service import workflow_service
+    for run_id in list(workflow_service.tasks):
+        await workflow_service.cancel(run_id)
     logger.info(f"{settings.app_name} shutting down.")
     await engine.dispose()
 
@@ -53,11 +65,22 @@ app.add_middleware(
 
 from api.v1.middleware.audit_logger import AuditMiddleware
 app.add_middleware(AuditMiddleware)
+from api.v1.middleware.rate_limit import LoginRateLimit
+app.add_middleware(LoginRateLimit)
 
 @app.middleware("http")
 async def timing(request: Request, call_next):
+    length = request.headers.get("content-length")
+    if length:
+        try:
+            if int(length) > settings.max_upload_size_bytes + 1024*1024:
+                return JSONResponse(status_code=413,content={"detail":"Request exceeds configured size limit."})
+        except ValueError:
+            return JSONResponse(status_code=400,content={"detail":"Invalid Content-Length."})
     t0 = time.perf_counter()
     r  = await call_next(request)
+    r.headers["X-Content-Type-Options"] = "nosniff"
+    r.headers["Cache-Control"] = "no-store"
     r.headers["X-Process-Time-Ms"] = f"{(time.perf_counter()-t0)*1000:.2f}"
     return r
 
@@ -81,3 +104,6 @@ app.include_router(admin.router,         prefix="/api/v1/admin",    tags=["Admin
 app.include_router(runs_router,          prefix="/api/v1",          tags=["Agent Runs"])
 app.include_router(reports_router,       prefix="/api/v1",          tags=["Reports"])
 app.include_router(approvals_router,     prefix="/api/v1",          tags=["Approvals"])
+
+from api.v1.routes.workbench import router as workbench_router
+app.include_router(workbench_router, prefix="/api/v1", tags=["Workbench"])

@@ -45,6 +45,13 @@ class PDFParser(BaseParser):
 
         path   = Path(file_path)
         doc    = fitz.open(str(path))
+        if doc.needs_pass:
+            doc.close()
+            raise ValueError("Encrypted PDFs are not supported.")
+        total_pages = len(doc)
+        if total_pages > 500:
+            doc.close()
+            raise ValueError("PDF exceeds 500-page limit.")
         blocks: List[ParsedBlock] = []
         warnings: List[str] = []
 
@@ -76,7 +83,9 @@ class PDFParser(BaseParser):
                         metadata={"ocr": True},
                     ))
                     warnings.append(f"Page {page_num}: OCR used (low text density).")
-                continue
+                if ocr_text:
+                    continue
+                warnings.append(f"Page {page_num}: OCR unavailable or returned no text.")
 
             # Extract tables first (fitz 1.23+)
             table_bboxes = set()
@@ -151,7 +160,7 @@ class PDFParser(BaseParser):
             file_type="pdf",
             artifact_type=artifact_type,
             blocks=blocks,
-            total_pages=len(doc) if not doc.is_closed else None,
+            total_pages=total_pages,
             title=path.stem,
             word_count=word_count,
             parse_warnings=warnings,
@@ -208,7 +217,7 @@ class PDFParser(BaseParser):
 
             pix  = page.get_pixmap(dpi=200)
             img  = Image.open(io.BytesIO(pix.tobytes("png")))
-            text = pytesseract.image_to_string(img, lang=self.ocr_language)
+            text = pytesseract.image_to_string(img, lang=self.ocr_language, timeout=20)
             return text
         except Exception as e:
             logger.warning(f"OCR failed: {e}")

@@ -41,7 +41,7 @@ async def list_users(
     skip:   int = Query(0, ge=0),
     limit:  int = Query(50, ge=1, le=200),
     user:   CurrentUser  = AdminUser,
-    db:     AsyncSession = Depends(get_db),
+    db:     AsyncSession = Depends(get_db, scope="function"),
 ):
     """List all users with their roles."""
     from sqlalchemy.orm import selectinload
@@ -66,7 +66,7 @@ async def list_users(
 async def create_user(
     body: UserCreateRequest,
     user: CurrentUser  = AdminUser,
-    db:   AsyncSession = Depends(get_db),
+    db:   AsyncSession = Depends(get_db, scope="function"),
 ):
     """Create a new user with a specified role."""
     repo = UserRepository(db)
@@ -91,7 +91,7 @@ async def create_user(
 async def get_user(
     user_id: UUID,
     user:    CurrentUser  = AdminUser,
-    db:      AsyncSession = Depends(get_db),
+    db:      AsyncSession = Depends(get_db, scope="function"),
 ):
     repo     = UserRepository(db)
     target   = await repo.get_by_id(user_id)
@@ -105,7 +105,7 @@ async def update_user(
     user_id: UUID,
     body:    UserUpdateRequest,
     user:    CurrentUser  = AdminUser,
-    db:      AsyncSession = Depends(get_db),
+    db:      AsyncSession = Depends(get_db, scope="function"),
 ):
     """Update user name, active status, or department."""
     repo   = UserRepository(db)
@@ -126,7 +126,7 @@ async def update_user(
 async def deactivate_user(
     user_id: UUID,
     user:    CurrentUser  = AdminUser,
-    db:      AsyncSession = Depends(get_db),
+    db:      AsyncSession = Depends(get_db, scope="function"),
 ):
     """Soft-delete: set is_active = False and revoke all refresh tokens."""
     if str(user_id) == user.id:
@@ -152,7 +152,7 @@ async def assign_role(
     user_id: UUID,
     body:    RoleAssignRequest,
     user:    CurrentUser  = AdminUser,
-    db:      AsyncSession = Depends(get_db),
+    db:      AsyncSession = Depends(get_db, scope="function"),
 ):
     """Assign a role to a user. Existing roles are preserved."""
     repo   = UserRepository(db)
@@ -184,7 +184,7 @@ async def remove_role(
     user_id:   UUID,
     role_name: str,
     user:      CurrentUser  = AdminUser,
-    db:        AsyncSession = Depends(get_db),
+    db:        AsyncSession = Depends(get_db, scope="function"),
 ):
     """Remove a specific role from a user."""
     from sqlalchemy import delete as sql_delete
@@ -214,7 +214,7 @@ async def list_audit_logs(
     user_id:   UUID | None   = Query(None),
     action:    str | None    = Query(None),
     user:      CurrentUser   = Depends(require_role("dept_head")),
-    db:        AsyncSession  = Depends(get_db),
+    db:        AsyncSession  = Depends(get_db, scope="function"),
 ):
     """Retrieve audit logs. Dept heads and above can access."""
     repo = AuditLogRepository(db)
@@ -252,7 +252,7 @@ async def list_audit_logs(
 @router.get("/system-stats", response_model=SystemStatsResponse)
 async def system_stats(
     user: CurrentUser  = AdminUser,
-    db:   AsyncSession = Depends(get_db),
+    db:   AsyncSession = Depends(get_db, scope="function"),
 ):
     """High-level system counts for the admin dashboard."""
     from db.models.artifact import CourseArtifact

@@ -37,7 +37,7 @@ def show_course_structure():
 
     st.divider()
 
-    can_edit = is_coordinator_or_above()
+    can_edit = bool(st.session_state.get("user",{}).get("roles"))
     if not can_edit:
         st.info("You have read-only access here. Ask a coordinator to make changes.")
 

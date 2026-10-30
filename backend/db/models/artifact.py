@@ -12,16 +12,17 @@ from sqlalchemy import (
     BigInteger, DateTime, ForeignKey, Integer,
     Numeric, String, Text, func,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
+from db.types import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db.base import Base
 
 
-VALID_FILE_TYPES     = {"pdf", "docx", "pptx", "txt", "vtt"}
+VALID_FILE_TYPES     = {"pdf", "docx", "pptx", "txt", "md", "vtt"}
 VALID_ARTIFACT_TYPES = {
     "syllabus", "slides", "assignment",
-    "transcript", "module_manual", "other",
+    "transcript", "module_manual", "other", "exam", "assessment", "schedule", "reading",
 }
 VALID_STATUSES = {"pending", "parsing", "chunking", "embedding", "storing", "done", "error"}
 

@@ -36,7 +36,7 @@ def severity_badge(severity: str) -> str:
 def render_gap_table(gaps: list):
     """Render a list of alignment gaps as an interactive table."""
     if not gaps:
-        st.success("No gaps found — alignment checks passed.")
+        st.info("No findings recorded. Check evidence sufficiency and report status before drawing conclusions.")
         return
 
     import pandas as pd
@@ -50,7 +50,7 @@ def render_gap_table(gaps: list):
             "Resolved":    "Yes" if g.get("is_resolved") else "No",
         })
     df = pd.DataFrame(rows)
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(df, width="stretch", hide_index=True)
 
 
 # ── Citation viewer ───────────────────────────────────────────────────────────
@@ -60,17 +60,13 @@ def render_citations(citations: list):
     if not citations:
         st.caption("No citations attached.")
         return
-    with st.expander(f"{len(citations)} source citation(s)", expanded=False):
-        for i, c in enumerate(citations, 1):
-            st.markdown(
-                f"**[SOURCE_{i}]** {c.get('citation', '')}  \n"
-                f"<small>Artifact: {c.get('artifact_type','')}"
-                f"{' · Page ' + str(c['page_number']) if c.get('page_number') else ''}"
-                f"{' · Slide ' + str(c['slide_number']) if c.get('slide_number') else ''}"
-                f"{' · Week ' + str(c['week_number']) if c.get('week_number') else ''}"
-                f"</small>",
-                unsafe_allow_html=True,
-            )
+    with st.container(border=True):
+        st.caption(f"{len(citations)} source citation(s)")
+        for c in citations:
+            st.write(f"{c.get('marker','Source')} {c.get('citation','')}")
+            st.caption(f"Document: {c.get('artifact_id','unknown')} · chunk: {c.get('chunk_id','unknown')}")
+            if c.get('quote'): st.text(c['quote'])
+            st.caption(c.get('verification','Source reference; verify relevance against the document.'))
 
 
 # ── Empty state ───────────────────────────────────────────────────────────────
