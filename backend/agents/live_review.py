@@ -32,6 +32,9 @@ def augment(agent,state,dimension):
     context=[]
     objectives=[c['text'] for m in state.get('modules',[]) for c in m.get('clos',[])]
     queries=objectives[:3] or [state.get('course_metadata',{}).get('title','course')]
+    if dimension == 'metadata_content':
+        translations = state.get('search_translations', {})
+        queries = list(dict.fromkeys(queries + [translations[q] for q in queries if q in translations]))
     for group in DIMENSIONS[dimension]:
         for query in queries:
             for chunk in agent._retrieve(query,state['course_id'],3,{'artifact_type':{'$in':group}}):

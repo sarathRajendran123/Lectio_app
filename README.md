@@ -111,6 +111,14 @@ selected course excerpts to the configured provider; check permission before
 using private material. Provider support alone does not make lexical retrieval
 multilingual. Do not commit or share `.env`.
 
+In live mode, German-looking objectives in the metadata-content audit may use
+one additional model request to create an English search query. Both original
+and translated wording are searched, and the generated wording is shown for
+lecturer review. It is a search aid, not source evidence or a verified
+translation. A failed translation is flagged as needing review. Local test mode
+does not call a model. This heuristic does not support all languages or ensure
+cross-language coverage; real-course evaluation remains necessary.
+
 To verify real Groq generation while using the lightweight local retrieval path, install `requirements-local.txt` and configure:
 
 ```dotenv

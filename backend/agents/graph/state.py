@@ -149,6 +149,7 @@ class LectioWorkflowState(TypedDict, total=False):
 
     # Course context (loaded at start)
     course_metadata: Dict[str, Any]   # code, title, level, credits, semester …
+    search_translations: Dict[str, str]  # model-generated retrieval aids, not source evidence
     modules:         List[Dict]       # [{id, title, sequence_number, clos: [...]}]
     assessments:     List[Dict]       # [{id, title, type, weight_percent, questions: [...]}]
     broker_review: dict

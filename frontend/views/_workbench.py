@@ -106,6 +106,19 @@ def show_workbench():
                     findings=report.get('findings') or {}
                     details=findings.get('findings') or {}
                     if details.get('note') or details.get('error'):st.info(details.get('note') or details['error'])
+                    if meta['report_type'] == 'metadata_content':
+                        if details.get('translation_notice'):
+                            st.warning(details['translation_notice'])
+                        for objective in details.get('clo_scores', []):
+                            if objective.get('search_translation'):
+                                st.caption('Model-generated English search wording; verify the translation:')
+                                st.write(objective['search_translation'])
+                                st.caption('Retrieved teaching excerpts (lecturer review required):')
+                                for ref in objective.get('evidence_chunk_ids', []):
+                                    source = source_map.get(ref)
+                                    if source:
+                                        st.caption(f"{source['filename']} · page {source['page'] or '—'} · slide {source['slide'] or '—'}")
+                                        st.text(source['text'])
                     if meta['report_type'] == 'content_delivery':
                         comparison = details.get('prepared_transcript_comparison', [])
                         if comparison:
