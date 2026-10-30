@@ -50,7 +50,7 @@ def execute_agent(agent, state, dimension=None):
             from agents.audit_checks import enrich
             output=enrich(agent,output,dimension)
             from config import settings
-            if settings.runtime_mode == "live" and settings.groq_api_key:
+            if settings.runtime_mode == "live" and settings.active_api_key and settings.active_model:
                 from agents.live_review import augment
                 output=augment(agent,output,dimension)
     except Exception as exc:

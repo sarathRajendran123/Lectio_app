@@ -12,7 +12,7 @@ from rag.chunking.chunk_models import RetrievedChunk
 from rag.generation.grounded_generator import GroundedGenerator
 
 def main():
-    if settings.runtime_mode!='live':raise SystemExit('Set RUNTIME_MODE=live and configure GROQ_API_KEY first. Local-test results are not accepted by this check.')
+    if settings.runtime_mode!='live':raise SystemExit('Set RUNTIME_MODE=live and configure your provider and model first. Local-test results are not accepted by this check.')
     print(json.dumps(asyncio.run(probe_services()),indent=2))
     source=RetrievedChunk('live-verification-source','Binary search repeatedly halves a sorted array. Its time complexity is logarithmic in the array length.',1.,'live-verification-fixture','slides','live-verification-course',1,None,None,None)
     # Clearly synthetic provider smoke fixture. This is not a real-course evaluation.

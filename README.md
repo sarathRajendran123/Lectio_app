@@ -98,6 +98,19 @@ Documentation: baseline assessment, requirements matrix, verification results, k
 
 ## Live inference without a neural-model download
 
+### Experimental OpenRouter provider
+
+OpenRouter may be selected with `LLM_PROVIDER=openrouter`, a private
+`OPENROUTER_API_KEY`, and an explicitly selected `OPENROUTER_MODEL` in `.env`.
+Set `RUNTIME_MODE=live` and, to test without downloading neural models,
+`RETRIEVAL_BACKEND=lexical`. The model must be available to the account and may
+incur provider charges. `python scripts/verify_live.py` exercises an actual
+synthetic inference request; the code has not been verified against a live
+OpenRouter account. No inference occurs in `local_test` mode. Live requests send
+selected course excerpts to the configured provider; check permission before
+using private material. Provider support alone does not make lexical retrieval
+multilingual. Do not commit or share `.env`.
+
 To verify real Groq generation while using the lightweight local retrieval path, install `requirements-local.txt` and configure:
 
 ```dotenv

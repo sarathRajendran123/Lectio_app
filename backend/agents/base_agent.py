@@ -51,18 +51,9 @@ class BaseAgent:
 
     def _get_llm(self):
         if self._llm is None:
-            from langchain_groq import ChatGroq
             from config import settings
-            if not settings.groq_api_key:
-                raise ValueError("GROQ_API_KEY is not configured; use local_test for deterministic testing.")
-            self._llm = ChatGroq(
-                model=settings.groq_model,
-                timeout=settings.llm_timeout_seconds,
-                max_retries=1,
-                groq_api_key=settings.groq_api_key,
-                temperature=0.1,      # Low temperature for factual analysis
-                max_tokens=4000,
-            )
+            from services.llm_provider import build_chat
+            self._llm = build_chat(settings, temperature=0.1, max_tokens=4000)
         return self._llm
 
     # ── RAG ───────────────────────────────────────────────────────────────────

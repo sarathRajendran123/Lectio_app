@@ -54,23 +54,14 @@ RULES:
 
     def __init__(self, model: Optional[str] = None):
         from config import settings
-        self.model = model or settings.groq_model
+        self.model = model or settings.active_model
         self._llm  = None
 
     def _get_llm(self):
         if self._llm is None:
-            from langchain_groq import ChatGroq
             from config import settings
-            if not settings.groq_api_key:
-                raise ValueError("GROQ_API_KEY is not configured.")
-            self._llm = ChatGroq(
-                model=self.model,
-                timeout=settings.llm_timeout_seconds,
-                max_retries=1,
-                groq_api_key=settings.groq_api_key,
-                temperature=0.3,      # Low temperature for factual grounding
-                max_tokens=2000,
-            )
+            from services.llm_provider import build_chat
+            self._llm = build_chat(settings, model=self.model, temperature=0.3, max_tokens=2000)
         return self._llm
 
     def generate(

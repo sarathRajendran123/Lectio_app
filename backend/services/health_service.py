@@ -13,7 +13,8 @@ async def probe_services():
         results['database']={'status':'operational'}
     except Exception:results['database']={'status':'unavailable','message':'Database probe failed.'}
     if settings.runtime_mode=='local_test':results['llm']={'status':'disabled','message':'Deterministic testing mode; no model inference.'}
-    elif not settings.groq_api_key:results['llm']={'status':'not_configured'}
+    elif not settings.active_api_key or not settings.active_model:results['llm']={'status':'not_configured'}
+    elif settings.llm_provider=='openrouter':results['llm']={'status':'configured_not_probed','model':settings.active_model,'inference_tested':False}
     else:
         try:
             async with httpx.AsyncClient(timeout=8,trust_env=False) as client:

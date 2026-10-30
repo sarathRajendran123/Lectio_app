@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     # require a code change again.
     groq_model_variants: list[str] = []
     groq_model: str = "openai/gpt-oss-120b"
+    llm_provider: Literal["groq", "openrouter"] = "groq"
+    openrouter_api_key: str = ""
+    openrouter_model: str = ""
+    openrouter_model_variants: list[str] = []
 
     # ── LangSmith (Optional) ─────────────────────────
     langchain_api_key: str = ""
@@ -101,6 +105,18 @@ class Settings(BaseSettings):
     @property
     def max_upload_size_bytes(self) -> int:
         return self.max_upload_size_mb * 1024 * 1024
+
+    @property
+    def active_model(self) -> str:
+        return self.openrouter_model if self.llm_provider == 'openrouter' else self.groq_model
+
+    @property
+    def active_model_variants(self) -> list[str]:
+        return self.openrouter_model_variants if self.llm_provider == 'openrouter' else self.groq_model_variants
+
+    @property
+    def active_api_key(self) -> str:
+        return self.openrouter_api_key if self.llm_provider == 'openrouter' else self.groq_api_key
 
     @property
     def is_development(self) -> bool:

@@ -22,8 +22,8 @@ router=APIRouter()
 async def system_status(user=Depends(get_current_user),db=Depends(get_db, scope="function")):
     await db.execute(select(1))
     return {'database':'operational','mode':settings.runtime_mode,
-        'model':settings.groq_model if settings.runtime_mode == 'live' else 'deterministic test templates',
-        'llm':'configured; not probed' if settings.groq_api_key else 'not configured',
+        'model':settings.active_model if settings.runtime_mode == 'live' else 'deterministic test templates',
+        'llm':'configured; not probed' if settings.active_api_key and settings.active_model else 'not configured',
         'retrieval':'local lexical hash vectors' if settings.runtime_mode == 'local_test' or settings.retrieval_backend=='lexical' else 'BGE / transactional SQL vectors; model not probed',
         'orchestrator':'LangGraph isolated workers','paperclip':'process adapter available; external deployment not verified',
         'confidence':'Heuristic evidence scores, not calibrated probabilities',
@@ -113,7 +113,7 @@ async def generate(course_id:UUID,body:GenerationRequest,user=Depends(get_curren
     from rag.generation.grounded_generator import GroundedGenerator
     from services.review import latest_text
     rag=RAGService.get_instance()
-    allowed_models={settings.groq_model,*settings.groq_model_variants}
+    allowed_models={settings.active_model,*settings.active_model_variants}
     if any(model not in allowed_models for model in body.models):raise HTTPException(422,'A model variant is not in the configured allow-list.')
     gap=None
     if body.gap_id:
@@ -127,7 +127,7 @@ async def generate(course_id:UUID,body:GenerationRequest,user=Depends(get_curren
             context=await asyncio.to_thread(rag.retrieve,query,str(course_id),8)
             for variant in range(body.alternatives):
                 style=body.prompt_styles[variant%len(body.prompt_styles)]
-                model=body.models[variant%len(body.models)] if body.models else settings.groq_model
+                model=body.models[variant%len(body.models)] if body.models else settings.active_model
                 prompt=f'Generate {body.content_type}. Purpose: {body.purpose}. Alternative {variant+1}. '+\
                     f'Use {style} style. Expected format: {body.expected_format or body.content_type}. Constraints: {body.constraints}. Related finding: {gap.description if gap else "none selected"}. '+\
                     'Outcomes: '+'; '.join(o.text for o in objectives)
@@ -322,7 +322,7 @@ async def apply_approved(content_id:UUID,body:ApplySuggestion,user=Depends(get_c
 
 @router.get('/system/agent-profiles')
 async def agent_profiles(user=Depends(get_current_user)):
-    return {'models':list(dict.fromkeys([settings.groq_model,*settings.groq_model_variants])),
+    return {'models':[m for m in dict.fromkeys([settings.active_model,*settings.active_model_variants]) if m],
         'prompt_styles':['conceptual','applied','reflective'],
         'contracts':[{'agent':name,'responsibility':role} for name,role in [
             ('course_director','Load source/model versions, propagate course constraints and route dependencies'),
