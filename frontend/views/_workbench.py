@@ -126,6 +126,15 @@ def show_workbench():
                                             st.text(source['text'])
                                         else:
                                             st.warning('Source no longer available. Rerun the audit.')
+                                if row.get('prepared_context_ids'):
+                                    st.caption('Additional text from the same pages (context, not necessarily a topic match):')
+                                    for ref in row['prepared_context_ids']:
+                                        source = source_map.get(ref)
+                                        if source:
+                                            st.caption(f"{source['filename']} · page {source['page'] or '—'}")
+                                            st.text(source['text'])
+                                        else:
+                                            st.caption('Page context is unavailable in this view.')
                     st.caption('Scores are heuristic evidence indicators, not probabilities. Planned delivery does not verify attendance or teaching.')
                     broker=details.get('broker_review',{})
                     if broker.get('possible_conflicts'):st.warning('Potentially conflicting recommendations require lecturer review.');st.json(broker['possible_conflicts'])

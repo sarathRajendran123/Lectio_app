@@ -187,7 +187,7 @@ class ContentDeliveryAlignmentAgent(BaseAgent):
         # topic. Source pairs still need lecturer confirmation; co-occurrence
         # is not proof that both sources convey the same ideas.
         from agents.delivery_comparison import compare_delivery
-        comparison, truncated = compare_delivery(modules, course_id, self._retrieve)
+        comparison, truncated = compare_delivery(modules, course_id, self._retrieve, self._page_context)
         findings['prepared_transcript_comparison'] = comparison
         findings['comparison_truncated'] = truncated
         findings['comparison_notice'] = (
@@ -286,6 +286,46 @@ class ContentDeliveryAlignmentAgent(BaseAgent):
             )
 
         return best, None
+
+    def _page_context(self, course_id, matches):
+        return self._run_async(self._async_page_context(course_id, matches))
+
+    async def _async_page_context(self, course_id, matches):
+        """Return nearby source chunks as context, not additional topic matches."""
+        from collections import defaultdict
+        from sqlalchemy import select
+        from db.models.artifact import Chunk, CourseArtifact
+        from db.session import AsyncSessionLocal
+        from agents.delivery_comparison import repeated_text_key
+
+        target = {(c.artifact_id, c.page_number) for c in matches if c.page_number is not None}
+        if not target:
+            return []
+        artifact_ids = [uuid.UUID(a) for a in {a for a, _ in target}]
+        async with AsyncSessionLocal() as db:
+            rows = list((await db.scalars(select(Chunk).join(CourseArtifact, Chunk.artifact_id == CourseArtifact.id)
+                .where(Chunk.course_id == uuid.UUID(course_id), Chunk.artifact_id.in_(artifact_ids),
+                       CourseArtifact.processing_status == 'done')
+                .order_by(Chunk.chunk_index).limit(10000))).all())
+        locations = defaultdict(set)
+        for chunk in rows:
+            key = (str(chunk.artifact_id), repeated_text_key(chunk.text))
+            if chunk.page_number is not None:
+                locations[key].add(chunk.page_number)
+        output = []
+        matched_ids = {c.chunk_id for c in matches}
+        for artifact, page in sorted(target):
+            added = 0
+            for chunk in rows:
+                if (str(chunk.artifact_id), chunk.page_number) != (artifact, page):
+                    continue
+                key = (artifact, repeated_text_key(chunk.text))
+                if len(chunk.text.strip()) < 60 or len(locations[key]) >= 3 or str(chunk.id) in matched_ids:
+                    continue
+                output.append(str(chunk.id)); added += 1
+                if added == 2:
+                    break
+        return output
 
     def _check_sequencing(self, modules: list, course_id: str) -> List[str]:
         """

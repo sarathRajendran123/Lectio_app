@@ -4,8 +4,9 @@ from types import SimpleNamespace
 from agents.delivery_comparison import compare_delivery
 
 
-def chunk(identifier, score=.8, week=1):
-    return SimpleNamespace(chunk_id=identifier, score=score, week_number=week)
+def chunk(identifier, score=.8, week=1, text='matching text', artifact='doc', page=None):
+    return SimpleNamespace(chunk_id=identifier, score=score, week_number=week,
+                           text=text, artifact_id=artifact, page_number=page, slide_number=None)
 
 
 def test_delivery_comparison_keeps_sources_separate_and_rejects_other_weeks():
@@ -39,3 +40,21 @@ def test_empty_evidence_and_comparison_limit():
     rows, truncated = compare_delivery(modules, 'course-1', lambda *args, **kwargs: [])
     assert truncated and len(rows) == 20
     assert all(row['status'] == 'no_matching_evidence' for row in rows)
+
+
+def test_repeated_footers_are_excluded_but_context_is_not_a_match():
+    from agents.delivery_comparison import select_evidence
+    candidates = [chunk(f'f{i}', text=f'Course footer {i}', page=i) for i in range(1, 5)]
+    candidates += [chunk('heading', text='Max Pooling', page=5),
+                   chunk('second', text='Average Pooling', page=5),
+                   chunk('another', text='Pooling example', page=6)]
+    selected = select_evidence(candidates, 1)
+    assert [c.chunk_id for c in selected] == ['heading', 'another']
+    modules = [{'weeks': [{'week_number': 1, 'topics': [{'title': 'Pooling'}]}]}]
+    def retrieve(title, course, top_k, where):
+        return candidates if where['artifact_type'] == 'slides' else []
+    rows, _ = compare_delivery(modules, 'course', retrieve,
+                               lambda course, found: ['same-page-context'])
+    assert rows[0]['prepared_chunk_ids'] == ['heading', 'another']
+    assert rows[0]['prepared_context_ids'] == ['same-page-context']
+    assert rows[0]['status'] == 'transcript_evidence_not_found'
