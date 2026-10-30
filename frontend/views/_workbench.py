@@ -106,6 +106,26 @@ def show_workbench():
                     findings=report.get('findings') or {}
                     details=findings.get('findings') or {}
                     if details.get('note') or details.get('error'):st.info(details.get('note') or details['error'])
+                    if meta['report_type'] == 'content_delivery':
+                        comparison = details.get('prepared_transcript_comparison', [])
+                        if comparison:
+                            st.markdown('**Prepared materials and transcript evidence**')
+                            st.caption(details.get('comparison_notice', 'Lecturer review required.'))
+                            if details.get('comparison_truncated'):
+                                st.warning('Only the first 20 planned topics were compared.')
+                            for row in comparison:
+                                st.write(f"Week {row['week']} · {row['topic']} · {row['status'].replace('_', ' ')}")
+                                for label, key in [('Prepared slides', 'prepared_chunk_ids'), ('Transcript', 'transcript_chunk_ids')]:
+                                    st.caption(label)
+                                    if not row.get(key):
+                                        st.caption('No matching source excerpt found.')
+                                    for ref in row.get(key, []):
+                                        source = source_map.get(ref)
+                                        if source:
+                                            st.caption(f"{source['filename']} · page {source['page'] or '—'} · slide {source['slide'] or '—'}")
+                                            st.text(source['text'])
+                                        else:
+                                            st.warning('Source no longer available. Rerun the audit.')
                     st.caption('Scores are heuristic evidence indicators, not probabilities. Planned delivery does not verify attendance or teaching.')
                     broker=details.get('broker_review',{})
                     if broker.get('possible_conflicts'):st.warning('Potentially conflicting recommendations require lecturer review.');st.json(broker['possible_conflicts'])

@@ -183,6 +183,32 @@ class ContentDeliveryAlignmentAgent(BaseAgent):
                     if gap:
                         gaps.append(gap)
 
+        # Compare prepared slides and transcripts separately for each planned
+        # topic. Source pairs still need lecturer confirmation; co-occurrence
+        # is not proof that both sources convey the same ideas.
+        from agents.delivery_comparison import compare_delivery
+        comparison, truncated = compare_delivery(modules, course_id, self._retrieve)
+        findings['prepared_transcript_comparison'] = comparison
+        findings['comparison_truncated'] = truncated
+        findings['comparison_notice'] = (
+            'Topic-level evidence only. Confirm that sources are from the same '
+            'lecture; transcript completeness and semantic differences need review.'
+        )
+        for row in comparison:
+            if row['status'] in ('transcript_evidence_not_found', 'prepared_evidence_not_found'):
+                absent = 'transcript' if row['status'] == 'transcript_evidence_not_found' else 'prepared slides'
+                gaps.append(AlignmentGap(
+                    gap_id=str(uuid.uuid4()), gap_type='delivery_evidence_difference',
+                    severity='info',
+                    description=(f"For planned topic '{row['topic']}' in week {row['week']}, "
+                                 f"no matching {absent} evidence was found. This may reflect "
+                                 'missing or incomplete sources, retrieval, or a different session.'),
+                    affected_entity_type='topic', affected_entity_id=row['topic_id'],
+                    score=0.0,
+                    recommendation='Check the source pair and transcript completeness before drawing a conclusion.',
+                    evidence_chunk_ids=(row['prepared_chunk_ids'] + row['transcript_chunk_ids']),
+                ))
+
         # Sequencing check
         seq_issues = self._check_sequencing(modules, course_id)
         findings["sequencing_issues"] = seq_issues
@@ -200,6 +226,9 @@ class ContentDeliveryAlignmentAgent(BaseAgent):
 
         overall = sum(scores) / len(scores) if scores else 1.0
         status = ("pass" if overall >= 0.75 else "warning" if overall >= 0.55 else "fail") if scores else "needs_review"
+        if comparison and status == 'pass':
+            # Topic matches cannot prove alignment or complete delivery.
+            status = 'needs_review'
 
         result = AlignmentResult(
             agent_name=self.name,
