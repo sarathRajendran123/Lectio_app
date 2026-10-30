@@ -33,7 +33,8 @@ def test_original_and_english_searches_return_actual_source_ids():
     agent._retrieve = retrieve
     objective = {'id': 'objective', 'code': 'CLO1', 'text': 'Die Studierenden verstehen neuronaler Netze', 'bloom_level': 'understand'}
     score, gap, tokens = agent._audit_clo(objective, 'course')
-    assert calls == [objective['text'], agent.search_query]
+    assert calls[:2] == [objective['text'], agent.search_query]
+    assert 'neural networks' in calls
     assert agent.last_evidence == ['real-source']
     assert score > 0 and tokens == 0
 

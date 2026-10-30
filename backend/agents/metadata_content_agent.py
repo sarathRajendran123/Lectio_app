@@ -138,20 +138,32 @@ class MetadataContentAlignmentAgent(BaseAgent):
         chunks = self._retrieve(
             query=clo_text,
             course_id=course_id,
-            top_k=10,
+            top_k=40,
             where={"artifact_type": {"$in": ["slides", "transcript", "reading", "other"]}},
         )
         translated = getattr(self, 'search_query', None)
         if translated:
             translated_chunks = self._retrieve(
-                query=translated, course_id=course_id, top_k=10,
+                query=translated, course_id=course_id, top_k=40,
                 where={"artifact_type": {"$in": ["slides", "transcript", "reading", "other"]}},
             )
             unique = {c.chunk_id: c for c in chunks}
             for chunk in translated_chunks:
                 if chunk.chunk_id not in unique or chunk.score > unique[chunk.chunk_id].score:
                     unique[chunk.chunk_id] = chunk
-            chunks = sorted(unique.values(), key=lambda c: c.score, reverse=True)[:10]
+            chunks = sorted(unique.values(), key=lambda c: c.score, reverse=True)
+
+        # Supplement the broad query with short phrases for retrieval only.
+        # Their scores are not substituted for the original objective score.
+        original_score = max((c.score for c in chunks), default=0.0)
+        candidates = list(chunks)
+        if translated:
+            from agents.evidence_selection import phrase_queries
+            for query in phrase_queries(translated):
+                candidates.extend(self._retrieve(query=query, course_id=course_id, top_k=40,
+                    where={"artifact_type": {"$in": ["slides", "transcript", "reading", "other"]}}))
+        from agents.evidence_selection import useful_evidence
+        chunks = useful_evidence(candidates, limit=10)
 
         self.last_evidence = [c.chunk_id for c in chunks[:3]]
         if not chunks:
@@ -168,7 +180,7 @@ class MetadataContentAlignmentAgent(BaseAgent):
             return 0.0, gap, tokens
 
         # Semantic score — best chunk similarity
-        semantic_score = max(c.score for c in chunks)
+        semantic_score = original_score
 
         # Keyword score — CLO keywords in retrieved texts
         combined_text = " ".join(c.text for c in chunks).lower()

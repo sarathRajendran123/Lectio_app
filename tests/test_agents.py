@@ -28,13 +28,27 @@ def test_live_review_rejects_entire_response_when_later_citation_invalid():
     class Agent:
         def _retrieve(self,*a,**k):return [RetrievedChunk('real','Real source excerpt',.8,'a','slides','c',1,None,None,None)]
         def _invoke(self,*a):
-            finding={'title':'Finding','description':'A proposed conclusion','severity':'warning','rationale':'Rationale here','correction':'Review this issue','evidence_ids':['real'],'evidence_strength':'strong'}
+            finding={'title':'Finding','description':'A proposed conclusion','severity':'warning','rationale':'Rationale here','correction':'Review this issue','evidence_ids':['S1'],'evidence_strength':'strong'}
             return json.dumps({'findings':[finding,{**finding,'evidence_ids':['invented']}],'limitations':'Unverified'}),10
         def _parse_json(self,text):return json.loads(text)
     report=AlignmentResult('a','metadata_content',.5,'warning')
     state={'course_id':'c','modules':[],'course_metadata':{'title':'Topic'},'alignment_results':{'metadata_content':report}}
     with pytest.raises(ValueError,match='unknown source'):augment(Agent(),state,'metadata_content')
     assert report.gaps == []
+
+def test_live_review_resolves_aliases_to_real_chunk_ids():
+    import json
+    class Agent:
+        def _retrieve(self,*a,**k):return [RetrievedChunk('real','Real source excerpt',.8,'a','slides','c',1,None,None,None)]
+        def _invoke(self,system,human):
+            assert 'ID=S1' in human
+            return json.dumps({'findings':[{'title':'Finding','description':'A grounded conclusion','severity':'warning','rationale':'Rationale here','correction':'Review this issue','evidence_ids':['S1'],'evidence_strength':'strong'}],'limitations':'Unverified'}),10
+        def _parse_json(self,text):return json.loads(text)
+    report=AlignmentResult('a','metadata_content',.5,'warning')
+    state={'course_id':'c','modules':[],'course_metadata':{'title':'Topic'},'alignment_results':{'metadata_content':report}}
+    output=augment(Agent(),state,'metadata_content')
+    assert report.gaps[0].evidence_chunk_ids == ['real']
+    assert output['total_tokens'] == 10
 
 def test_evaluation_is_ground_truth_based():
     result=evaluate([{'predicted':'1','actual':'1','accepted':'1','quality':'4'}, {'predicted':'1','actual':'0','accepted':'0'}, {'predicted':'0','actual':'1'}])
