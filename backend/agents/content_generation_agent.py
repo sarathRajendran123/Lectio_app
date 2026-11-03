@@ -25,7 +25,7 @@ from knowledge.bloom_classifier import BLOOM_VERBS, classify_text
 
 logger = logging.getLogger(__name__)
 
-# Max items to generate per run (respect Groq free tier rate limits)
+# Max items to generate per run (respect free-tier rate limits)
 MAX_ITEMS_PER_RUN = 8
 
 

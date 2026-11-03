@@ -201,7 +201,7 @@ class StakeholderAgent(BaseAgent):
                     citations=item.citations,
                     confidence_score=item.confidence,
                     approval_status="pending",
-                    model_used=__import__("config").settings.groq_model if __import__("config").settings.runtime_mode == "live" else "local-test-template",
+                    model_used=__import__("config").settings.openrouter_model if __import__("config").settings.runtime_mode == "live" else "local-test-template",
                     source_gap_id=_as_uuid(item.source_gap_id),
                 )
                 db.add(record)

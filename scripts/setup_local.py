@@ -12,7 +12,7 @@ target.write_text('\n'.join([
     f'SECRET_KEY={secrets.token_urlsafe(48)}',
     'ADMIN_EMAIL=admin@example.org',f'ADMIN_PASSWORD={password}',
     f'ARTIFACT_STORAGE_PATH={(root/"data/uploads").as_posix()}',
-    'GROQ_API_KEY=','BACKEND_URL=http://127.0.0.1:8000','']))
+    'OPENROUTER_API_KEY=','BACKEND_URL=http://127.0.0.1:8000','']))
 target.chmod(0o600)
 print('Created local-test configuration. Login: admin@example.org')
 print('Your generated password is in .env under ADMIN_PASSWORD. Keep that file private.')

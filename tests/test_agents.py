@@ -5,7 +5,9 @@ from rag.chunking.chunk_models import RetrievedChunk
 from scripts.evaluate import evaluate
 import pytest
 
-def test_director_merges_before_generation_route():
+def test_director_merges_before_generation_route(monkeypatch):
+    from config import settings
+    monkeypatch.setattr(settings,'generation_auto_enabled',True)
     gap=AlignmentGap('g','clo_not_covered','warning','Missing topic','clo',None,0.,'Review sources')
     state={'course_id':'x','course_metadata':{'title':'x'},'alignment_results':{
         dimension:AlignmentResult('a',dimension,.5,'warning',[gap] if dimension=='metadata_content' else [])
@@ -18,7 +20,7 @@ def test_live_review_rejects_unretrieved_evidence():
     import json
     class Agent:
         def _retrieve(self,*a,**k):return [RetrievedChunk('real','Real source excerpt',.8,'a','slides','c',1,None,None,None)]
-        def _invoke(self,*a):return json.dumps({'findings':[{'title':'Finding','description':'An unsupported conclusion','severity':'warning','rationale':'Rationale here','correction':'Review this issue','evidence_ids':['invented'],'evidence_strength':'strong'}],'limitations':'Unverified'}),10
+        def _invoke(self,*a,**k):return json.dumps({'findings':[{'title':'Finding','description':'An unsupported conclusion','severity':'warning','rationale':'Rationale here','correction':'Review this issue','evidence_ids':['invented'],'evidence_strength':'strong'}],'limitations':'Unverified'}),10
         def _parse_json(self,text):return json.loads(text)
     with pytest.raises(ValueError,match='unknown source'):
         augment(Agent(),{'course_id':'c','modules':[],'course_metadata':{'title':'Topic'},'alignment_results':{'metadata_content':AlignmentResult('a','metadata_content',.5,'warning')}},'metadata_content')

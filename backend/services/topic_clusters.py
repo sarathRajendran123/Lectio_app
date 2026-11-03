@@ -9,8 +9,11 @@ def cluster(chunks):
     # Semantic vectors in live mode; lexical hash vectors only in explicit test mode.
     if settings.runtime_mode=='live' and settings.retrieval_backend=='neural':
         from rag.embedding.bge_embedder import BGEEmbedder
-        embedder=BGEEmbedder.get_instance()
-        vectors=[embedder.embed_query(c.text) for c in chunks]
+        stored=[((c.metadata_ or {}).get('vector') if c.embedding_model==settings.embedding_model else None) for c in chunks]
+        missing=[i for i,v in enumerate(stored) if not v]
+        if missing:
+            for i,v in zip(missing,BGEEmbedder.get_instance().embed_texts([chunks[i].text for i in missing])):stored[i]=v
+        vectors=stored
     else:vectors=[vector(c.text) for c in chunks]
     groups=[]
     for source,v in zip(chunks,vectors):
@@ -29,5 +32,5 @@ def cluster(chunks):
         ids=sorted(str(c.id) for c in g['chunks'])
         label=', '.join(word for word,_ in Counter(w for c in g['chunks'] for w in terms(c.text)).most_common(4)) or 'Unlabelled source group'
         output.append({'id':str(uuid5(NAMESPACE_URL,':'.join(ids))),'label':label,'chunk_ids':ids,
-            'method':'BGE cosine' if settings.runtime_mode=='live' and settings.retrieval_backend=='neural' else 'local-test lexical hash cosine','review_required':True})
+            'method':settings.embedding_model+' cosine' if settings.runtime_mode=='live' and settings.retrieval_backend=='neural' else 'local-test lexical hash cosine','review_required':True})
     return output

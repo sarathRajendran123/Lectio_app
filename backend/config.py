@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     debug: bool = False
     runtime_mode: Literal["live", "local_test"] = "live"
     retrieval_backend: Literal["neural", "lexical"] = "neural"
-    generation_auto_enabled: bool = True
+    generation_auto_enabled: bool = False  # drafts only on lecturer request (cost control)
     paperclip_api_url: str = ""
     paperclip_api_key: str = ""
     paperclip_company_id: str = ""
@@ -52,15 +52,17 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 7
 
-    # ── LLM — Groq (Free) ────────────────────────────
-    groq_api_key: str = ""
-    # llama-3.3-70b-versatile was decommissioned by Groq on 2026-08-16 (announced
-    # 2026-06-17) -- every call using it now fails with a "model_decommissioned"
-    # error. openai/gpt-oss-120b is Groq's official recommended replacement.
-    # Overridable via GROQ_MODEL env var so future Groq deprecations don't
-    # require a code change again.
-    groq_model_variants: list[str] = []
-    groq_model: str = "openai/gpt-oss-120b"
+    # ── LLM — OpenRouter (OpenAI-compatible; free-tier model by default) ─────
+    # Free models are rate-limited and can be withdrawn: verify availability
+    # (GET https://openrouter.ai/api/v1/models) and override via env if needed.
+    openrouter_api_key: str = ""
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_model: str = "google/gemma-4-31b-it:free"
+    openrouter_fallback_model: str = "google/gemma-4-26b-a4b-it:free"  # one bounded retry; "" disables
+    openrouter_model_variants: list[str] = []
+    llm_max_tokens_audit: int = 2000
+    llm_max_tokens_generation: int = 2000
+    llm_cache_enabled: bool = True   # identical validated requests are reused, not re-billed
 
     # ── LangSmith (Optional) ─────────────────────────
     langchain_api_key: str = ""
@@ -68,7 +70,9 @@ class Settings(BaseSettings):
     langchain_project: str = "lectio-dev"
 
     # ── Embeddings ────────────────────────────────────
-    embedding_model: str = "BAAI/bge-large-en-v1.5"
+    # Multilingual (German + English); 1024-d. Changing it invalidates stored vectors.
+    embedding_model: str = "BAAI/bge-m3"
+    rerank_model: str = "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1"
     embedding_device: str = "cpu"
 
     # ── File Storage ──────────────────────────────────
@@ -97,6 +101,18 @@ class Settings(BaseSettings):
         if v.upper() not in valid:
             raise ValueError(f"log_level must be one of {valid}")
         return v.upper()
+
+    @property
+    def llm_ready(self) -> bool:
+        return bool(self.openrouter_api_key)
+
+    @property
+    def llm_models(self) -> list[str]:
+        return list(dict.fromkeys([self.openrouter_model, *self.openrouter_model_variants]))
+
+    @property
+    def llm_cache_dir(self) -> str:
+        return self.artifact_storage_path.rstrip("/\\") + "/.llm_cache"
 
     @property
     def max_upload_size_bytes(self) -> int:

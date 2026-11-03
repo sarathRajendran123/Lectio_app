@@ -1,6 +1,6 @@
 # Lectio revision 2 architecture
 
-The source project remains Python/FastAPI, Streamlit, async SQLAlchemy, LangGraph and Groq. The safety-motivated change is vector storage: dense embeddings now live inside the existing source-chunk transaction, rather than an independent ChromaDB REST service.
+The source project remains Python/FastAPI, Streamlit, async SQLAlchemy, LangGraph and OpenRouter (free-tier model by default; multilingual BGE-M3 embeddings). The safety-motivated change is vector storage: dense embeddings now live inside the existing source-chunk transaction, rather than an independent ChromaDB REST service.
 
 ```mermaid
 flowchart TB

@@ -51,17 +51,11 @@ class BaseAgent:
 
     def _get_llm(self):
         if self._llm is None:
-            from langchain_groq import ChatGroq
             from config import settings
-            if not settings.groq_api_key:
-                raise ValueError("GROQ_API_KEY is not configured; use local_test for deterministic testing.")
-            self._llm = ChatGroq(
-                model=settings.groq_model,
-                timeout=settings.llm_timeout_seconds,
-                max_retries=1,
-                groq_api_key=settings.groq_api_key,
+            from llm.openrouter import OpenRouterChat
+            self._llm = OpenRouterChat(
                 temperature=0.1,      # Low temperature for factual analysis
-                max_tokens=4000,
+                max_tokens=settings.llm_max_tokens_audit,
             )
         return self._llm
 
@@ -85,17 +79,17 @@ class BaseAgent:
 
     # ── LLM Utilities ─────────────────────────────────────────────────────────
 
-    def _invoke(self, system: str, human: str) -> tuple[str, int]:
+    def _invoke(self, system: str, human: str, validate=None) -> tuple[str, int]:
         """
-        Call the LLM and return (content, tokens_used).
-        Handles token tracking for cost monitoring.
+        Call the LLM and return (content, tokens_used); cached results cost 0 tokens.
+        `validate(content)` must raise on unusable output so it is never cached.
         """
         from langchain_core.messages import HumanMessage, SystemMessage
         llm = self._get_llm()
         response = llm.invoke([
             SystemMessage(content=system),
             HumanMessage(content=human),
-        ])
+        ], validate=validate)
         tokens = response.response_metadata.get("token_usage", {}).get("total_tokens", 0)
         return response.content, tokens
 

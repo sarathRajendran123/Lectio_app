@@ -1,31 +1,37 @@
 """
-LECTIO — BGE Embedder (BAAI/bge-large-en-v1.5)
+LECTIO — Local multilingual embedder (default: BAAI/bge-m3, German + English)
 
-Why BGE over OpenAI embeddings?
-  - Runs 100% locally — zero API cost, zero data leaving your server
-  - BEIR benchmark: comparable to text-embedding-ada-002, better than ada on
-    several retrieval tasks
-  - BGE requires an instruction prefix for retrieval tasks:
-      "Represent this sentence for retrieval: {text}"
-    This prefix is added automatically here.
-  - 1024-dimensional vectors with cosine similarity
-
-Batching:
-  Embedding is CPU-bound and the most expensive step in ingestion.
-  We process in batches of 32 and log throughput.
+  - Runs locally: no API cost, no document text leaves the server.
+  - BGE-M3 needs no instruction prefix; English-only BGE v1.5 models and E5
+    models get their documented prefixes via _prefixes().
+  - 1024-dimensional, L2-normalised vectors (cosine similarity).
+  - Embedding is CPU-bound: texts are encoded in batches of 32.
 """
 
+import hashlib
 import logging
+import os
 import time
 from typing import List
+
+import numpy as np
 
 from rag.chunking.chunk_models import EmbeddedChunk, RawChunk
 
 logger = logging.getLogger(__name__)
 
-BGE_MODEL_NAME   = "BAAI/bge-large-en-v1.5"
-BGE_PREFIX       = "Represent this sentence for retrieval: "
+BGE_MODEL_NAME   = "BAAI/bge-m3"
 DEFAULT_BATCH    = 32
+
+
+def _prefixes(model_name: str) -> tuple[str, str]:
+    """(query_prefix, passage_prefix) documented for the model family."""
+    name = model_name.lower()
+    if "e5" in name:
+        return "query: ", "passage: "
+    if "bge" in name and "m3" not in name:
+        return "Represent this sentence for retrieval: ", ""
+    return "", ""
 
 
 class BGEEmbedder:
@@ -40,6 +46,7 @@ class BGEEmbedder:
         self.model_name = model_name
         self.device     = device
         self._model     = None   # lazy load
+        self._query_cache: dict = {}
 
     @classmethod
     def get_instance(cls, device: str = "cpu") -> "BGEEmbedder":
@@ -78,44 +85,74 @@ class BGEEmbedder:
         if not chunks:
             return []
 
-        self._load()
+        # Content-addressed cache: identical text under the same model is never re-embedded
+        # (re-uploads, ingestion retries, unchanged slides after an edit).
+        prefix = _prefixes(self.model_name)[1]
+        paths  = [self._cache_path(prefix + c.text) for c in chunks]
+        vecs   = [self._cache_load(p) for p in paths]
+        todo   = [i for i, v in enumerate(vecs) if v is None]
+        if todo:
+            self._load()
+            t0  = time.time()
+            new = self._model.encode(
+                [prefix + chunks[i].text for i in todo],
+                batch_size=batch_size,
+                normalize_embeddings=True,   # cosine similarity works correctly
+                show_progress_bar=False,
+            )
+            for i, emb in zip(todo, new):
+                vecs[i] = emb.tolist()
+                self._cache_store(paths[i], emb)
+            logger.info(f"Embedded {len(todo)}/{len(chunks)} chunks in {time.time() - t0:.2f}s (rest from cache)")
 
-        # BGE instruction prefix boosts retrieval performance
-        texts = [f"{BGE_PREFIX}{c.text}" for c in chunks]
+        return [EmbeddedChunk(chunk=chunk, embedding=v) for chunk, v in zip(chunks, vecs)]
 
-        t0 = time.time()
-        embeddings = self._model.encode(
-            texts,
-            batch_size=batch_size,
-            normalize_embeddings=True,   # cosine similarity works correctly
-            show_progress_bar=False,
-        )
-        elapsed = time.time() - t0
-        logger.info(
-            f"Embedded {len(chunks)} chunks in {elapsed:.2f}s "
-            f"({len(chunks)/elapsed:.1f} chunks/s)"
-        )
+    def _cache_path(self, text: str) -> str:
+        from config import settings
+        key  = hashlib.sha256((self.model_name + "|" + text).encode("utf-8")).hexdigest()
+        slug = self.model_name.replace("/", "_")
+        return os.path.join(settings.artifact_storage_path, ".embed_cache", slug, key + ".npy")
 
-        return [
-            EmbeddedChunk(chunk=chunk, embedding=emb.tolist())
-            for chunk, emb in zip(chunks, embeddings)
-        ]
+    @staticmethod
+    def _cache_load(path: str):
+        try:
+            return np.load(path).tolist()
+        except (OSError, ValueError):
+            return None
+
+    @staticmethod
+    def _cache_store(path: str, vec) -> None:
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            tmp = path + ".tmp.npy"
+            np.save(tmp, np.asarray(vec, dtype=np.float32))
+            os.replace(tmp, path)
+        except OSError:
+            logger.warning("Embedding cache write failed; continuing without cache.")
 
     def embed_texts(self, texts: List[str]) -> List[List[float]]:
         """Batch passage embeddings for topic boundaries and clustering."""
         if not texts: return []
         self._load()
-        return self._model.encode(texts, batch_size=32, normalize_embeddings=True,
+        prefix = _prefixes(self.model_name)[1]
+        return self._model.encode([prefix + t for t in texts], batch_size=32, normalize_embeddings=True,
             show_progress_bar=False, convert_to_numpy=True).tolist()
 
     def embed_query(self, query: str) -> List[float]:
+        if query not in self._query_cache:
+            if len(self._query_cache) >= 512:
+                self._query_cache.pop(next(iter(self._query_cache)))
+            self._query_cache[query] = self._embed_query(query)
+        return self._query_cache[query]
+
+    def _embed_query(self, query: str) -> List[float]:
         """
         Embed a single retrieval query.
-        Uses the same BGE prefix for consistent similarity space.
+        Applies the model family's query prefix, if any.
         """
         self._load()
         vec = self._model.encode(
-            f"{BGE_PREFIX}{query}",
+            f"{_prefixes(self.model_name)[0]}{query}",
             normalize_embeddings=True,
         )
         return vec.tolist()

@@ -39,3 +39,17 @@ Audit admission is database-locked, but job ownership/cancellation/restart recov
 Finding acceptance, generated-draft approval and applying an approved draft to the course model are separate explicit lecturer actions. Original uploads are preserved. Source and model changes invalidate previous audit views. Citation validation proves a real source and exact quotation; educational inference still requires human review.
 
 This is a substantially completed and locally/browser-verified research implementation. Mandatory external verification and the real academic evaluation remain open, so full master-prompt completion or production certification is not claimed.
+
+## Revision 3 (OpenRouter + multilingual retrieval), 2026-11-03
+
+Verified here:
+- Full suite: 40 passed, 1 skipped (`python -m pytest -q`); `compileall` clean; `docker compose config` valid.
+- Real models, CPU: `BAAI/bge-m3` German->German and German->English retrieval and the multilingual cross-encoder ranked the expected passage first (`tests/test_german_retrieval.py`, 3 passed).
+- OpenRouter client with mocked HTTP: cache reuse, no caching of invalid output, single bounded fallback, no fallback on 4xx, no request without a key.
+- Stored vectors from a different embedding model are ignored in neural mode.
+
+Not verified here:
+- Live OpenRouter inference (no `OPENROUTER_API_KEY` available in this environment); run `python scripts/verify_live.py` with a key.
+- Docker image build / `docker compose up` (Docker daemon not running); PostgreSQL deployment; external Paperclip.
+- Retrieval quality beyond the five-passage German/English fixture; no research metrics are claimed.
+

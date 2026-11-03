@@ -45,15 +45,19 @@ def augment(agent,state,dimension):
         'Return JSON matching this schema: '+str(Review.model_json_schema()))
     human=f'Dimension: {dimension}. Course metadata and constraints: {state.get("course_metadata",{})}. Objectives: {objectives[:20]}. '+\
         'Sources:\n'+'\n'.join(f'ID={c.chunk_id}; type={c.artifact_type}\n{c.text[:1200]}' for c in context)
-    raw,tokens=agent._invoke(system,human)
-    review=Review.model_validate(agent._parse_json(raw))
+    allowed_entities={state["course_id"]}|{o["id"] for m in state.get("modules",[]) for o in m.get("clos",[])}|{a["id"] for a in state.get("assessments",[])}|{t["id"] for m in state.get("modules",[]) for w in m.get("weeks",[]) for t in w.get("topics",[])}
+    def check(raw):
+        review=Review.model_validate(agent._parse_json(raw))
+        for finding in review.findings:
+            if any(ref not in sources for ref in finding.evidence_ids):
+                raise ValueError('Live specialist cited an unknown source. Output rejected.')
+            if finding.affected_entity_id and finding.affected_entity_id not in allowed_entities:
+                raise ValueError("Live specialist returned an unknown course entity.")
+        return review
+    raw,tokens=agent._invoke(system,human,validate=check)
+    review=check(raw)
     result=state['alignment_results'][dimension]
     for finding in review.findings:
-        if any(ref not in sources for ref in finding.evidence_ids):
-            raise ValueError('Live specialist cited an unknown source. Output rejected.')
-        allowed_entities={state["course_id"]}|{o["id"] for m in state.get("modules",[]) for o in m.get("clos",[])}|{a["id"] for a in state.get("assessments",[])}|{t["id"] for m in state.get("modules",[]) for w in m.get("weeks",[]) for t in w.get("topics",[])}
-        if finding.affected_entity_id and finding.affected_entity_id not in allowed_entities:
-            raise ValueError("Live specialist returned an unknown course entity.")
         result.gaps.append(AlignmentGap(str(uuid.uuid4()),'live_alignment_review',finding.severity,
             finding.title+': '+finding.description+' Rationale: '+finding.rationale,
             finding.affected_entity_type,finding.affected_entity_id,0.,finding.correction,finding.evidence_ids))
