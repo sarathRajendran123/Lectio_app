@@ -51,8 +51,6 @@ def augment(agent,state,dimension):
         for finding in review.findings:
             if any(ref not in sources for ref in finding.evidence_ids):
                 raise ValueError('Live specialist cited an unknown source. Output rejected.')
-            if finding.affected_entity_id and finding.affected_entity_id not in allowed_entities:
-                raise ValueError("Live specialist returned an unknown course entity.")
         return review
     raw,tokens=agent._invoke(system,human,validate=check)
     review=check(raw)
@@ -60,7 +58,7 @@ def augment(agent,state,dimension):
     for finding in review.findings:
         result.gaps.append(AlignmentGap(str(uuid.uuid4()),'live_alignment_review',finding.severity,
             finding.title+': '+finding.description+' Rationale: '+finding.rationale,
-            finding.affected_entity_type,finding.affected_entity_id,0.,finding.correction,finding.evidence_ids))
+            finding.affected_entity_type,finding.affected_entity_id if finding.affected_entity_id in allowed_entities else None,0.,finding.correction,finding.evidence_ids))
     result.findings['live_review']={'limitations':review.limitations,'model_inference':True,
         'source_ids':list(sources),'evidence_strength':[f.evidence_strength for f in review.findings]}
     if review.findings and result.status=='pass':result.status='warning'

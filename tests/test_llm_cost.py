@@ -19,6 +19,7 @@ def llm(monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "artifact_storage_path", str(tmp_path))
     monkeypatch.setattr(settings, "openrouter_api_key", "test-key")
     monkeypatch.setattr(settings, "openrouter_fallback_model", "fallback/model:free")
+    monkeypatch.setattr(settings, "llm_retry_wait_seconds", 0)
     calls = []
     return OpenRouterChat(model="primary/model:free"), calls
 
@@ -71,10 +72,10 @@ def test_single_bounded_fallback_on_rate_limit(llm, monkeypatch):
 def test_all_models_failing_raises_without_looping(llm, monkeypatch):
     chat, calls = llm
     limited = httpx.Response(429, request=httpx.Request("POST", "http://x"))
-    _patch_post(monkeypatch, calls, limited, limited)
+    _patch_post(monkeypatch, calls, limited, limited, limited, limited)
     with pytest.raises(LLMError):
         chat.invoke(MSGS)
-    assert len(calls) == 2
+    assert len(calls) == 4  # two models x one paused second pass; never more
 
 
 def test_client_error_does_not_fall_back(llm, monkeypatch):
@@ -144,3 +145,13 @@ def test_vectors_from_another_embedding_model_are_ignored(monkeypatch):
     store = SQLVectorStore()
     monkeypatch.setattr(store, "_rows", fake_rows)
     assert [c.chunk_id for c in store.query("c", [1.0, 0.0])] == ["new"]
+
+
+def test_truncated_output_is_an_error_and_not_cached(llm, monkeypatch):
+    chat, calls = llm
+    cut = httpx.Response(200, json={"choices": [{"message": {"content": '{"findings": ['}, "finish_reason": "length"}]},
+                         request=httpx.Request("POST", "http://x"))
+    _patch_post(monkeypatch, calls, cut, _reply("complete"))
+    with pytest.raises(LLMError, match="cut off"):
+        chat.invoke(MSGS)
+    assert chat.invoke(MSGS).content == "complete" and len(calls) == 2

@@ -8,6 +8,7 @@ import hashlib
 import json
 import logging
 import os
+import time
 from types import SimpleNamespace
 
 import httpx
@@ -68,9 +69,12 @@ class OpenRouterChat:
         )
         r.raise_for_status()
         data = r.json()
-        content = ((data.get("choices") or [{}])[0].get("message") or {}).get("content")
+        choice = (data.get("choices") or [{}])[0]
+        content = (choice.get("message") or {}).get("content")
         if data.get("error") or not content:
             raise LLMError(f"Provider returned no content for {model}: {str(data.get('error'))[:200]}")
+        if choice.get("finish_reason") == "length":
+            raise LLMError(f"{model} output was cut off at max_tokens={self.max_tokens}; raise the token cap.")
         return content, int((data.get("usage") or {}).get("total_tokens") or 0)
 
     def invoke(self, messages, validate=None):
@@ -87,19 +91,28 @@ class OpenRouterChat:
         if settings.openrouter_fallback_model and settings.openrouter_fallback_model != self.model:
             models.append(settings.openrouter_fallback_model)
         last: Exception | None = None
-        for used in models:
-            try:
-                content, tokens = self._post(used, msgs)
-                break
-            except (httpx.TimeoutException, LLMError) as exc:
-                last = exc
-            except httpx.HTTPStatusError as exc:
-                if exc.response.status_code not in _FALLBACK_STATUS:
-                    raise LLMError(f"Provider rejected the request ({exc.response.status_code}).") from exc
-                last = exc
-            logger.warning("LLM call failed for %s (%s)", used, type(last).__name__)
-        else:
-            raise LLMError(f"All configured models failed: {type(last).__name__}") from last
+        for attempt in range(2):  # second pass only after a pause, and only if every failure was transient
+            for used in models:
+                try:
+                    content, tokens = self._post(used, msgs)
+                    break
+                except LLMError as exc:
+                    if "cut off" in str(exc):
+                        raise
+                    last = exc
+                except httpx.TimeoutException as exc:
+                    last = exc
+                except httpx.HTTPStatusError as exc:
+                    if exc.response.status_code not in _FALLBACK_STATUS:
+                        raise LLMError(f"Provider rejected the request ({exc.response.status_code}).") from exc
+                    last = exc
+                logger.warning("LLM call failed for %s (%s)", used, type(last).__name__)
+            else:
+                if attempt == 0:
+                    time.sleep(max(settings.llm_retry_wait_seconds, 0))
+                    continue
+                raise LLMError(f"All configured models failed: {type(last).__name__}") from last
+            break
         if validate:
             validate(content)
         self._cache_put(path, content, used)

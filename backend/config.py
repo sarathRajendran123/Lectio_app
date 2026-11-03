@@ -60,8 +60,9 @@ class Settings(BaseSettings):
     openrouter_model: str = "nvidia/nemotron-3-ultra-550b-a55b:free"
     openrouter_fallback_model: str = "google/gemma-4-31b-it:free"  # different provider pool; one bounded retry, "" disables
     openrouter_model_variants: list[str] = []
-    llm_max_tokens_audit: int = 2000
-    llm_max_tokens_generation: int = 2000
+    llm_max_tokens_audit: int = 4000   # reasoning models spend part of this on thinking
+    llm_max_tokens_generation: int = 3000
+    llm_retry_wait_seconds: float = 6.0  # one pause + second pass when every model is rate-limited
     llm_cache_enabled: bool = True   # identical validated requests are reused, not re-billed
 
     # ── LangSmith (Optional) ─────────────────────────

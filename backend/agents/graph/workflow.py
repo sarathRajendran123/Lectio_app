@@ -52,7 +52,10 @@ def execute_agent(agent, state, dimension=None):
             from config import settings
             if settings.runtime_mode == "live" and settings.llm_ready:
                 from agents.live_review import augment
-                output=augment(agent,output,dimension)
+                try:
+                    output=augment(agent,output,dimension)
+                except Exception as exc:  # a failed model review must not erase the deterministic findings
+                    output['alignment_results'][dimension].findings['live_review_error']=str(exc)[:300]
     except Exception as exc:
         error=str(exc)[:500]
         if dimension is None: raise

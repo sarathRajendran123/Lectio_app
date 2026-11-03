@@ -52,4 +52,6 @@ Verified here:
 Not verified here:
 - Docker image build / `docker compose up` (Docker daemon not running); PostgreSQL deployment; external Paperclip.
 - Retrieval quality beyond the five-passage German/English fixture; no research metrics are claimed.
+- End-to-end on the running app (SQLite, live mode, BGE-M3 neural retrieval, Nemotron Ultra): German syllabus/slides/exam upload -> embedding -> 4-dimension audit (9.5k tokens, all agents completed, real findings incl. "graph algorithms promised, hash tables delivered") -> German draft generation with a validated citation. The first run exposed truncated JSON (token cap), invented entity IDs and 429s; fixed (4000-token audit cap, truncation detection, unknown entity IDs dropped, one paused second pass, a failed model review no longer erases deterministic findings).
+- Observed: a syllabus heading can land in a separate chunk, which makes the model report "header only, no objectives" as a low-severity finding. Not fixed.
 
