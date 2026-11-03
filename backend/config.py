@@ -57,8 +57,8 @@ class Settings(BaseSettings):
     # (GET https://openrouter.ai/api/v1/models) and override via env if needed.
     openrouter_api_key: str = ""
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    openrouter_model: str = "google/gemma-4-31b-it:free"
-    openrouter_fallback_model: str = "google/gemma-4-26b-a4b-it:free"  # one bounded retry; "" disables
+    openrouter_model: str = "nvidia/nemotron-3-ultra-550b-a55b:free"
+    openrouter_fallback_model: str = "google/gemma-4-31b-it:free"  # different provider pool; one bounded retry, "" disables
     openrouter_model_variants: list[str] = []
     llm_max_tokens_audit: int = 2000
     llm_max_tokens_generation: int = 2000

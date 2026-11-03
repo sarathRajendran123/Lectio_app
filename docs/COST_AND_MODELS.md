@@ -2,8 +2,8 @@
 
 | Role | Model | Notes |
 |---|---|---|
-| Generation / live review | `google/gemma-4-31b-it:free` (OpenRouter) | Zero-priced in the live catalog when checked (2026-11-03), 262k context, JSON mode. Free models are rate-limited and may be withdrawn: verify, override with `OPENROUTER_MODEL`. |
-| One-shot fallback | `google/gemma-4-26b-a4b-it:free` | Tried once on 404/408/429/5xx/timeout; `OPENROUTER_FALLBACK_MODEL=` disables. |
+| Generation / live review | `nvidia/nemotron-3-ultra-550b-a55b:free` (OpenRouter) | Zero-priced in the live catalog (2026-11-03), 1M context; passed `scripts/verify_live.py` (schema-valid, citation-checked). Free models are rate-limited and may be withdrawn: verify, override with `OPENROUTER_MODEL`. Gemma 4 models were rate-limited upstream (shared Google pool) during testing. |
+| One-shot fallback | `google/gemma-4-31b-it:free` | Different provider than the primary. Tried once on 404/408/429/5xx/timeout; `OPENROUTER_FALLBACK_MODEL=` disables. |
 | Embeddings | `BAAI/bge-m3` (local) | Multilingual (German + English), 1024-d, no prefix needed. ~2.3 GB, downloaded once to the `hf_cache` volume. |
 | Reranker | `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1` (local) | Multilingual replacement for the English-only MS MARCO model. |
 

@@ -47,9 +47,9 @@ Verified here:
 - Real models, CPU: `BAAI/bge-m3` German->German and German->English retrieval and the multilingual cross-encoder ranked the expected passage first (`tests/test_german_retrieval.py`, 3 passed).
 - OpenRouter client with mocked HTTP: cache reuse, no caching of invalid output, single bounded fallback, no fallback on 4xx, no request without a key.
 - Stored vectors from a different embedding model are ignored in neural mode.
+- Live OpenRouter inference: `scripts/verify_live.py` passed with `nvidia/nemotron-3-ultra-550b-a55b:free` (lexical retrieval; schema-valid draft, 1 citation validated, 1690 tokens). Both Gemma 4 free models returned upstream 429 at that time.
 
 Not verified here:
-- Live OpenRouter inference (no `OPENROUTER_API_KEY` available in this environment); run `python scripts/verify_live.py` with a key.
 - Docker image build / `docker compose up` (Docker daemon not running); PostgreSQL deployment; external Paperclip.
 - Retrieval quality beyond the five-passage German/English fixture; no research metrics are claimed.
 
