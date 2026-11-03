@@ -1,0 +1,3 @@
+-r requirements-local.txt
+pip-audit==2.7.3
+playwright==1.48.0
