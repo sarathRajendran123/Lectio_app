@@ -75,6 +75,8 @@ async def start_audit(
     await admit_audit(course_id,db)
     from services.course_model import extract_course_model
     await extract_course_model(course_id, db)
+    from services.auto_derive import derive_missing_objectives
+    await derive_missing_objectives(course_id, db)
     run_id = await workflow_service.start_run(
         course_id=str(course_id),
         initiated_by=str(user.id),
@@ -153,9 +155,19 @@ async def list_reports(
             "status":        r.status,
             "gap_count":     r.gap_count,
             "generated_at":  r.generated_at.isoformat(),
+            "reason":        _reason(r),
+            "model_review_error": ((r.findings or {}).get("findings") or {}).get("live_review_error") if isinstance(r.findings, dict) else None,
         }
         for r in reports
     ]
+
+
+def _reason(report) -> str | None:
+    """Why a dimension could not be scored (shown instead of a bare 'Unknown')."""
+    if report.status not in ("needs_review", "failed"):
+        return None
+    f = report.findings if isinstance(report.findings, dict) else {}
+    return f.get("reason") or f.get("error") or f.get("note") or "Not enough source data to score this check."
 
 
 @reports_router.get("/reports/{report_id}")

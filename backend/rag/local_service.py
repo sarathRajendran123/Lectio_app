@@ -14,6 +14,7 @@ from db.repositories.artifact_repository import ArtifactRepository
 from services.safe_parser import parse_document
 
 STOP = {'the','and','for','with','that','this','from','will','able','students','learning','outcome','explain','describe','apply','understand','analyse','analyze','evaluate','create','lecture','slides','covering'}
+STOP |= {'der','die','das','und','ist','nicht','mit','von','den','für','auf','ein','eine','wird','sich','als','sie','werden','können','studierenden','studierende','wie','auch','oder','dem','des','zur','zum','bei','nach','über'}
 def terms(text):
     return [w for w in re.findall(r'\b\w{3,}\b',text.lower()) if w not in STOP]
 def vector(text):

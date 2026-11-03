@@ -26,30 +26,35 @@ BLOOM_VERBS: dict[str, list[str]] = {
         "define", "list", "recall", "recognise", "recognize", "identify",
         "name", "state", "label", "match", "reproduce", "memorise",
         "memorize", "repeat", "duplicate", "quote", "outline",
+        "nennen", "definieren", "benennen", "auflisten", "wiedergeben",
     ],
     "understand": [
         "explain", "describe", "summarise", "summarize", "paraphrase",
         "classify", "compare", "contrast", "interpret", "translate",
         "discuss", "distinguish", "estimate", "give examples", "illustrate",
         "infer", "predict", "report", "restate", "review", "select",
+        "erklären", "beschreiben", "erläutern", "zusammenfassen", "interpretieren", "darstellen", "unterscheiden",
     ],
     "apply": [
         "implement", "use", "demonstrate", "apply", "calculate", "compute",
         "construct", "execute", "modify", "operate", "produce", "show",
         "solve", "write", "develop", "perform", "practice", "employ",
         "utilise", "utilize", "carry out", "build", "complete",
+        "anwenden", "implementieren", "berechnen", "durchführen", "umsetzen", "lösen", "einsetzen", "programmieren",
     ],
     "analyse": [
         "analyse", "analyze", "differentiate", "examine", "breakdown",
         "break down", "categorise", "categorize", "compare", "deconstruct",
         "detect", "diagram", "dissect", "distinguish", "divide", "focus",
         "inspect", "investigate", "outline", "question", "separate", "test",
+        "analysieren", "untersuchen", "gegenüberstellen", "zerlegen",
     ],
     "evaluate": [
         "evaluate", "assess", "judge", "critique", "justify", "defend",
         "argue", "appraise", "choose", "conclude", "criticise", "criticize",
         "decide", "determine", "dispute", "estimate", "prioritise",
         "prioritize", "rank", "recommend", "select", "support", "value",
+        "bewerten", "beurteilen", "begründen", "kritisieren", "einschätzen",
     ],
     "create": [
         "create", "design", "develop", "formulate", "generate", "plan",
@@ -57,6 +62,7 @@ BLOOM_VERBS: dict[str, list[str]] = {
         "invent", "make", "organise", "organize", "compile", "assemble",
         "combine", "integrate", "modify", "reconstruct", "revise",
         "write", "hypothesise", "hypothesize",
+        "entwerfen", "entwickeln", "konstruieren", "gestalten", "planen", "erstellen",
     ],
 }
 

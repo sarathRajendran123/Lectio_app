@@ -45,6 +45,11 @@ def execute_agent(agent, state, dimension=None):
     from agents.graph.state import AlignmentResult
     started=time.monotonic(); error=None
     try:
+        if dimension:
+            from config import settings
+            if settings.runtime_mode == "live" and settings.llm_ready:
+                from agents.live_review import prefetch
+                prefetch(agent,state)
         output=agent.run(state)
         if dimension:
             from agents.audit_checks import enrich
@@ -52,9 +57,12 @@ def execute_agent(agent, state, dimension=None):
             from config import settings
             if settings.runtime_mode == "live" and settings.llm_ready:
                 from agents.live_review import augment
+                t0=time.monotonic()
                 try:
                     output=augment(agent,output,dimension)
+                    logger.info('[%s] live review done in %.1fs', dimension, time.monotonic()-t0)
                 except Exception as exc:  # a failed model review must not erase the deterministic findings
+                    logger.warning('[%s] live review failed after %.1fs: %s', dimension, time.monotonic()-t0, str(exc)[:200])
                     output['alignment_results'][dimension].findings['live_review_error']=str(exc)[:300]
     except Exception as exc:
         error=str(exc)[:500]

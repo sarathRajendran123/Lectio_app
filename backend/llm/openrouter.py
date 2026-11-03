@@ -21,7 +21,7 @@ _FALLBACK_STATUS = {404, 408, 429, 500, 502, 503, 504}
 
 
 class LLMError(RuntimeError):
-    pass
+    fatal = False   # retrying or switching model cannot help (e.g. daily quota used up)
 
 
 class OpenRouterChat:
@@ -61,12 +61,22 @@ class OpenRouterChat:
 
     # ── transport ─────────────────────────────────────────────────────────────
     def _post(self, model: str, msgs: list[dict]) -> tuple[str, int]:
-        r = httpx.post(
-            settings.openrouter_base_url.rstrip("/") + "/chat/completions",
-            headers={"Authorization": "Bearer " + settings.openrouter_api_key, "X-Title": "Lectio"},
-            json={"model": model, "messages": msgs, "temperature": self.temperature, "max_tokens": self.max_tokens},
-            timeout=settings.llm_timeout_seconds,
-        )
+        body = {"model": model, "messages": msgs, "temperature": self.temperature, "max_tokens": self.max_tokens}
+        if settings.llm_reasoning_effort:
+            body["reasoning"] = {"effort": settings.llm_reasoning_effort}
+
+        def send(payload):
+            return httpx.post(settings.openrouter_base_url.rstrip("/") + "/chat/completions",
+                              headers={"Authorization": "Bearer " + settings.openrouter_api_key, "X-Title": "Lectio"},
+                              json=payload, timeout=settings.llm_timeout_seconds)
+        r = send(body)
+        if r.status_code == 400 and "reasoning" in body:   # model rejects the reasoning hint: resend once without it
+            body.pop("reasoning")
+            r = send(body)
+        if r.status_code == 429 and "free-models-per-day" in r.text:
+            err = LLMError("The OpenRouter free daily request limit is used up (resets 00:00 UTC). Wait for the reset or add credits.")
+            err.fatal = True
+            raise err
         r.raise_for_status()
         data = r.json()
         choice = (data.get("choices") or [{}])[0]
@@ -97,7 +107,7 @@ class OpenRouterChat:
                     content, tokens = self._post(used, msgs)
                     break
                 except LLMError as exc:
-                    if "cut off" in str(exc):
+                    if exc.fatal or "cut off" in str(exc):
                         raise
                     last = exc
                 except httpx.TimeoutException as exc:

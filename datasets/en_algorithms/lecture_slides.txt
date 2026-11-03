@@ -1,0 +1,9 @@
+Sorting algorithms. Insertion sort and merge sort order a list of numbers. Insertion sort needs quadratic time in the worst case, merge sort needs n log n comparisons because it halves the list and merges the sorted halves.
+
+Complexity analysis. Big-O notation describes how running time grows with input size. We compare linear, logarithmic, and quadratic growth for large inputs.
+
+Binary search. Binary search halves the search space of a sorted array in every step. Its running time is logarithmic in the array length, so 64 entries need at most 6 comparisons. Linear search needs up to 64 comparisons.
+
+Hash tables. A hash function maps keys to table slots. Collisions occur when two keys share a slot; chaining stores colliding entries in a linked list, open addressing probes for the next free slot. The load factor controls the expected lookup cost.
+
+Graph traversal. Breadth-first search visits vertices level by level using a queue. Depth-first search follows a path to its end and backtracks, using a stack or recursion. Both run in time linear in vertices plus edges.

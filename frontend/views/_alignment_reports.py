@@ -73,14 +73,20 @@ def show_reports():
             if r:
                 score = r["overall_score"]
                 delta_c = "normal" if score >= 0.75 else ("off" if score >= 0.55 else "inverse")
-                st.metric(label, "Unknown" if r["status"] in ("needs_review","failed") else f"{score:.0%}",
+                unscored = r["status"] in ("needs_review", "failed")
+                st.metric(label, "Not assessable" if unscored else f"{score:.0%}",
                           delta=r["status"].upper(), delta_color=delta_c)
+                if unscored:
+                    st.caption(r.get("reason") or "Not enough source data to score this check.")
+                if r.get("model_review_error"):
+                    st.warning("Model review unavailable: " + r["model_review_error"] + " The rule-based score above is still valid.")
             else:
                 st.metric(label, "—", delta="not run", delta_color="off")
 
     # ── Radar chart ────────────────────────────────────────────────────────
-    if len(run_reports) >= 2:
-        _render_radar(run_reports)
+    scored = [r for r in run_reports if r["status"] not in ("needs_review", "failed")]
+    if len(scored) >= 2:
+        _render_radar(scored)
 
     st.divider()
 

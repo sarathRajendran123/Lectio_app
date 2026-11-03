@@ -37,7 +37,7 @@ class MetadataAssessmentAlignmentAgent(BaseAgent):
                 report_type="metadata_assessment",
                 overall_score=0.0,
                 status="needs_review",
-                findings={"note": "Insufficient data (no CLOs or no assessments)."},
+                findings={"reason": "Needs both learning objectives and assessments: upload an exam or exercise sheet" + ("" if all_clos else " and a syllabus or materials the objectives can be derived from") + "."},
             ))
 
         gaps:     List[AlignmentGap] = []
@@ -155,7 +155,7 @@ class ContentDeliveryAlignmentAgent(BaseAgent):
                 report_type="content_delivery",
                 overall_score=0.0,
                 status="needs_review",
-                findings={"note": "No modules to check."},
+                findings={"reason": "No weekly schedule available: add 'Week N: topic' (German: 'Woche N: Thema') lines to the syllabus or enter the schedule in Course Structure."},
             ))
 
         gaps:     List[AlignmentGap] = []
@@ -200,6 +200,8 @@ class ContentDeliveryAlignmentAgent(BaseAgent):
 
         overall = sum(scores) / len(scores) if scores else 1.0
         status = ("pass" if overall >= 0.75 else "warning" if overall >= 0.55 else "fail") if scores else "needs_review"
+        if not scores:
+            findings["reason"] = "The course has modules but no weekly topics to compare with the materials: add a schedule to the syllabus or in Course Structure."
 
         result = AlignmentResult(
             agent_name=self.name,

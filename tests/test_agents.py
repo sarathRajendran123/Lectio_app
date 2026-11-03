@@ -34,3 +34,21 @@ def test_generation_marks_empty_action_list_attempted():
     state={'course_id':'x','all_gaps':[AlignmentGap('g','objective_not_measurable','warning','Vague verb','clo',None,.2,'Review verb')]}
     result=ContentGenerationAgent().run(state)
     assert result['generation_attempted'] is True
+
+
+def test_live_reviews_are_prefetched_concurrently_and_called_once_each():
+    import json, threading
+    from agents.live_review import DIMENSIONS, augment, prefetch
+    calls = []
+    class Agent:
+        def _retrieve(self, *a, **k): return [RetrievedChunk('real', 'Real source excerpt', .8, 'a', 'slides', 'c', 1, None, None, None)]
+        def _invoke(self, *a, **k):
+            calls.append(threading.current_thread().name)
+            return json.dumps({'findings': [], 'limitations': 'None found'}), 5
+        def _parse_json(self, text): return json.loads(text)
+    state = {'run_id': 'r1', 'course_id': 'c', 'modules': [], 'course_metadata': {'title': 'T'},
+             'alignment_results': {d: AlignmentResult('a', d, .9, 'pass') for d in DIMENSIONS}}
+    prefetch(Agent(), state); prefetch(Agent(), state)   # second call must not resubmit
+    for d in DIMENSIONS: out = augment(Agent(), state, d)
+    assert len(calls) == len(DIMENSIONS) and all(n.startswith('live-review') for n in calls)
+    assert out['total_tokens'] == 5

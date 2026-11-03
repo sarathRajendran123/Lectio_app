@@ -155,3 +155,25 @@ def test_truncated_output_is_an_error_and_not_cached(llm, monkeypatch):
     with pytest.raises(LLMError, match="cut off"):
         chat.invoke(MSGS)
     assert chat.invoke(MSGS).content == "complete" and len(calls) == 2
+
+
+def test_daily_quota_error_is_fatal_with_no_fallback_or_pause(llm, monkeypatch):
+    chat, calls = llm
+    quota = httpx.Response(429, text='{"error":{"message":"Rate limit exceeded: free-models-per-day"}}',
+                           request=httpx.Request("POST", "http://x"))
+    _patch_post(monkeypatch, calls, quota)
+    with pytest.raises(LLMError, match="daily request limit"):
+        chat.invoke(MSGS)
+    assert len(calls) == 1
+
+
+def test_reasoning_hint_sent_and_dropped_if_model_rejects_it(llm, monkeypatch):
+    chat, calls = llm
+    sent = []
+    queue = [httpx.Response(400, request=httpx.Request("POST", "http://x")), _reply("fine")]
+
+    def post(url, **kw):
+        sent.append("reasoning" in kw["json"])
+        return queue.pop(0)
+    monkeypatch.setattr(httpx, "post", post)
+    assert chat.invoke(MSGS).content == "fine" and sent == [True, False]

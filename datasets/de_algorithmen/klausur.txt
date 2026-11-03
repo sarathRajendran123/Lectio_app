@@ -1,0 +1,3 @@
+Aufgabe 1. Erklären Sie die binäre Suche und berechnen Sie die Anzahl der Vergleiche für ein sortiertes Array mit 64 Einträgen.
+Aufgabe 2. Vergleichen Sie Verkettung und offene Adressierung bei Hashtabellen.
+Aufgabe 3. Wenden Sie die Tiefensuche auf den gegebenen Graphen an.

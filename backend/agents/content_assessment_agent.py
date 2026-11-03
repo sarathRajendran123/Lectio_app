@@ -39,7 +39,7 @@ class ContentAssessmentAlignmentAgent(BaseAgent):
                 report_type="content_assessment",
                 overall_score=0.0,
                 status="needs_review",
-                findings={"note": "No assessments defined — skipping check."},
+                findings={"reason": "No exam, exercise or quiz uploaded: upload one (type exam or assignment) to compare what is taught with what is tested."},
             ))
 
         # Collect all topics from modules

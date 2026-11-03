@@ -21,12 +21,14 @@ SCHEDULE_MODULE_TITLE = 'Course schedule (from syllabus)'
 
 _PLAN_OUTCOME = re.compile(
     r'(?i)(students?\s+(?:will|should|can)|able to|(?:CLO|ILO|LO)\s*\d|'
-    r'^[-*\d. )]*(?:explain|describe|implement|analyse|analyze|evaluate|design|apply|compare|identify)\b)')
-_STATED_OUTCOME = re.compile(r'(?i)\b(?:students?|learners?)\s+(?:will|should|shall|are expected to)\b')
+    r'(?:studierende|lernende|absolvent(?:en|innen)?)n?\s+(?:können|sollen|werden|kennen)|in der lage|lernziel|'
+    r'^[-*\d. )]*(?:explain|describe|implement|analyse|analyze|evaluate|design|apply|compare|identify|'
+    r'erklären|beschreiben|implementieren|analysieren|bewerten|entwerfen|anwenden|vergleichen|berechnen)\b)')
+_STATED_OUTCOME = re.compile(r'(?i)\b(?:students?|learners?|studierende[n]?|lernende[n]?)\s+(?:will|should|shall|are expected to|können|sollen|werden)\b')
 _OUTCOME_CODE = re.compile(r'(?i)\b(?:CLO|ILO|LO)\s*\d')
-_ABLE_TO = re.compile(r'(?i)\bable to\b')
+_ABLE_TO = re.compile(r'(?i)\b(?:able to|in der lage|können)\b')
 _WEEK_LINE = re.compile(
-    r'(?im)^[ \t]*(?:[-*\u2022][ \t]*)?(?:week|wk)[ \t]*(\d{1,2})[ \t]*[:\-\u2013\u2014.)][ \t]*(\S[^\n]{2,118}?)[ \t]*$')
+    r'(?im)^[ \t]*(?:[-*\u2022][ \t]*)?(?:week|wk|woche|vorlesung|sitzung|kw)[ \t]*(\d{1,2})[ \t]*[:\-\u2013\u2014.)][ \t]*(\S[^\n]{2,118}?)[ \t]*$')
 
 
 def is_stated_outcome(line: str) -> bool:

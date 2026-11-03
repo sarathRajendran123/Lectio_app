@@ -64,7 +64,7 @@ The sample is clearly named and contains an intentional missing graph-traversal 
 
 ## Live deployment configuration
 
-Copy `.env.example` to a private `.env` and set fresh database and JWT secrets, an optional bootstrap admin password (at least 12 characters), and `OPENROUTER_API_KEY`. Set `RUNTIME_MODE=live`. `OPENROUTER_MODEL` defaults to the free `nvidia/nemotron-3-ultra-550b-a55b:free`; free models are rate-limited and can be withdrawn, so check <https://openrouter.ai/models> and override if needed. Set `ARTIFACT_STORAGE_PATH=/app/uploads` for the supplied Docker volume.
+Copy `.env.example` to a private `.env` and set fresh database and JWT secrets, an optional bootstrap admin password (at least 12 characters), and `OPENROUTER_API_KEY`. Set `RUNTIME_MODE=live`. `OPENROUTER_MODEL` defaults to the free `nvidia/nemotron-3.5-super-vl:free`; free models are rate-limited and can be withdrawn, so check <https://openrouter.ai/models> and override if needed. Set `ARTIFACT_STORAGE_PATH=/app/uploads` for the supplied Docker volume.
 
 ```bash
 docker compose up --build
