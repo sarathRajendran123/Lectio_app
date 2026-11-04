@@ -189,7 +189,13 @@ class StakeholderAgent(BaseAgent):
 
         pending = []
         async with AsyncSessionLocal() as db:
+            from sqlalchemy import select
+            known = set((await db.execute(select(GeneratedContentRecord.content_type, GeneratedContentRecord.content)
+                .where(GeneratedContentRecord.course_id == uuid.UUID(course_id)))).all())
             for item in generated:
+                if (item.content_type, item.content) in known:
+                    continue   # identical draft already in the lecturer's queue
+                known.add((item.content_type, item.content))
                 record = GeneratedContentRecord(
                     id=uuid.UUID(item.item_id),
                     run_id=uuid.UUID(run_id),

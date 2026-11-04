@@ -100,8 +100,16 @@ def test_secrets_never_in_health_or_status(monkeypatch):
     assert "sk-or-very-secret" not in repr(settings.llm_models)
 
 
-def test_generation_is_not_automatic_by_default():
-    assert settings.generation_auto_enabled is False
+def test_auto_generation_is_capped_and_spread_over_gap_types():
+    from agents.content_generation_agent import pick_gaps
+    from agents.graph.state import AlignmentGap
+    assert settings.generation_auto_enabled and settings.generation_max_items_per_run == 4
+    mk = lambda t, sev, score: AlignmentGap(f'{t}{score}', t, sev, 'd', 'clo', None, score, 'r')
+    gaps = [mk('topic_not_assessed', 'warning', .1), mk('topic_not_assessed', 'warning', .2), mk('topic_not_assessed', 'warning', .3),
+            mk('bloom_level_mismatch', 'warning', .5), mk('clo_not_covered', 'critical', .9)]
+    picked = pick_gaps(gaps, 4)
+    assert len(picked) == 4 and picked[0].gap_type == 'clo_not_covered'          # critical first
+    assert {g.gap_type for g in picked} == {'clo_not_covered', 'topic_not_assessed', 'bloom_level_mismatch'}  # spread
 
 
 def test_embedding_cache_reuses_vectors_and_prefixes(monkeypatch, tmp_path):

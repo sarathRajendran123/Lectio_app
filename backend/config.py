@@ -24,7 +24,8 @@ class Settings(BaseSettings):
     debug: bool = False
     runtime_mode: Literal["live", "local_test"] = "live"
     retrieval_backend: Literal["neural", "lexical"] = "neural"
-    generation_auto_enabled: bool = False  # drafts only on lecturer request (cost control)
+    generation_auto_enabled: bool = True   # draft fixes for the worst gaps after an audit (capped; the lecturer can also request more)
+    generation_max_items_per_run: int = 4  # free-tier friendly: most severe gaps, one per gap type first
     paperclip_api_url: str = ""
     paperclip_api_key: str = ""
     paperclip_company_id: str = ""

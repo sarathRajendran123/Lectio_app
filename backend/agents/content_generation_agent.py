@@ -25,8 +25,18 @@ from knowledge.bloom_classifier import BLOOM_VERBS, classify_text
 
 logger = logging.getLogger(__name__)
 
-# Max items to generate per run (respect free-tier rate limits)
-MAX_ITEMS_PER_RUN = 8
+_SEVERITY = {'critical': 0, 'warning': 1}
+
+
+def pick_gaps(gaps, limit):
+    """Worst gaps first, one per gap type before a second of any type, so the cap spreads across problems."""
+    ordered = sorted(gaps, key=lambda g: (_SEVERITY.get(g.severity, 2), g.score))
+    picked, seen = [], set()
+    for g in ordered:
+        if g.gap_type not in seen:
+            picked.append(g); seen.add(g.gap_type)
+    picked += [g for g in ordered if g not in picked]
+    return picked[:limit]
 
 
 class ContentGenerationAgent(BaseAgent):
@@ -46,7 +56,9 @@ class ContentGenerationAgent(BaseAgent):
                 "topic_not_assessed", "bloom_level_mismatch",
                 "topic_not_delivered",
             )
-        ][:MAX_ITEMS_PER_RUN]
+        ]
+        from config import settings
+        actionable = pick_gaps(actionable, settings.generation_max_items_per_run)
 
         if not actionable:
             logger.info("[Generation] No actionable gaps — skipping generation")
