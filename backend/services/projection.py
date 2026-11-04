@@ -3,8 +3,8 @@
 Each open gap that a draft can address is re-checked against the lecturer's approved (or edited
 and approved) draft with the same similarity measure the audit uses. A gap counts as addressed only
 if that check passes; nothing is assumed. The dimension score then moves towards 100% in proportion
-to the severity-weighted share of gaps addressed, so it can only reach 100% when every gap (including
-model-review findings no draft can close) is addressed. Projected numbers are labelled as such: only a
+to the severity-weighted share of gaps addressed, so one finding never explains the whole shortfall
+(shares are over at least three warning-weights) and a projection never exceeds 95%. Projected numbers are labelled as such: only a
 full audit, after the real course files change, produces a verified score.
 """
 import asyncio
@@ -19,6 +19,8 @@ from services.review import latest_text
 
 WEIGHT = {'critical': 2.0, 'warning': 1.0, 'info': 0.5}
 ASSESSMENT_DRAFTS = ('quiz', 'exercise', 'assessment_suggestion', 'assessment')
+MIN_TOTAL_WEIGHT = 3.0   # a score reflects many evidence items: one finding never explains the whole shortfall
+MAX_PROJECTED = 0.95    # only a full audit can show near-perfect alignment
 STATUS_THRESHOLDS = {'metadata_assessment': (0.80, 0.60)}   # same cut-offs as the audit agents
 _TOPIC = re.compile(r"Topic '(.+?)' has")
 _CLO = re.compile(r"CLO: '(.+?)'", re.S)
@@ -44,8 +46,14 @@ def _vectors(texts: list[str]) -> list[list[float]]:
     return [_vec_cache[t] for t in texts]
 
 
+LIVE_TYPES = ('live_missing_objective', 'live_missing_assessment')
+CHECKED_TYPES = ('topic_not_assessed', 'clo_not_assessed') + LIVE_TYPES
+
+
 def target_of(gap) -> str:
     """The topic / objective text a gap is about."""
+    if gap.gap_type in LIVE_TYPES:
+        return (gap.description or '').split(' Rationale:')[0]
     if gap.gap_type == 'topic_not_assessed':
         m = _TOPIC.search(gap.description or '')
     elif gap.gap_type == 'clo_not_assessed':
@@ -68,16 +76,18 @@ def similarity(a: str, b: str) -> tuple[float, float]:
 
 def check_gap(gap, drafts: list[dict], used: set | None = None):
     """Return (draft, detail) if an approved draft addresses this gap, else (None, reason)."""
-    if gap.gap_type in ('topic_not_assessed', 'clo_not_assessed'):
+    if gap.gap_type in CHECKED_TYPES:
         target = target_of(gap)
         best = None
-        for d in (x for x in drafts if x['type'] in ASSESSMENT_DRAFTS):
+        wanted = ('clo',) if gap.gap_type == 'live_missing_objective' else ASSESSMENT_DRAFTS
+        for d in (x for x in drafts if x['type'] in wanted):
             sim, bar = similarity(target, d['text'])
             if sim >= bar and (best is None or sim > best[1]):
                 best = (d, sim)
         if best:
             return best[0], f'draft matches "{target[:60]}" (similarity {best[1]:.2f}, needs {bar:.2f})'
-        return None, 'no approved assessment draft covers this yet'
+        return None, ('no approved objective draft covers this yet' if gap.gap_type == 'live_missing_objective'
+                      else 'no approved assessment draft covers this yet')
     if gap.gap_type == 'bloom_level_mismatch':
         m = _LEVELS.search(gap.description or '')
         if not m:
@@ -91,6 +101,11 @@ def check_gap(gap, drafts: list[dict], used: set | None = None):
     if gap.gap_type == 'live_alignment_review':
         return None, 'model-review finding: adopt its suggested correction, then re-audit to verify'
     return None, 'needs new teaching material or lecturer action; a generated draft cannot close it'
+
+
+def projected_score(verified: float, resolved: float, total: float) -> float:
+    share = resolved / max(total, MIN_TOTAL_WEIGHT)
+    return max(verified, min(MAX_PROJECTED, verified + (1.0 - verified) * share))
 
 
 def status_for(report_type: str, score: float) -> str:
@@ -112,7 +127,7 @@ async def project_course(course_id, db) -> dict:
         texts = [d['text'] for d in drafts]
         for report in latest.values():
             texts += [target_of(g) for g in (await db.scalars(select(AlignmentGapRecord).where(
-                AlignmentGapRecord.report_id == report.id, AlignmentGapRecord.gap_type.in_(('topic_not_assessed', 'clo_not_assessed'))))).all()]
+                AlignmentGapRecord.report_id == report.id, AlignmentGapRecord.gap_type.in_(CHECKED_TYPES)))).all()]
         await asyncio.to_thread(_vectors, texts)
     for report_type, report in sorted(latest.items()):
         verified = float(report.overall_score or 0)
@@ -136,7 +151,7 @@ async def project_course(course_id, db) -> dict:
                 entry['addressed'].append({**item, 'draft_id': draft['id'], 'draft_title': draft['title'], 'check': detail})
             else:
                 entry['open'].append({**item, 'reason': detail})
-        projected = min(1.0, verified + (1.0 - verified) * (resolved / total)) if total else verified
+        projected = projected_score(verified, resolved, total)
         entry.update(projected_score=round(projected, 4), projected_status=status_for(report_type, projected),
                      delta=round(projected - verified, 4))
         dimensions.append(entry)

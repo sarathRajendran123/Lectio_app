@@ -55,6 +55,7 @@ class ContentGenerationAgent(BaseAgent):
                 "clo_not_covered", "clo_not_assessed",
                 "topic_not_assessed", "bloom_level_mismatch",
                 "topic_not_delivered",
+                "live_missing_objective", "live_missing_assessment",
             )
         ]
         from config import settings
@@ -128,6 +129,8 @@ class ContentGenerationAgent(BaseAgent):
             "topic_not_assessed":  self._gen_quiz_question,
             "bloom_level_mismatch": self._gen_revised_clo,
             "topic_not_delivered": self._gen_exercise,
+            "live_missing_objective":  self._gen_clo,
+            "live_missing_assessment": self._gen_assessment_question,
         }
         handler = dispatch.get(gap.gap_type)
         if not handler:

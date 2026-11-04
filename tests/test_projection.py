@@ -76,3 +76,22 @@ def test_one_draft_closes_at_most_one_level_gap():
     d = draft('Students will be able to explain binary search.', 'clo')
     first, _ = p.check_gap(g, [d], set())
     assert first and p.check_gap(g, [d], {d['id']})[0] is None
+
+
+def test_model_findings_about_missing_objectives_or_assessments_can_be_closed_by_matching_drafts():
+    g = gap('live_missing_objective', 'No objective for graph traversal: BFS and DFS are taught in week 4 Rationale: none covers it')
+    obj = draft('Students will be able to apply BFS and DFS graph traversal.', 'clo')
+    assert p.target_of(g).endswith('week 4')
+    assert p.check_gap(g, [obj])[0]
+    assert p.check_gap(g, [draft('Quiz on graph traversal with BFS and DFS', 'quiz')])[0] is None     # wrong draft type
+    assert p.check_gap(g, [draft('Students will be able to bake bread and cakes.', 'clo')])[0] is None   # unrelated
+    a = gap('live_missing_assessment', 'Exam items about hash tables collisions are missing. Rationale: x')
+    assert p.check_gap(a, [draft('Question: explain hash tables collisions.', 'quiz')])[0]
+    assert p.check_gap(gap('live_alignment_review', 'Schedule unclear'), [obj])[0] is None
+
+
+def test_projection_is_capped_and_a_single_finding_cannot_explain_the_whole_shortfall():
+    assert p.projected_score(.76, .5, .5) < .82            # one minor finding closed: modest gain, not 100%
+    assert p.projected_score(.5, 10, 10) == p.MAX_PROJECTED   # everything closed: still capped
+    assert p.projected_score(.97, 0, 5) == .97 and p.projected_score(.97, 5, 5) == .97   # never below verified
+    assert p.projected_score(.67, 3.0, 3.5) == p.MAX_PROJECTED and abs(p.projected_score(.67, 1.0, 3.5) - (.67 + .33 / 3.5)) < 1e-9

@@ -79,7 +79,7 @@ class SemanticChunker:
         Main entry point. Returns ordered list of RawChunks.
         """
         raw_chunks = []
-        for block in doc.blocks:
+        for block in self._attach_headings(doc.blocks):
             sections=self._semantic_sections(block.text) if self.use_semantic_split else [block.text]
             for text in [piece for section in sections for piece in self._split_section(section)]:
                 # Preserve even short outcomes, question prompts and headings.
@@ -92,6 +92,21 @@ class SemanticChunker:
                     char_count=len(text), token_count=_naive_token_count(text),
                     extra_metadata=block.metadata))
         return raw_chunks
+
+    @staticmethod
+    def _attach_headings(blocks):
+        """A heading is context for the text under it: keep them in one chunk (a heading-only chunk is useless evidence)."""
+        from dataclasses import replace
+        merged, pending = [], []
+        for block in blocks:
+            if block.block_type in ("heading", "title") and block.text.strip():
+                pending.append(block.text.strip()); continue
+            if pending:
+                block = replace(block, text="\n".join(pending) + "\n" + block.text); pending = []
+            merged.append(block)
+        for leftover in pending:   # trailing headings with nothing under them stay as they are
+            merged.append(replace(blocks[-1], text=leftover, block_type="heading"))
+        return merged
 
     def _semantic_sections(self, text):
         # Retain original slices rather than rejoining sentences or inventing locations.

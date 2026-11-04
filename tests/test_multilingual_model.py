@@ -91,3 +91,13 @@ def test_frontend_client_avoids_slow_localhost_and_caches_reads(monkeypatch):
         assert hits == ['http://x/courses', 'http://x/runs/1', 'http://x/runs/1']
         c.post('http://x/courses'); c.get('http://x/courses')   # a write invalidates the cache
     assert hits[-1] == 'http://x/courses' and len(hits) == 4
+
+
+def test_headings_stay_with_the_text_they_introduce():
+    from rag.chunking.semantic_chunker import SemanticChunker
+    from rag.parsers.base_parser import ParsedBlock, ParsedDocument
+    blocks = [ParsedBlock('# CS201 Module Manual', 'heading'), ParsedBlock('This module introduces algorithms.', 'paragraph'),
+              ParsedBlock('## Weekly schedule', 'heading'), ParsedBlock('Week 1: Sorting\nWeek 2: Binary search', 'paragraph'),
+              ParsedBlock('## Appendix', 'heading')]
+    texts = [c.text for c in SemanticChunker().chunk(ParsedDocument('x', 'md', 'syllabus', blocks), 'a', 'c')]
+    assert texts == ['# CS201 Module Manual\nThis module introduces algorithms.', '## Weekly schedule\nWeek 1: Sorting\nWeek 2: Binary search', '## Appendix']

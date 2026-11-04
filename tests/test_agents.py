@@ -54,3 +54,24 @@ def test_live_reviews_are_prefetched_concurrently_and_called_once_each():
     for d in DIMENSIONS: out = augment(Agent(), state, d)
     assert len(calls) == len(DIMENSIONS) and all(n.startswith('live-review') for n in calls)
     assert out['total_tokens'] == 5
+
+
+def test_confirmations_are_not_gaps_and_fixable_findings_get_draftable_gap_types():
+    import json
+    from agents.live_review import DIMENSIONS, augment
+    finding = lambda title, fixable: {'title': title, 'description': 'Described in detail here', 'severity': 'warning', 'rationale': 'Because',
+        'correction': 'Add one', 'evidence_ids': ['real'], 'evidence_strength': 'moderate', 'fixable_by': fixable}
+    class Agent:
+        def _retrieve(self, *a, **k): return [RetrievedChunk('real', 'Real source excerpt', .8, 'a', 'slides', 'c', 1, None, None, None)]
+        def _invoke(self, *a, **k):
+            return json.dumps({'findings': [finding('No objective covers graphs', 'objective'), finding('Exam items unmapped', 'assessment'),
+                finding('Schedule unclear', 'none')], 'confirmed': ['Binary search objective is supported by the slides'],
+                'limitations': 'x'}), 7
+        def _parse_json(self, text): return json.loads(text)
+    state = {'course_id': 'c', 'modules': [], 'course_metadata': {'title': 'T'},
+             'alignment_results': {d: AlignmentResult('a', d, .9, 'pass') for d in DIMENSIONS}}
+    augment(Agent(), state, 'metadata_content')
+    result = state['alignment_results']['metadata_content']
+    assert [g.gap_type for g in result.gaps] == ['live_missing_objective', 'live_missing_assessment', 'live_alignment_review']
+    assert result.findings['live_review']['confirmed'] == ['Binary search objective is supported by the slides']
+    assert not any('supported' in g.description for g in result.gaps)

@@ -69,3 +69,9 @@ Not verified here:
 - Live, English course, 4 approved drafts: Content<->Assessment 64% -> 75% (4 of 13 addressed), Metadata<->Assessment 67% -> 73% (1 of 5), the other two unchanged. First version let one quiz close three level gaps; found on this run and fixed.
 - Cost: no LLM calls. First projection after new approvals embeds the draft and gap texts once (about 14 s for 20 texts on this CPU), then served from memory (0.09 s). The embedding model is warmed in the background at server start.
 - Tests: 56 passed, 1 skipped.
+
+### Review findings, headings, projection cap (2026-11-04)
+- Model review now returns problems as findings and good news in a separate `confirmed` list (stored under `live_review.confirmed`, never counted as gaps). Findings carry `fixable_by` (objective / assessment / none); fixable ones get gap types `live_missing_objective` / `live_missing_assessment`, which the draft generator handles and the projection re-checks against matching approved drafts.
+- Chunker keeps a heading with the text under it (a heading-only chunk gave the model false "empty section" findings).
+- Live, fresh English course: confirmations separated (3-4 per dimension), Content<->Delivery gaps 3 -> 0, Metadata<->Content gaps 3 -> 1, syllabus chunks 4 -> 2 (heading merged), a CLO draft generated for the dynamic-programming finding. With 3 drafts approved the uncapped projection reached 95% and 100% (single minor finding closed), which over-promised; projections are now capped at 95% and share the shortfall over at least three warning-weights.
+- Tests: 60 passed, 1 skipped.
