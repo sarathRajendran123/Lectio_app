@@ -68,4 +68,4 @@ Not verified here:
 - Method: each open gap a draft can address is re-checked against approved (or edited-and-approved) drafts with the audit's similarity measure (BGE-M3 cosine, bar 0.55; hash-vector bar 0.30 in test mode). Cognitive-level gaps need a draft within one level of the taught content, and one draft closes at most one such gap. Delivery gaps, coverage gaps and model-review findings are never closed by a draft. Score = verified + (100% - verified) x severity-weighted share of gaps addressed (critical 2, warning 1, info 0.5), so 100% needs every gap closed.
 - Live, English course, 4 approved drafts: Content<->Assessment 64% -> 75% (4 of 13 addressed), Metadata<->Assessment 67% -> 73% (1 of 5), the other two unchanged. First version let one quiz close three level gaps; found on this run and fixed.
 - Cost: no LLM calls. First projection after new approvals embeds the draft and gap texts once (about 14 s for 20 texts on this CPU), then served from memory (0.09 s). The embedding model is warmed in the background at server start.
-- Tests: 57 passed, 1 skipped.
+- Tests: 56 passed, 1 skipped.
