@@ -22,6 +22,11 @@ def show_approval_center():
     course_opts.update({f"{c['code']} — {c['title']}": c["id"] for c in courses})
     selected_course_label = col2.selectbox("Course", list(course_opts.keys()))
     course_filter    = course_opts[selected_course_label]
+    projected_course = st.session_state.get("show_projection_for")
+    if projected_course:
+        from views._alignment_reports import render_projection
+        render_projection(client, projected_course, compact=True)
+        st.divider()
 
     if col3.button("Refresh"):
         st.rerun()
@@ -102,6 +107,7 @@ def _render_approval_card(client, item: dict, status_filter: str):
                     st.error(err)
                 else:
                     st.success("Approved and recorded.")
+                    st.session_state["show_projection_for"] = item.get("course_id")
                     st.session_state.pop(action_key, None)
                     st.rerun()
 

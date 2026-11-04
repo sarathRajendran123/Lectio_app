@@ -17,6 +17,38 @@ REPORT_LABELS = {
 }
 
 
+def render_projection(client, course_id, compact=False):
+    """Verified score vs. projected score if the lecturer's approved drafts are adopted."""
+    with st.spinner("Re-checking gaps against your approved drafts (first time after new approvals can take a few seconds)..."):
+        data, err = safe_api_call(client.workbench, f"courses/{course_id}/projection")
+    if err or not data or not data.get("dimensions"):
+        return
+    st.markdown("#### If your approved drafts are adopted")
+    if not data["approved_drafts"]:
+        st.caption("No approved drafts yet. Approve a suggested draft and this shows how far it would close the gaps, "
+                   "without re-running the whole audit.")
+        return
+    st.caption(f"Projected from {data['approved_drafts']} approved draft(s). Only a full audit after you change the real "
+               "course files gives a verified score.")
+    cols = st.columns(4)
+    for col, d in zip(cols, data["dimensions"]):
+        label = REPORT_LABELS.get(d["report_type"], d["report_type"])
+        if d["projected_score"] is None:
+            col.metric(label, "Not assessable"); continue
+        col.metric(label, f"{d['projected_score']:.0%} projected", delta=f"{d['delta']:+.0%} vs verified {d['verified_score']:.0%}")
+        col.caption(f"{len(d['addressed'])} of {d['gaps_total']} findings addressed")
+    if compact:
+        return
+    for d in data["dimensions"]:
+        if not (d["addressed"] or d["open"]):
+            continue
+        with st.expander(f"{REPORT_LABELS.get(d['report_type'], d['report_type'])}: addressed {len(d['addressed'])} / open {len(d['open'])}"):
+            for a in d["addressed"]:
+                st.success(f"**Addressed by:** {a['draft_title']}\n\n{a['description']}\n\n_{a['check']}_")
+            for o in d["open"]:
+                st.warning(f"{o['description']}\n\n_Still open: {o['reason']}_")
+
+
 def show_reports():
     st.title("Alignment Reports")
     client = get_client()
@@ -82,6 +114,9 @@ def show_reports():
                     st.warning("Model review unavailable: " + r["model_review_error"] + " The rule-based score above is still valid.")
             else:
                 st.metric(label, "—", delta="not run", delta_color="off")
+
+    render_projection(client, course_id)
+    st.divider()
 
     # ── Radar chart ────────────────────────────────────────────────────────
     scored = [r for r in run_reports if r["status"] not in ("needs_review", "failed")]

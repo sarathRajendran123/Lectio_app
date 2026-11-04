@@ -320,6 +320,13 @@ async def apply_approved(content_id:UUID,body:ApplySuggestion,user=Depends(get_c
     await db.flush()
     return {'applied':True,'target_type':target_type,'target_id':str(target.id),'source_documents_modified':False,'rerun_audit_required':True}
 
+@router.get('/courses/{course_id}/projection')
+async def projection(course_id:UUID,user=Depends(get_current_user),db=Depends(get_db, scope="function")):
+    """Projected scores if approved drafts are adopted; verified scores stay those of the last audit."""
+    await _assert_course_access(course_id,user,db)
+    from services.projection import project_course
+    return await project_course(course_id,db)
+
 @router.get('/system/agent-profiles')
 async def agent_profiles(user=Depends(get_current_user)):
     return {'models':settings.llm_models,

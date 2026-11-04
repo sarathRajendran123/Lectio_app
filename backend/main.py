@@ -38,6 +38,11 @@ async def lifespan(app: FastAPI):
         await db.execute(update(AgentRun).where(AgentRun.status == "running").values(status="failed", error_message="Server restarted during audit; please rerun."))
         await db.execute(update(CourseArtifact).where(CourseArtifact.processing_status.in_(["pending","parsing","chunking","embedding","storing"])).values(processing_status="error",processing_error="Server restarted during processing; retry ingestion."))
         await db.commit()
+    if settings.runtime_mode == "live" and settings.retrieval_backend == "neural":
+        # Load embedding weights in the background so the first search/upload/projection is not the one that waits.
+        import asyncio
+        from rag.embedding.bge_embedder import BGEEmbedder
+        asyncio.get_running_loop().run_in_executor(None, lambda: BGEEmbedder.get_instance().embed_texts(["warm-up"]))
     yield
     from services.workflow_service import workflow_service
     for run_id in list(workflow_service.tasks):
