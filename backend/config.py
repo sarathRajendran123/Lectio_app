@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     openrouter_model: str = "nvidia/nemotron-3.5-super-vl:free"
     openrouter_fallback_model: str = "nvidia/nemotron-3-ultra-550b-a55b:free"  # one bounded retry, "" disables
     openrouter_model_variants: list[str] = []
-    llm_max_tokens_audit: int = 4000   # reasoning models spend part of this on thinking
+    llm_max_tokens_audit: int = 6000   # reasoning models spend part of this on thinking
     llm_max_tokens_generation: int = 3000
     llm_retry_wait_seconds: float = 6.0  # one pause + second pass when every model is rate-limited
     llm_reasoning_effort: str = "low"   # limits hidden thinking tokens on reasoning models ("" disables)

@@ -81,6 +81,8 @@ class OpenRouterChat:
         data = r.json()
         choice = (data.get("choices") or [{}])[0]
         content = (choice.get("message") or {}).get("content")
+        if not content and choice.get("finish_reason") == "length":   # hidden reasoning used the whole budget
+            raise LLMError(f"{model} output was cut off at max_tokens={self.max_tokens}; raise the token cap.")
         if data.get("error") or not content:
             raise LLMError(f"Provider returned no content for {model}: {str(data.get('error'))[:200]}")
         if choice.get("finish_reason") == "length":
@@ -101,14 +103,17 @@ class OpenRouterChat:
         if settings.openrouter_fallback_model and settings.openrouter_fallback_model != self.model:
             models.append(settings.openrouter_fallback_model)
         last: Exception | None = None
+        transient = True
         for attempt in range(2):  # second pass only after a pause, and only if every failure was transient
             for used in models:
                 try:
                     content, tokens = self._post(used, msgs)
                     break
                 except LLMError as exc:
-                    if exc.fatal or "cut off" in str(exc):
+                    if exc.fatal:
                         raise
+                    if "cut off" in str(exc):
+                        transient = False   # more waiting cannot help; the fallback model may be more concise
                     last = exc
                 except httpx.TimeoutException as exc:
                     last = exc
@@ -118,9 +123,11 @@ class OpenRouterChat:
                     last = exc
                 logger.warning("LLM call failed for %s (%s)", used, type(last).__name__)
             else:
-                if attempt == 0:
+                if attempt == 0 and transient:
                     time.sleep(max(settings.llm_retry_wait_seconds, 0))
                     continue
+                if isinstance(last, LLMError) and "cut off" in str(last):
+                    raise last
                 raise LLMError(f"All configured models failed: {type(last).__name__}") from last
             break
         if validate:

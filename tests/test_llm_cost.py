@@ -151,10 +151,20 @@ def test_truncated_output_is_an_error_and_not_cached(llm, monkeypatch):
     chat, calls = llm
     cut = httpx.Response(200, json={"choices": [{"message": {"content": '{"findings": ['}, "finish_reason": "length"}]},
                          request=httpx.Request("POST", "http://x"))
-    _patch_post(monkeypatch, calls, cut, _reply("complete"))
+    _patch_post(monkeypatch, calls, cut, cut, _reply("complete"))
     with pytest.raises(LLMError, match="cut off"):
-        chat.invoke(MSGS)
-    assert chat.invoke(MSGS).content == "complete" and len(calls) == 2
+        chat.invoke(MSGS)               # both models cut off: no pause, no second pass
+    assert len(calls) == 2
+    assert chat.invoke(MSGS).content == "complete"   # the failed answer was never cached
+
+
+def test_cut_off_primary_falls_back_to_the_other_model(llm, monkeypatch):
+    chat, calls = llm
+    empty = httpx.Response(200, json={"choices": [{"message": {"content": None}, "finish_reason": "length"}]},
+                           request=httpx.Request("POST", "http://x"))
+    _patch_post(monkeypatch, calls, empty, _reply("concise"))
+    r = chat.invoke(MSGS)
+    assert r.content == "concise" and r.response_metadata["model"] == "fallback/model:free"
 
 
 def test_daily_quota_error_is_fatal_with_no_fallback_or_pause(llm, monkeypatch):
