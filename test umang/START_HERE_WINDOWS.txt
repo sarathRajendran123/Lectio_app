@@ -1,0 +1,15 @@
+LECTIO — Windows quick start
+
+1. Install Python 3.11 or 3.12.
+2. Open PowerShell in this LECTIO_APP directory.
+3. Run:
+   python -m venv .venv
+   .venv\Scripts\python.exe -m pip install -r requirements-local.txt
+   .venv\Scripts\python.exe scripts\setup_local.py
+   .venv\Scripts\python.exe scripts\run_local.py
+4. Open http://127.0.0.1:8501
+5. Login: admin@example.org. Your generated password is in .env under ADMIN_PASSWORD.
+
+This is explicitly labelled local-test mode: no model API key required and no AI inference claimed.
+Do not upload your private .env or data directory to GitHub.
+See README.md for live setup, workflow, demo data, testing and limitations.

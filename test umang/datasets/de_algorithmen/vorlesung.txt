@@ -1,0 +1,5 @@
+Binäre Suche. Die binäre Suche halbiert in jedem Schritt den Suchraum eines sortierten Arrays. Die Laufzeit ist logarithmisch; bei 64 Einträgen genügen höchstens 6 Vergleiche.
+
+Hashtabellen. Eine Hashfunktion bildet Schlüssel auf Tabellenplätze ab. Kollisionen werden durch Verkettung oder offene Adressierung gelöst. Der Lastfaktor bestimmt die erwarteten Kosten einer Suche.
+
+Sortieren. Mergesort halbiert die Liste und mischt die sortierten Hälften, die Laufzeit beträgt n log n.

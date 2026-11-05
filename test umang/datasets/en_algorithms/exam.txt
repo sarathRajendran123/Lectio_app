@@ -1,0 +1,3 @@
+Question 1. Explain binary search and calculate the maximum number of comparisons needed for a sorted array with 64 entries.
+Question 2. Compare chaining and open addressing for collision handling in hash tables and evaluate their effect on lookup cost.
+Question 3. Design a dynamic programming solution for the longest common subsequence problem and prove its correctness.

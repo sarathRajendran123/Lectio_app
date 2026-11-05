@@ -1,0 +1,4 @@
+-r requirements-core.txt
+asyncpg==0.30.0
+sentence-transformers==6.1.0
+pytesseract==0.3.13
