@@ -65,7 +65,7 @@ def _render_approval_card(client, item: dict, status_filter: str):
         st.markdown(
             f"""<div style="background:#f8f9fa; padding:1rem; border-radius:6px;
             border-left:4px solid #4F46E5; white-space:pre-wrap; font-size:0.9rem;">
-            {item.get("content","").replace("<","&lt;").replace(">","&gt;")}
+            {item.get("content","").replace("<","&lt;").replace(">","&gt;").replace(chr(10), "&#10;")}
             </div>""",
             unsafe_allow_html=True,
         )

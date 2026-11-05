@@ -110,3 +110,8 @@ OPENROUTER_MODEL=<an available model>
 Run `python scripts/verify_live.py`. It requires actual provider inference and strict source quotations; it refuses local_test mode. This lexical retrieval option is explicitly identified and does not claim neural semantics. Use `RETRIEVAL_BACKEND=neural` with `requirements.txt` for BGE-M3 and semantic boundary detection. On CPU-only machines install CPU PyTorch first to avoid CUDA downloads, as the backend Dockerfile does.
 
 Configured variants can be supplied as `OPENROUTER_MODEL_VARIANTS=["model-a","model-b"]`; only allow-listed models may be selected in the UI. Model availability is checked separately; configuring a name does not verify it.
+
+## Screenshots
+
+`docs/screenshots/` holds current views of the interface (login, dashboard, documents, alignment reports with projected scores, approval center, course workbench), taken on the demo course from `datasets/en_algorithms`.
+

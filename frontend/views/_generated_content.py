@@ -110,7 +110,7 @@ def _render_content_card(item: dict):
                 f"""<div style="white-space:pre-wrap; font-size:0.9rem;
                 padding:0.75rem; background:#fff; border-radius:6px;
                 border:1px solid #E2E8F0;">
-                {item.get("content","").replace("<","&lt;").replace(">","&gt;")}
+                {item.get("content","").replace("<","&lt;").replace(">","&gt;").replace(chr(10), "&#10;")}
                 </div>""",
                 unsafe_allow_html=True,
             )

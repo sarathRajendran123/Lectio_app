@@ -35,7 +35,7 @@ def render_projection(client, course_id, compact=False):
         label = REPORT_LABELS.get(d["report_type"], d["report_type"])
         if d["projected_score"] is None:
             col.metric(label, "Not assessable"); continue
-        col.metric(label, f"{d['projected_score']:.0%} projected", delta=f"{d['delta']:+.0%} vs verified {d['verified_score']:.0%}")
+        col.metric(label, f"{d['projected_score']:.0%}", delta=f"{d['delta']:+.0%} vs verified {d['verified_score']:.0%}")
         col.caption(f"{len(d['addressed'])} of {d['gaps_total']} findings addressed")
     if compact:
         return
