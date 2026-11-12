@@ -137,6 +137,13 @@ class WorkflowService:
                 .values(**values)
             )
             await db.commit()
+            # Close the run in the trace, then record the chain head outside the database.
+            from services import trace
+            run = await db.get(AgentRun, uuid.UUID(run_id))
+            await trace.aemit("run_finished", {"status": status, "tokens": tokens, "error": (error or "")[:300] or None},
+                              subject=("run", run_id), run_id=run_id, course_id=str(run.course_id) if run else None,
+                              agent="workflow_service")
+            await trace.anchor(db, run_id)
 
     def _serialise_state(self, state: dict) -> dict:
         """Make state JSON-serialisable (convert dataclasses to dicts)."""
@@ -217,6 +224,15 @@ class WorkflowService:
             )
 
         item = await db.get(GeneratedContentRecord, uuid.UUID(content_id))
+        if item:
+            # The decision becomes an explicit constraint (and a rejected draft is remembered so it is not offered again).
+            from services import constraints as lecturer_constraints, trace
+            rule = await lecturer_constraints.from_draft_decision(db, reviewer_id, item.course_id, content_id, decision, comment, item.content)
+            await trace.aemit("lecturer_decision", {"decision": decision, "has_comment": bool((comment or "").strip()),
+                                                    "edited": bool(revision), "constraint_id": rule["id"] if rule else None,
+                                                    "gap_id": str(item.source_gap_id) if item.source_gap_id else None},
+                              db=db, subject=("draft", content_id), run_id=str(item.run_id) if item.run_id else None,
+                              course_id=str(item.course_id), agent="lecturer")
         if item and item.run_id:
             await db.flush()
             from sqlalchemy import func

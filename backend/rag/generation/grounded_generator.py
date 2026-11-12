@@ -62,6 +62,7 @@ RULES:
             from config import settings
             from llm.openrouter import OpenRouterChat
             self._llm = OpenRouterChat(
+                prompt_version="grounded-draft/2",
                 model=self.model,
                 temperature=0.3,      # Low temperature for factual grounding
                 max_tokens=settings.llm_max_tokens_generation,

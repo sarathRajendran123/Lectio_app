@@ -47,7 +47,7 @@ def template_text(label: str, german: bool) -> str:
             else f'Students will be able to explain and apply the key concepts of {label}.')
 
 
-def _llm_texts(top: list[dict], info: dict, german: bool) -> dict[int, str]:
+def _llm_texts(top: list[dict], info: dict, german: bool, intent_text: str = "") -> dict[int, str]:
     from llm.openrouter import OpenRouterChat
     from langchain_core.messages import HumanMessage, SystemMessage
     blocks = '\n\n'.join(f'CLUSTER {i}: {g["label"]}\n' + '\n'.join('- ' + info[c]['text'][:350] for c in g['chunk_ids'][:2])
@@ -62,8 +62,8 @@ def _llm_texts(top: list[dict], info: dict, german: bool) -> dict[int, str]:
         if not out or any(not 15 <= len(t) <= 400 for t in out.values()):
             raise ValueError('Derived outcomes failed validation.')
         return out
-    reply = OpenRouterChat(temperature=0.2, max_tokens=settings.llm_max_tokens_audit).invoke(
-        [SystemMessage(content=system), HumanMessage(content=blocks)], validate=check)
+    reply = OpenRouterChat(temperature=0.2, max_tokens=settings.llm_max_tokens_audit, prompt_version="derive-outcomes/2").invoke(
+        [SystemMessage(content=system), HumanMessage(content=(intent_text + "\n\n" if intent_text else "") + blocks)], validate=check)
     return check(reply.content)
 
 
@@ -85,7 +85,13 @@ async def derive_missing_objectives(course_id, db) -> dict:
     texts = {}
     if settings.runtime_mode == 'live' and settings.llm_ready:
         try:
-            texts = await asyncio.to_thread(_llm_texts, top, info, german)
+            from services import intent as course_intent, trace
+            intent = await course_intent.active(db, course_id)
+            def derive():
+                with trace.context(course_id=str(course_id), agent="outcome_derivation", task_id=f"course:{course_id}:derive_outcomes",
+                                   intent=course_intent.ref(intent)):
+                    return _llm_texts(top, info, german, course_intent.block(intent))
+            texts = await asyncio.to_thread(derive)
         except Exception as exc:   # fall back to templates; never block the audit
             logger.warning('Outcome derivation by model failed (%s); using templates.', type(exc).__name__)
     module_count = await db.scalar(select(func.count(Module.id)).where(Module.course_id == course_id)) or 0

@@ -72,6 +72,28 @@ def _render_approval_card(client, item: dict, status_filter: str):
 
         render_citations(item.get("citations", []))
 
+        # The Stakeholder agent's own check of this draft: never hidden, never shown as a pass when it failed.
+        quality = item.get("quality")
+        if quality and not quality["passed"]:
+            st.warning(f"This draft did not pass the internal quality check ({quality['score']:.0%}, needs {quality['threshold']:.0%}) "
+                       f"after {quality['attempts']} attempt(s). " + " ".join(quality.get("issues") or []))
+        elif quality:
+            st.caption(f"Internal quality check passed ({quality['score']:.0%}, {quality['attempts']} attempt(s)). This is a consistency check, not a judgement of teaching quality.")
+        if item.get("rationale"):
+            st.caption("Why this draft: " + item["rationale"])
+        if st.checkbox("How was this draft produced?", key=f"trace_{content_id}"):
+            produced, trace_error = safe_api_call(client.workbench, f"approvals/{content_id}/trace")
+            if trace_error:
+                st.error(trace_error)
+            else:
+                used = produced["1_intent"]["used"]
+                st.write("Intent used: " + (f"version {used['version']}: {used['goals']}" if used else "none was stated"))
+                summary = produced["summary"]
+                st.write(f"Model calls: {summary['model_calls']} ({summary['cached_calls']} cached), quality checks: {summary['quality_checks']}, retries: {summary['retries']}.")
+                st.caption("Event log integrity: " + ("verified" if produced["integrity"]["valid"] else "BROKEN: " + str(produced["integrity"].get("reason"))))
+                with st.expander("Technical trace"):
+                    st.dataframe(produced["5_model_calls_and_checks"], width="stretch", hide_index=True)
+
         history, history_error = safe_api_call(client.workbench, f"approvals/{content_id}/history")
         if history:
             original, edited = st.columns(2)

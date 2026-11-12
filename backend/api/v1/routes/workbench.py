@@ -121,17 +121,43 @@ async def generate(course_id:UUID,body:GenerationRequest,user=Depends(get_curren
         gap=await db.scalar(select(AlignmentGapRecord).join(AlignmentReport).where(AlignmentGapRecord.id==body.gap_id,AlignmentReport.course_id==course_id))
         if not gap:raise HTTPException(404,'Related finding does not belong to this course.')
     query=body.purpose+' '+' '.join(o.text for o in objectives)+((' '+gap.description) if gap else '')
+    # Every draft goes through the Stakeholder gate under the lecturer's stated intent and constraints.
+    from uuid import uuid4
+    from services import stakeholder_gate, trace
+    from services import constraints as lecturer_constraints, intent as course_intent
+    from db.models.governance import DraftReview
+    intent=await course_intent.active(db,course_id)
+    rules=await lecturer_constraints.active(db,user.id,course_id)
+    guidance=lecturer_constraints.guidance(intent,rules)
+    rejected=await lecturer_constraints.rejected_fingerprints(db,course_id)
+    constraint_ids=[c['id'] for c in rules]
+    reviews=[]
     records=[]
     async with _generation_lock:
         try:
             context=await asyncio.to_thread(rag.retrieve,query,str(course_id),8)
+            await trace.aemit('draft_requested',{'content_type':body.content_type,'alternatives':body.alternatives,'styles':list(body.prompt_styles),
+                'models':list(body.models),'purpose_fingerprint':trace.fingerprint(body.purpose)[:16],'gap_id':str(gap.id) if gap else None,
+                'intent':course_intent.ref(intent),'constraint_ids':constraint_ids},db=db,subject=('course',course_id),course_id=str(course_id),agent='lecturer')
+            await trace.aemit('tool_call',{'tool':'retrieve','query_fingerprint':trace.fingerprint(query)[:16],'top_k':8,'results':len(context),
+                'chunk_ids':[c.chunk_id for c in context[:8]]},db=db,course_id=str(course_id),agent='content_generation_agent',
+                task_id=f'course:{course_id}:draft_request')
             for variant in range(body.alternatives):
                 style=body.prompt_styles[variant%len(body.prompt_styles)]
                 model=body.models[variant%len(body.models)] if body.models else settings.openrouter_model
                 prompt=f'Generate {body.content_type}. Purpose: {body.purpose}. Alternative {variant+1}. '+\
                     f'Use {style} style. Expected format: {body.expected_format or body.content_type}. Constraints: {body.constraints}. Related finding: {gap.description if gap else "none selected"}. '+\
                     'Outcomes: '+'; '.join(o.text for o in objectives)
-                result=await asyncio.to_thread(GroundedGenerator(model=model).generate,prompt,context)
+                task_id=f'course:{course_id}:draft:{uuid4()}'
+                choices=[model]+[m for m in settings.llm_models if m!=model][:1]
+                def gated(prompt=prompt,style=style,choices=choices,task_id=task_id):
+                    with trace.context(course_id=str(course_id),agent='content_generation_agent',task_id=task_id,
+                            intent=course_intent.ref(intent),constraint_ids=constraint_ids):
+                        return stakeholder_gate.produce(lambda extra,chosen:GroundedGenerator(model=chosen).generate(prompt,context,extra),
+                            content_type=body.content_type,target=query,intent=intent,constraint_ids=constraint_ids,
+                            rejected_fingerprints=rejected,guidance=guidance,style=style,models=choices)
+                result,review=await asyncio.to_thread(gated)
+                reviews.append({**review,'task_id':task_id})
                 record=GeneratedContentRecord(course_id=course_id,content_type=body.content_type,
                     title=f'{body.content_type.title()} · Alternative {variant+1} ({style})',content=result.content,
                     source_gap_id=gap.id if gap else None,
@@ -139,7 +165,17 @@ async def generate(course_id:UUID,body:GenerationRequest,user=Depends(get_curren
                 db.add(record);records.append(record)
         except ValueError as exc: raise HTTPException(422,str(exc))
     await db.flush()
-    return [{'id':str(r.id),'title':r.title,'content':r.content,'citations':r.citations,'model_used':r.model_used,'approval_status':'pending'} for r in records]
+    for r,review in zip(records,reviews):
+        db.add(DraftReview(content_id=r.id,score=review['score'],threshold=review['threshold'],passed=review['passed'],attempts=review['attempts'],
+            issues=review['issues'],checks=review['checks'],rationale=review['rationale'],task_id=review['task_id'],
+            intent_id=intent['id'] if intent else None,intent_version=intent['version'] if intent else None,constraint_ids=constraint_ids))
+        await trace.aemit('draft_queued',{'content_type':r.content_type,'quality_score':review['score'],'quality_passed':review['passed'],
+            'attempts':review['attempts'],'requested_by':'lecturer'},db=db,subject=('draft',r.id),course_id=str(course_id),
+            agent='stakeholder_agent',task_id=review['task_id'])
+    await db.flush()
+    return [{'id':str(r.id),'title':r.title,'content':r.content,'citations':r.citations,'model_used':r.model_used,'approval_status':'pending',
+        'rationale':review['rationale'],'quality':{'score':review['score'],'passed':review['passed'],'issues':review['issues'],'attempts':review['attempts']}}
+        for r,review in zip(records,reviews)]
 
 @router.get('/approvals/{content_id}/history')
 async def decision_history(content_id:UUID,user=Depends(get_current_user),db=Depends(get_db, scope="function")):
@@ -249,9 +285,16 @@ async def review_finding(report_id:UUID,gap_id:UUID,body:FindingReview,user=Depe
         revised_recommendation=body.revised_recommendation,
         version_context={'run_id':str(report.run_id),'source_manifest':(report.findings or {}).get('findings',{}).get('source_manifest',[])})
     db.add(row)
+    from services import trace
+    from services import constraints as lecturer_constraints
+    # The decision becomes an explicit constraint: a dismissed finding is not raised as new again.
+    rule=await lecturer_constraints.from_finding_decision(db,user.id,report.course_id,gap,body.decision,body.rationale,body.revised_recommendation)
+    await trace.aemit('finding_decision',{'decision':body.decision,'has_rationale':bool((body.rationale or '').strip()),
+        'constraint_id':rule['id'] if rule else None},db=db,
+        subject=('gap',gap_id),run_id=str(report.run_id),course_id=str(report.course_id),agent='lecturer')
     # Acceptance of a finding is separate from resolving it or accepting generated content.
     await db.flush()
-    return {'decision_id':str(row.id),'status':body.decision,'content_approved':False}
+    return {'decision_id':str(row.id),'status':body.decision,'content_approved':False,'constraint_id':rule['id'] if rule else None}
 
 @router.get('/reports/{report_id}/finding-decisions')
 async def finding_decisions(report_id:UUID,user=Depends(get_current_user),db=Depends(get_db, scope="function")):
@@ -317,6 +360,9 @@ async def apply_approved(content_id:UUID,body:ApplySuggestion,user=Depends(get_c
     from services.model_version import touch_course
     await touch_course(item.course_id,db)
     db.add(AppliedSuggestion(content_id=item.id,target_type=target_type,target_id=target.id,applied_by=UUID(user.id),accepted_snapshot=accepted))
+    from services import trace
+    await trace.aemit('draft_applied',{'target_type':target_type,'target_id':str(target.id)},db=db,subject=('draft',item.id),
+        run_id=str(item.run_id) if item.run_id else None,course_id=str(item.course_id),agent='lecturer')
     await db.flush()
     return {'applied':True,'target_type':target_type,'target_id':str(target.id),'source_documents_modified':False,'rerun_audit_required':True}
 

@@ -65,6 +65,10 @@ class Settings(BaseSettings):
     llm_max_tokens_generation: int = 3000
     llm_retry_wait_seconds: float = 6.0  # one pause + second pass when every model is rate-limited
     llm_reasoning_effort: str = "low"   # limits hidden thinking tokens on reasoning models ("" disables)
+    quality_threshold: float = 0.6     # Stakeholder gate: drafts below this are retried, then shown with a warning
+    quality_max_retries: int = 1       # extra generation attempts per weak draft (each costs a model call)
+    trace_enabled: bool = True         # append-only trace of agent steps, model calls and decisions
+    trace_anchor_path: str = ""        # chain heads outside the database; default <ARTIFACT_STORAGE_PATH>/trace_anchors.jsonl
     llm_cache_enabled: bool = True   # identical validated requests are reused, not re-billed
 
     # ── LangSmith (Optional) ─────────────────────────

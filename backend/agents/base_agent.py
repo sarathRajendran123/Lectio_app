@@ -54,6 +54,7 @@ class BaseAgent:
             from config import settings
             from llm.openrouter import OpenRouterChat
             self._llm = OpenRouterChat(
+                prompt_version="audit-review/3",
                 temperature=0.1,      # Low temperature for factual analysis
                 max_tokens=settings.llm_max_tokens_audit,
             )
@@ -69,13 +70,17 @@ class BaseAgent:
 
     def _retrieve(self, query: str, course_id: str, top_k: int = 8, where: Optional[dict] = None):
         """Retrieve grounded context chunks."""
-        return self._get_rag().retrieve(
+        chunks = self._get_rag().retrieve(
             query=query,
             course_id=course_id,
             top_k=top_k,
             where=where,
             rerank=True,
         )
+        from services import trace
+        trace.emit("tool_call", {"tool": "retrieve", "query_fingerprint": trace.fingerprint(query)[:16], "top_k": top_k,
+                                 "filter": where, "results": len(chunks), "chunk_ids": [c.chunk_id for c in chunks[:8]]})
+        return chunks
 
     # ── LLM Utilities ─────────────────────────────────────────────────────────
 

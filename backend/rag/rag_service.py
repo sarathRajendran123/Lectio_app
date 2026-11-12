@@ -260,6 +260,7 @@ class RAGService:
         top_k:       int = 10,
         where:       Optional[dict] = None,
         extra_instructions: Optional[str] = None,
+        model: Optional[str] = None,
     ) -> GeneratedItem:
         """
         Retrieve context then generate grounded content.
@@ -282,7 +283,11 @@ class RAGService:
             rerank=True,
         )
 
-        return self._generator.generate(
+        generator = self._generator
+        if model and model != getattr(generator, "model", None):
+            from rag.generation.grounded_generator import GroundedGenerator
+            generator = GroundedGenerator(model=model)   # the Stakeholder gate reassigned this attempt
+        return generator.generate(
             task_prompt=task_prompt,
             context_chunks=context,
             extra_instructions=extra_instructions,

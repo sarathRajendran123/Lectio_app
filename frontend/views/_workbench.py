@@ -20,6 +20,27 @@ def show_workbench():
         st.warning('LOCAL TEST MODE · deterministic retrieval and draft templates. No LLM inference has taken place.')
     tabs=st.tabs(['Sources & model','Alignment & evidence','Create drafts','Review & export'])
     with tabs[0]:
+        st.subheader('Course intent')
+        st.caption('What you want this course to achieve. Every agent works under it, and each audit records which version it used.')
+        intent_data,_=safe_api_call(client.workbench,base+'/intent')
+        current=(intent_data or {}).get('intent') or {}
+        levels=['remember','understand','apply','analyse','evaluate','create']
+        with st.form('intent'+cid):
+            goals=st.text_area('Goals',value=current.get('goals',''),placeholder='Students can analyse and compare search and hashing algorithms.')
+            wanted=st.multiselect('Intended cognitive levels',levels,default=current.get('cognitive_levels',[]))
+            audience=st.text_input('Audience',value=current.get('audience',''))
+            scope=st.text_input('Scope',value=current.get('scope',''))
+            extra=st.text_input('Other constraints',value=current.get('constraints',''))
+            save_intent=st.form_submit_button('Save intent (adds a new version)')
+        if save_intent:
+            _,err=safe_api_call(client.workbench,base+'/intent','PUT',{'goals':goals,'cognitive_levels':wanted,'audience':audience,'scope':scope,'constraints':extra})
+            if err:st.error(err)
+            else:st.success('Saved. The next audit uses this version.');st.rerun()
+        if current:st.caption(f"Active: version {current['version']}")
+        rules,_=safe_api_call(client.workbench,base+'/constraints')
+        if (rules or {}).get('active'):
+            with st.expander('Rules learned from your decisions'):
+                for c in rules['active']:st.write(f"{c['kind'].title()} ({'this course' if c['scope']=='course' else 'general'}): {c['text']}")
         st.subheader('Source collection')
         documents,err=safe_api_call(client.list_artifacts,cid)
         if err:st.error(err)
@@ -117,6 +138,16 @@ def show_workbench():
                         if gap['severity'] not in severity:continue
                         st.markdown('**'+gap['gap_type'].replace('_',' ').title()+'**')
                         st.write(gap['description']);st.write('Suggested action: '+gap['recommendation'])
+                        if gap.get('dismissed_by'):st.caption('You dismissed this finding in an earlier review. It is listed for completeness.')
+                        if st.checkbox('How was this finding produced?',key='trace'+gap['gap_id']):
+                            trace,terr=safe_api_call(client.workbench,'findings/'+gap['gap_id']+'/trace')
+                            if terr:st.error(terr)
+                            else:
+                                used=trace['1_intent']['used']
+                                st.write('Intent used: '+(f"version {used['version']}: {used['goals']}" if used else 'none was stated'))
+                                st.write(f"Agents: {', '.join(trace['3_agents'])}. Model calls: {trace['summary']['model_calls']} ({trace['summary']['cached_calls']} cached), retries: {trace['summary']['retries']}.")
+                                st.caption('Event log integrity: '+('verified' if trace['integrity']['valid'] else 'BROKEN at event '+str(trace['integrity'].get('broken_at_seq'))))
+                                with st.expander('Technical trace'):st.dataframe(trace['4_decisions']+trace['5_model_calls_and_checks'],width='stretch',hide_index=True)
                         for ref in gap.get('evidence_chunk_ids',[]):
                             source=source_map.get(ref)
                             if source:

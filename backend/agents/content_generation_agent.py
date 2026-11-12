@@ -39,6 +39,10 @@ def pick_gaps(gaps, limit):
     return picked[:limit]
 
 
+DRAFT_TYPE = {"clo_not_covered": "clo", "clo_not_assessed": "quiz", "topic_not_assessed": "quiz", "bloom_level_mismatch": "clo",
+              "topic_not_delivered": "exercise", "live_missing_objective": "clo", "live_missing_assessment": "quiz"}
+
+
 class ContentGenerationAgent(BaseAgent):
     name = "content_generation_agent"
 
@@ -69,7 +73,9 @@ class ContentGenerationAgent(BaseAgent):
 
         generated:   List[GeneratedContentItem] = list(state.get("generated_items", []))
         total_tokens = state.get("total_tokens", 0)
-        preferences  = state.get("reviewer_preferences", "")
+        # Intent and structured constraints replace the old "last three rejection comments" string.
+        preferences  = state.get("guidance") or state.get("reviewer_preferences", "")
+        self._rejected = self._load_rejected(course_id)
         errors       = list(state.get("error_log", []))
         failures     = 0
 
@@ -136,11 +142,48 @@ class ContentGenerationAgent(BaseAgent):
         if not handler:
             return None, 0
 
+        from types import SimpleNamespace
+        from config import settings
+        from services import stakeholder_gate, trace
+        from services.intent import ref as intent_ref
+        spent = [0]
+        def generate(extra, model):
+            self._model = model                     # a retry may be reassigned to another model
+            item, tokens = handler(gap, course_id, state, extra)
+            spent[0] += tokens
+            return SimpleNamespace(content=item.content, citations=item.citations, model=model or settings.openrouter_model, tokens_used=tokens, item=item)
+        models = list(dict.fromkeys(m for m in [settings.openrouter_model, *settings.llm_models[1:], settings.openrouter_fallback_model] if m))[:2]
+        task_id = f"{state.get('run_id')}:draft:{gap.gap_id}"
+        constraint_ids = [c["id"] for c in state.get("lecturer_constraints") or []]
         try:
-            return handler(gap, course_id, state, preferences)
+            # The Stakeholder gate checks every draft before the lecturer sees it and retries weak ones (bounded).
+            with trace.context(task_id=task_id, agent=self.name):
+                best, review = stakeholder_gate.produce(
+                    generate, content_type=DRAFT_TYPE.get(gap.gap_type, "clo"), target=gap.description,
+                    intent=state.get("course_intent"), constraint_ids=constraint_ids,
+                    rejected_fingerprints=getattr(self, "_rejected", set()), guidance=preferences, subject=("gap", gap.gap_id),
+                    models=models)
+            best.item.review = {**review, "task_id": task_id, "intent": intent_ref(state.get("course_intent")), "constraint_ids": constraint_ids}
+            return best.item, spent[0]
         except Exception as e:
             logger.error(f"[Generation] Failed for gap {gap.gap_id}: {e}", exc_info=True)
-            return None, 0
+            return None, spent[0]
+
+    def _draft(self, **kwargs):
+        """Grounded generation with the model the Stakeholder gate assigned to this attempt."""
+        return self._get_rag().generate(model=getattr(self, "_model", None), **kwargs)
+
+    def _load_rejected(self, course_id) -> set:
+        """Fingerprints of drafts the lecturer already rejected for this course."""
+        async def load():
+            from db.session import AsyncSessionLocal
+            from services.constraints import rejected_fingerprints
+            async with AsyncSessionLocal() as db:
+                return await rejected_fingerprints(db, course_id)
+        try:
+            return self._run_async(load())
+        except Exception:
+            return set()
 
     # ── CLO Generation ────────────────────────────────────────────────────────
 
@@ -157,7 +200,7 @@ class ContentGenerationAgent(BaseAgent):
             "Format: 'Upon completion of this module, students will be able to [verb] ...'"
         )
         extra = preferences or "Preserve the course context and academic level; do not assume a national qualification framework."
-        result = self._get_rag().generate(
+        result = self._draft(
             task_prompt=task,
             course_id=course_id,
             top_k=8,
@@ -195,7 +238,7 @@ class ContentGenerationAgent(BaseAgent):
             "Format:\n"
             "Question: ...\nMarks: X\nMarking Criteria: ..."
         )
-        result = self._get_rag().generate(
+        result = self._draft(
             task_prompt=task,
             course_id=course_id,
             top_k=6,
@@ -226,7 +269,7 @@ class ContentGenerationAgent(BaseAgent):
             "- Citation [SOURCE_N] for the content the question is based on\n\n"
             "Keep questions clear and unambiguous."
         )
-        result = self._get_rag().generate(
+        result = self._draft(
             task_prompt=task,
             course_id=course_id,
             top_k=6,
@@ -255,7 +298,7 @@ class ContentGenerationAgent(BaseAgent):
             "Cite [SOURCE_N] for content that supports the revised CLO.\n\n"
             "Format: 'Upon completion, students will be able to [verb] ...'"
         )
-        result = self._get_rag().generate(
+        result = self._draft(
             task_prompt=task,
             course_id=course_id,
             top_k=6,
@@ -285,7 +328,7 @@ class ContentGenerationAgent(BaseAgent):
             "- Be grounded in the course materials (cite [SOURCE_N])\n"
             "- Include a brief facilitator guide"
         )
-        result = self._get_rag().generate(
+        result = self._draft(
             task_prompt=task,
             course_id=course_id,
             top_k=6,

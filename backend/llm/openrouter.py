@@ -14,6 +14,7 @@ from types import SimpleNamespace
 import httpx
 
 from config import settings
+from services import trace
 
 logger = logging.getLogger(__name__)
 _ROLES = {"system": "system", "human": "user", "ai": "assistant"}
@@ -25,8 +26,10 @@ class LLMError(RuntimeError):
 
 
 class OpenRouterChat:
-    def __init__(self, model: str | None = None, temperature: float = 0.1, max_tokens: int = 2000):
+    def __init__(self, model: str | None = None, temperature: float = 0.1, max_tokens: int = 2000,
+                 prompt_version: str = "unversioned"):
         self.model = model or settings.openrouter_model
+        self.prompt_version = prompt_version   # recorded with every call so a trace names the prompt template used
         self.temperature = temperature
         self.max_tokens = max_tokens
 
@@ -61,6 +64,10 @@ class OpenRouterChat:
 
     # ── transport ─────────────────────────────────────────────────────────────
     def _post(self, model: str, msgs: list[dict]) -> tuple[str, int]:
+        content, usage = self._post_usage(model, msgs)
+        return content, int(usage.get("total_tokens") or 0)
+
+    def _post_usage(self, model: str, msgs: list[dict]) -> tuple[str, dict]:
         body = {"model": model, "messages": msgs, "temperature": self.temperature, "max_tokens": self.max_tokens}
         if settings.llm_reasoning_effort:
             body["reasoning"] = {"effort": settings.llm_reasoning_effort}
@@ -87,14 +94,28 @@ class OpenRouterChat:
             raise LLMError(f"Provider returned no content for {model}: {str(data.get('error'))[:200]}")
         if choice.get("finish_reason") == "length":
             raise LLMError(f"{model} output was cut off at max_tokens={self.max_tokens}; raise the token cap.")
-        return content, int((data.get("usage") or {}).get("total_tokens") or 0)
+        return content, dict(data.get("usage") or {})
+
+    def _record(self, model: str, fp: str, started: float, *, outcome: str, attempt: int, reason: str = "",
+                usage: dict | None = None, cached: bool = False, error: str = "") -> None:
+        """One trace event per model call. The prompt itself is never stored, only its fingerprint and size."""
+        usage = usage or {}
+        trace.emit("model_call", {
+            "provider": "openrouter", "model": model, "prompt_version": self.prompt_version, "prompt_fingerprint": fp,
+            "tokens_in": usage.get("prompt_tokens"), "tokens_out": usage.get("completion_tokens"),
+            "tokens_total": int(usage.get("total_tokens") or 0), "cost": usage.get("cost"), "cached": cached,
+            "duration_ms": int((time.monotonic() - started) * 1000), "outcome": outcome, "error": error[:300],
+            "attempt": attempt, "retry_reason": reason, "temperature": self.temperature, "max_tokens": self.max_tokens})
 
     def invoke(self, messages, validate=None):
         """Call the model. `validate(content)` runs before caching; if it raises, nothing is cached."""
         msgs = self._payload_messages(messages)
+        fp = trace.fingerprint(msgs)
         path = self._cache_path(msgs)
+        started = time.monotonic()
         hit = self._cache_get(path)
         if hit and hit.get("content"):
+            self._record(hit.get("model") or self.model, fp, started, outcome="ok", attempt=0, cached=True)
             return SimpleNamespace(content=hit["content"], response_metadata={
                 "token_usage": {"total_tokens": 0}, "model": hit.get("model"), "cached": True})
         if not settings.llm_ready:
@@ -104,23 +125,31 @@ class OpenRouterChat:
             models.append(settings.openrouter_fallback_model)
         last: Exception | None = None
         transient = True
+        number, reason = 0, ""
         for attempt in range(2):  # second pass only after a pause, and only if every failure was transient
             for used in models:
+                number += 1
+                started = time.monotonic()
                 try:
-                    content, tokens = self._post(used, msgs)
+                    content, usage = self._post_usage(used, msgs)
                     break
                 except LLMError as exc:
+                    self._record(used, fp, started, outcome="error", attempt=number, reason=reason, error=str(exc))
                     if exc.fatal:
                         raise
                     if "cut off" in str(exc):
                         transient = False   # more waiting cannot help; the fallback model may be more concise
                     last = exc
                 except httpx.TimeoutException as exc:
+                    self._record(used, fp, started, outcome="timeout", attempt=number, reason=reason, error=type(exc).__name__)
                     last = exc
                 except httpx.HTTPStatusError as exc:
+                    self._record(used, fp, started, outcome="error", attempt=number, reason=reason,
+                                 error=f"HTTP {exc.response.status_code}")
                     if exc.response.status_code not in _FALLBACK_STATUS:
                         raise LLMError(f"Provider rejected the request ({exc.response.status_code}).") from exc
                     last = exc
+                reason = f"previous attempt failed: {type(last).__name__}"
                 logger.warning("LLM call failed for %s (%s)", used, type(last).__name__)
             else:
                 if attempt == 0 and transient:
@@ -130,8 +159,15 @@ class OpenRouterChat:
                     raise last
                 raise LLMError(f"All configured models failed: {type(last).__name__}") from last
             break
+        tokens = int(usage.get("total_tokens") or 0)
         if validate:
-            validate(content)
+            try:
+                validate(content)
+            except Exception as exc:
+                self._record(used, fp, started, outcome="rejected_by_validation", attempt=number, reason=reason, usage=usage,
+                             error=str(exc))
+                raise
+        self._record(used, fp, started, outcome="ok", attempt=number, reason=reason, usage=usage)
         self._cache_put(path, content, used)
         return SimpleNamespace(content=content, response_metadata={
             "token_usage": {"total_tokens": tokens}, "model": used, "cached": False})

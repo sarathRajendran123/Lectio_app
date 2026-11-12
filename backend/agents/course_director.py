@@ -60,7 +60,7 @@ class CourseDirectorAgent(BaseAgent):
         # ── Step 1: Load course context (first call only) ──────────────────────
         if not state.get("course_metadata"):
             logger.info(f"[Director] Loading course context for {state['course_id']}")
-            context = self._load_course_context(state["course_id"])
+            context = self._load_course_context(state["course_id"], state.get("initiated_by"))
             updates.update(context)
 
         state = {**state, **updates}
@@ -93,6 +93,13 @@ class CourseDirectorAgent(BaseAgent):
                 f"Merged {len(merged)} unique gaps."
             )
 
+        from services import trace
+        from services.intent import ref as intent_ref
+        trace.emit("agent_message", {"from": self.name, "to": next_node, "kind": "task_assignment",
+                                     "intent": intent_ref(state.get("course_intent")),
+                                     "constraint_ids": [c["id"] for c in state.get("lecturer_constraints") or []],
+                                     "completed_dimensions": sorted(completed), "iteration": iteration},
+                   run_id=state.get("run_id"), course_id=state.get("course_id"), agent=self.name)
         logger.info(f"[Director] Routing → {next_node} (iteration {iteration})")
         return {**state, **updates}
 
@@ -128,15 +135,15 @@ class CourseDirectorAgent(BaseAgent):
 
     # ── Context Loader ────────────────────────────────────────────────────────
 
-    def _load_course_context(self, course_id: str) -> dict:
+    def _load_course_context(self, course_id: str, user_id: str = "") -> dict:
         """
         Load structured course data from PostgreSQL synchronously.
         Called once at the start of each workflow run.
         Note: agents run in sync context (LangGraph nodes are sync by default).
         """
-        return self._run_async(self._async_load(course_id))
+        return self._run_async(self._async_load(course_id, user_id))
 
-    async def _async_load(self, course_id: str) -> dict:
+    async def _async_load(self, course_id: str, user_id: str = "") -> dict:
         from db.session import AsyncSessionLocal
         from db.repositories.course_repository import CourseRepository
 
@@ -145,7 +152,7 @@ class CourseDirectorAgent(BaseAgent):
             course = await repo.get_by_id_with_modules(__import__("uuid").UUID(course_id))
 
             if not course:
-                return {"course_metadata": {}, "modules": [], "assessments": []}
+                return {"course_metadata": {}, "modules": [], "assessments": [], "course_intent": None, "lecturer_constraints": [], "guidance": "", "dismissed_findings": {}}
 
             metadata = {
                 "id":       str(course.id),
@@ -207,7 +214,15 @@ class CourseDirectorAgent(BaseAgent):
             import uuid
             artifacts=list((await db.scalars(select(CourseArtifact).where(CourseArtifact.course_id==uuid.UUID(course_id)))).all())
             manifest=[{"id":str(a.id),"filename":a.original_filename,"checksum":a.checksum,"type":a.artifact_type,"status":a.processing_status,"processed_at":a.processed_at.isoformat() if a.processed_at else None} for a in artifacts]
+            # Goal propagation: the lecturer's stated intent and constraints travel with the run from here on.
+            from services import constraints as lecturer_constraints, intent as course_intent
+            intent = await course_intent.active(db, course_id)
+            rules = await lecturer_constraints.active(db, user_id, course_id) if user_id else []
             return {
+                "course_intent": intent,
+                "lecturer_constraints": rules,
+                "guidance": lecturer_constraints.guidance(intent, rules),
+                "dismissed_findings": await lecturer_constraints.dismissed_findings(db, course_id),
                 "source_manifest": manifest,
                 "artifact_ids": [a["id"] for a in manifest if a["status"]=="done"],
                 "course_metadata": metadata,

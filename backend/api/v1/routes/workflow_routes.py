@@ -82,6 +82,11 @@ async def start_audit(
         initiated_by=str(user.id),
         db=db,
     )
+    from services import constraints as lecturer_constraints, intent as course_intent, trace
+    intent = await course_intent.active(db, course_id)
+    await trace.aemit("audit_created", {"workflow": "full_audit", "intent": course_intent.ref(intent),
+                                        "constraint_ids": [c["id"] for c in await lecturer_constraints.active(db, user.id, course_id)]},
+                      db=db, subject=("run", run_id), run_id=run_id, course_id=str(course_id), agent="lecturer")
     logger.info(f"Audit run {run_id} started by {user.email} for course {course_id}")
     return {"run_id": run_id, "status": "running", "message": "Audit workflow started."}
 
@@ -270,9 +275,22 @@ async def list_approvals(
 
     result = await db.execute(q.order_by(GeneratedContentRecord.created_at.desc()))
     items  = result.scalars().all()
+    # The Stakeholder agent's check travels with every draft: why it exists and whether it passed.
+    from db.models.governance import DraftReview
+    reviews = {r.content_id: r for r in (await db.scalars(select(DraftReview).where(
+        DraftReview.content_id.in_([i.id for i in items] or [UUID(int=0)])))).all()}
+
+    def quality(i):
+        r = reviews.get(i.id)
+        if not r:
+            return {"rationale": "No quality review is recorded for this draft (created before reviews were introduced).",
+                    "quality": None}
+        return {"rationale": r.rationale,
+                "quality": {"score": r.score, "threshold": r.threshold, "passed": r.passed, "issues": r.issues, "attempts": r.attempts}}
 
     return [
         {
+            **quality(i),
             "id":             str(i.id),
             "course_id": str(i.course_id),
             "model_used": i.model_used,

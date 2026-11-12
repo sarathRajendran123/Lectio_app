@@ -46,8 +46,31 @@ Docker image build and `docker compose up`; PostgreSQL deployment (one test skip
 
 ## How to run
 ```bash
-python -m pytest -q                       # full suite (60 passed, 1 skipped)
+python -m pytest -q                       # full suite (88 passed, 1 skipped on 2026-11-12)
 LECTIO_SKIP_MODEL_TESTS=1 python -m pytest -q   # skip the real-model tests
 python scripts/verify_live.py             # needs OPENROUTER_API_KEY
 python scripts/run_dataset.py datasets/en_algorithms   # against a running local API
 ```
+
+## Update 2026-11-12 (Phase 1)
+
+`python -m pytest -q`: **77 passed, 1 skipped** (about 85 s). New file `tests/test_phase1_governance.py` (17 tests): intent versioning and validation; intent on every audit event and hand-over; a changed intent reaching later runs while earlier runs keep theirs; intent and constraints in the model prompt; decisions becoming constraints, supersede, retire, general vs course scope; a rejected draft not passing again; gate scoring; gate retry with adjusted instructions, intent kept and model switched; retry limit and no false pass; failed generations recorded; per-model-call logging without prompt text or secrets; trace order, linkage and hash-chain verification; ORM, SQL and tamper detection; briefing in plain language; per-finding and per-draft trace.
+Failures found while writing them and fixed: gate relevance compared singular and plural words as different (now 5-letter stems); a test assumed one start event per director task.
+
+## Update 2026-11-12 (Phase 1 completion, second session)
+
+Baseline before any change: `python -m pytest -q` gave 77 passed, 1 skipped. After the changes: **88 passed, 1 skipped** (about 105 s, Windows, Python 3.13, SQLite, `RUNTIME_MODE=local_test`).
+
+New file `tests/test_phase1_completion.py` (11 tests):
+
+| Area | Tests | What they show |
+|---|---|---|
+| Audit log | 4 | every stored finding is preceded by an `agent_decision` from the agent that produced it; one `dimension_assessed` decision per dimension; the run ends with `run_finished` and its head is anchored outside the database; a per-finding trace contains only that finding's events; a lecturer draft request is logged (fingerprint, not text) before its retrieval, check and queueing; with the database guards dropped, a removed tail and a last event rewritten with a matching hash are both reported by `verify_chain` |
+| Course intent | 2 | intended levels compared with objective and question levels in a unit test; a full audit of the English sample course with intent "evaluate, create" reports the unreached levels, records the intent version in the report and words the finding plainly |
+| Constraints | 2 | rejecting a finding creates an `avoid` rule, revising one a `prefer` rule, approving one none; the next audit marks the same finding as dismissed (information, no new warning) while other findings stay; retiring the rule brings it back on the third audit; finding identity ignores changing scores |
+| Gate | 3 | a failing Division 1 step runs twice then is reported as failed, once with zero retries; a model review citing an unsupplied id is asked again with the allowed ids and only verified findings surface, and the loop stops at the limit; a weak automatic draft is retried on the second model with the intent kept in the instructions |
+
+One existing test was adjusted: the exact-match assertion on `verify_chain` now includes the new `anchored_seq` field.
+Failure found by the full run and fixed: the new intent findings have no source excerpt, and the briefing rule "no evidence is stated as low certainty" (existing test) failed; their certainty text now starts "Low to moderate" and says no excerpt is attached.
+
+Not run in this session: any live-model call (the Division 1 retry, model-review retry and model reassignment were tested with mocked agents and models); PostgreSQL (trigger SQL including the new TRUNCATE trigger is untested there; one test still skipped); a browser check of the Approval Center and workbench changes (the two files compile and their API data is tested); Docker. Not run: live-model evaluation of the new gate, PostgreSQL run of the trace triggers (SQL for PostgreSQL written, untested), browser check of the new workbench sections.

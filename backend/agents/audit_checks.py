@@ -70,5 +70,32 @@ def enrich(agent,state,dimension):
         if objectives and not methods.strip():
             result.gaps.append(_gap('delivery_information_missing','No planned activities or delivery descriptions are stored for this course.',
                 'course',state['course_id'],'Enter planned teaching activities and resources before assessing delivery suitability.',severity='info'))
+    _intent_checks(state,dimension,result,objectives,assessments)
     if result.gaps and result.status=='pass':result.status='warning'
     return state
+
+def _level(item):
+    return item.get('bloom_level') or classify_text(item.get('text') or '')[0]
+
+def _intent_checks(state,dimension,result,objectives,assessments):
+    """Goal propagation into the analysis itself: compare the lecturer's intended cognitive levels with the
+    stated objectives (described) and with the assessment questions (assessed). Scores are not changed; an
+    intended level that nothing reaches is reported as its own finding."""
+    intent=state.get('course_intent')
+    result.findings['course_intent']={'id':intent['id'],'version':intent['version']} if intent else None
+    wanted=(intent or {}).get('cognitive_levels') or []
+    if not wanted or result.status in ('needs_review','failed'):
+        if not intent:result.findings['intent_notice']='No course intent was stated, so the findings were not checked against the lecturer\'s goals.'
+        return
+    if dimension=='metadata_content':items,kind,noun,action=objectives,'intent_level_without_objective','stated learning objective','Add or revise an objective at this level, or change the course intent if the level is not wanted.'
+    elif dimension=='metadata_assessment':
+        items=[q for a in assessments for q in a.get('questions',[])]
+        kind,noun,action='intent_level_not_assessed','assessment question','Add an assessment task at this level, or change the course intent if the level is not meant to be assessed.'
+    else:return
+    if not items:return
+    reached=sorted({l for l in map(_level,items) if l},key=level_to_int)
+    missing=[l for l in wanted if l not in reached]
+    result.findings['intent_check']={'intended_levels':wanted,'levels_found':reached,'not_reflected':missing,'items_checked':len(items),'intent_version':intent['version']}
+    for level in missing:
+        result.gaps.append(_gap(kind,f"The course intent (version {intent['version']}) asks for the '{level}' level, but no {noun} was classified at that level. "
+            f"Levels found: {', '.join(reached) or 'none could be classified'}.",'course',None,action,score=0.,severity='warning'))

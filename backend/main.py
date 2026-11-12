@@ -26,6 +26,8 @@ async def lifespan(app: FastAPI):
     from db.base import Base
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        from services.trace import install_guards
+        await conn.run_sync(install_guards)   # trace_events refuses UPDATE and DELETE at database level
     logger.info("Database tables verified.")
     await ensure_admin_user()
     logger.info(f"{settings.app_name} ready.")
@@ -112,3 +114,5 @@ app.include_router(approvals_router,     prefix="/api/v1",          tags=["Appro
 
 from api.v1.routes.workbench import router as workbench_router
 app.include_router(workbench_router, prefix="/api/v1", tags=["Workbench"])
+from api.v1.routes.governance import router as governance_router
+app.include_router(governance_router, prefix="/api/v1", tags=["Intent, constraints and trace"])

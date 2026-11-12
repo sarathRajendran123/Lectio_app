@@ -28,3 +28,4 @@ def _resolve():
 from db.models.review import FindingDecision
 from db.models.source_link import AssessmentSource
 from db.models.review import AppliedSuggestion
+from db.models.governance import CourseIntent, DraftReview, LecturerConstraint, TraceEvent
