@@ -6,11 +6,62 @@ The exposé defines the course artefact set as the unit of analysis and lecturer
 2. Freeze the course corpus and objective model. Have lecturers independently label alignment units across all four dimensions. Record missing-document and independent-study cases separately from confirmed inconsistencies.
 3. Establish ground truth before inspecting the system's predictions. Resolve disagreements and record inter-rater agreement if multiple raters are available.
 4. Run each model/prompt configuration against the same corpus. Record provider/model, configuration, run IDs, AgentStep logs, errors, retrieved sources and token counts. Treat any missing/failed dimension as an abstention, not a negative prediction.
-5. Export labelled CSV rows with `predicted`, `actual` (0/1), optional `accepted` (0/1) and `quality` (1..5). Define units and matching rules before computing precision/recall. `python scripts/evaluate.py labels.csv` calculates metrics; undefined denominators produce null, not an invented perfect score.
+5. Use `scripts/study.py` for the sheets and the figures (added 2026-11-13; see "Study pipeline" below). `scripts/evaluate.py` remains for a single hand-made CSV of 0/1 rows.
 6. Score generation relevance, evidence correctness, usefulness, cognitive alignment and edit burden. Report acceptance among reviewed items separately from pending proposals.
 7. Review 2–3 complete agent chains for goal propagation, conflicting recommendations, unsupported conclusions and human correction, or perform a larger interaction-log analysis when data permit.
 
 Open study work: real participants, consent/retention process, ground truth, model comparisons, calibrated confidence, statistical analysis and the final comparative report. The code does not claim to have completed a longitudinal or real-course evaluation.
+
+## Study pipeline (2026-11-13): tooling only, no study has been run
+
+`scripts/study.py` and `backend/knowledge/study_eval.py` turn lecturer labels into figures. They create no label. **No lecturer has used them yet; there are no study results.**
+
+Steps for one course:
+1. `python scripts/study.py issues-template --out study/issues.csv`. Each lecturer lists the alignment issues they see, per dimension, **before** looking at the findings of the system. An existing sheet is never overwritten.
+2. `python scripts/study.py export --course <id> --out study/` (needs `LECTIO_ACCESS_TOKEN` of the course owner). Writes the findings of the latest audit in random order with empty columns (`findings.csv`), the drafts without model, style, quality score or status (`drafts_blind.csv`), the key that links them back (`drafts_key.json`, keep it from the raters) and `manifest.json` (course, run, mode, model, dimensions the system could not assess).
+3. Each rater copies `findings.csv` and fills `valid` (1 valid, 0 not valid, ? cannot judge) and `matches_issue` (the id of their own stage-1 issue this finding corresponds to, if any). Drafts are rated 1 to 5 for relevance, evidence correctness, usefulness and cognitive alignment, plus edit burden (none, minor, major, rewrite).
+4. `python scripts/study.py score --issues ... --findings rater1.csv [rater2.csv] --drafts ... --key ... --manifest ... --out study/report` writes `report.json` and `report.md`.
+
+Definitions, fixed before any data:
+- Precision = findings judged valid / findings judged 1 or 0. "Cannot judge" and empty rows are counted and shown, not scored.
+- Recall = stage-1 issues matched by at least one valid finding / stage-1 issues. The match is made by the rater, not by text similarity.
+- F1 from those two. A figure with a zero denominator is "n/a".
+- A dimension the system could not assess is an abstention: shown with its missed issues, left out of the totals.
+- Agreement: Cohen's kappa on the valid / not valid judgements both raters gave; undefined when all judgements fall in one category.
+- Drafts: mean and n per criterion, overall and per model; decisions taken in the application (approved, rejected, revised, pending) and how they relate to the pass or fail of the Stakeholder gate.
+
+Limits: metrics use the first rater's file; combining raters (majority, adjudication) is not implemented. No confidence intervals. Recall depends on how complete the lecturer's own list is. The per-model comparison only means something if drafts from several models exist for the same course.
+
+## Experiment runner and ablations (2026-11-13): run in test mode only
+
+`scripts/run_experiment.py <spec.json> --out <folder>` runs the same course files through several configurations. Each run starts its own server process with an empty database and its own storage folder, so conditions cannot influence each other and the working database is not touched. A condition can change listed settings (`knowledge/experiment.py`, `ALLOWED_ENV`; secrets, database, storage, mode and the trace cannot be changed by a spec), state a course intent, record lecturer rules, or leave documents out. Output: `results.json` (every measurement) and `report.md`.
+
+Measured per run: score and status per dimension, findings by type, objectives and their levels, drafts with the gate result and attempts, model calls and tokens from the trace, trace integrity, seconds. Compared per condition: means over repeats, whether repeated runs give the same findings, and against the first condition (the baseline) which findings appear or disappear and how scores move. A finding is recognised across runs by dimension, type and wording, ignoring run-specific ids, decimal scores and percentages.
+
+**What this is not:** it does not say whether a finding is correct. That needs lecturer labels (study pipeline above).
+
+### Result of `experiments/ablation_test_mode.json` (synthetic English course, test mode, 2 runs per condition)
+
+Test mode calls no model: findings come from the rule-based checks, drafts are fixed templates. Full output: `experiments/results/ablation_test_mode/`.
+
+| Condition | Content and assessment | Delivery | Objectives and assessment | Objectives and content | Findings | Drafts |
+|---|---|---|---|---|---|---|
+| baseline (all four files) | 28% | 60% | 0% | 71% | 18 | 2 |
+| transcript left out | 28% | 38% | 0% | 56% | 17 | 2 |
+| exam left out | not assessable | 60% | not assessable | 71% | 5 | 1 |
+| course intent stated (analyse, evaluate) | 28% | 60% | 0% | 71% | 22 | 2 |
+| one lecturer rule recorded | 28% | 60% | 0% | 71% | 18 | 2 |
+| automatic drafts off | 28% | 60% | 0% | 71% | 18 | 0 |
+| gate retries off | 28% | 60% | 0% | 71% | 18 | 2 |
+
+What it shows:
+- Repeated runs gave the same findings in all seven conditions; every trace verified; no model call and no token in any run.
+- Leaving out the exam makes two dimensions "not assessable" instead of producing a low score, and 13 exam-dependent findings disappear.
+- Leaving out the transcript removes the two "planned but not delivered" findings and lowers two scores, because the transcript also counts as teaching evidence.
+- A stated course intent adds four findings (two levels without an objective, two levels not assessed) and changes no score.
+- A lecturer rule and the gate-retry setting change nothing here. That is expected in test mode: template drafts always pass the gate and rules only steer model-written drafts. **Their effect can only be measured with `--live`, which has not been run.**
+
+Limits: one synthetic course; test mode only; two runs per condition; seconds are from one laptop and include server start-up. With `--live` every run sends real requests and repeats are not served from an earlier run's cache, so conditions times repeats audits are spent from the provider quota.
 
 ## Bloom classifier: measured against a provisional key (2026-11-12)
 

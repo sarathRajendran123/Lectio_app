@@ -78,6 +78,9 @@ class Settings(BaseSettings):
     delivery_min_segment_terms: int = 12         # shorter transcript segments are small talk, never flagged
     delivery_max_sections: int = 300
     delivery_max_segments: int = 600
+    feedback_support_threshold: float = 0.6     # draft feedback: best search match below this is weak support (same cut-off as the audit)
+    feedback_objective_match: float = 0.3       # draft feedback: word match from which an objective counts as addressed
+    feedback_duplicate_match: float = 0.8       # draft feedback: word match from which a new objective repeats an existing one
     trace_enabled: bool = True        # append-only trace of agent steps, model calls and decisions
     trace_anchor_path: str = ""        # chain heads outside the database; default <ARTIFACT_STORAGE_PATH>/trace_anchors.jsonl
     llm_cache_enabled: bool = True   # identical validated requests are reused, not re-billed

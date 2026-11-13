@@ -1,0 +1,102 @@
+{
+  "started_at": "2026-11-13T18:34:21+00:00",
+  "users": 20,
+  "seconds": 30.2,
+  "mode": "local_test",
+  "database": "sqlite",
+  "server_processes": 1,
+  "healthy_afterwards": true,
+  "endpoints": {
+    "approvals": {
+      "requests": 175,
+      "ok": 175,
+      "client_errors": 0,
+      "server_errors": 0,
+      "transport_errors": 0,
+      "p50_ms": 340.5,
+      "p95_ms": 475.7,
+      "max_ms": 564.3
+    },
+    "courses": {
+      "requests": 267,
+      "ok": 267,
+      "client_errors": 0,
+      "server_errors": 0,
+      "transport_errors": 0,
+      "p50_ms": 307.4,
+      "p95_ms": 423.7,
+      "max_ms": 550.4
+    },
+    "dashboard": {
+      "requests": 258,
+      "ok": 258,
+      "client_errors": 0,
+      "server_errors": 0,
+      "transport_errors": 0,
+      "p50_ms": 366.8,
+      "p95_ms": 499.3,
+      "max_ms": 558.9
+    },
+    "draft_feedback": {
+      "requests": 169,
+      "ok": 169,
+      "client_errors": 0,
+      "server_errors": 0,
+      "transport_errors": 0,
+      "p50_ms": 593.6,
+      "p95_ms": 795.8,
+      "max_ms": 931.0
+    },
+    "evidence": {
+      "requests": 180,
+      "ok": 180,
+      "client_errors": 0,
+      "server_errors": 0,
+      "transport_errors": 0,
+      "p50_ms": 252.0,
+      "p95_ms": 347.9,
+      "max_ms": 602.4
+    },
+    "matrix": {
+      "requests": 180,
+      "ok": 180,
+      "client_errors": 0,
+      "server_errors": 0,
+      "transport_errors": 0,
+      "p50_ms": 365.2,
+      "p95_ms": 493.5,
+      "max_ms": 600.5
+    },
+    "reports": {
+      "requests": 268,
+      "ok": 268,
+      "client_errors": 0,
+      "server_errors": 0,
+      "transport_errors": 0,
+      "p50_ms": 242.1,
+      "p95_ms": 346.7,
+      "max_ms": 480.9
+    },
+    "structure": {
+      "requests": 86,
+      "ok": 86,
+      "client_errors": 0,
+      "server_errors": 0,
+      "transport_errors": 0,
+      "p50_ms": 496.2,
+      "p95_ms": 665.4,
+      "max_ms": 742.8
+    },
+    "all": {
+      "requests": 1583,
+      "ok": 1583,
+      "client_errors": 0,
+      "server_errors": 0,
+      "transport_errors": 0,
+      "p50_ms": 327.2,
+      "p95_ms": 616.9,
+      "max_ms": 931.0,
+      "requests_per_second": 52.4
+    }
+  }
+}

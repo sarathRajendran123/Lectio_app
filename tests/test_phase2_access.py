@@ -26,6 +26,7 @@ BODIES = {
     ("POST", "/courses/{course_id}/modules/{module_id}/weeks/{week_id}/topics"): {"title": "Outsider topic"},
     ("POST", "/courses/{course_id}/modules/{module_id}/clos"): {"text": "Explain how merge sort works."},
     ("POST", "/courses/{course_id}/assessments"): {"title": "Outsider exam"},
+    ("POST", "/courses/{course_id}/draft-feedback"): {"content_type": "exercise", "text": "Explain how merge sort works."},
     ("POST", "/courses/{course_id}/generate"): {"content_type": "exercise", "purpose": "Practice sorting algorithms"},
     ("PATCH", "/courses/{course_id}/objectives/{objective_id}"): {"text": "Explain how merge sort works."},
     ("POST", "/reports/{report_id}/findings/{gap_id}/review"): {"decision": "rejected", "rationale": "outsider"},

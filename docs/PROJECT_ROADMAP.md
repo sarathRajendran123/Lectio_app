@@ -13,7 +13,7 @@ Based on the exposé work plan (two semesters) and what exists today.
 ## Semester 2: creation and evaluation
 | Phase | Planned | State |
 |---|---|---|
-| Division 2 | Grounded generation of objectives, exercises, module descriptions; live alignment feedback | Done (drafts, projected scores as live feedback) |
+| Division 2 | Grounded generation of objectives, exercises, module descriptions; live alignment feedback | Done (drafts, projected scores, provisional check of text while editing; rules only, not run in live mode) |
 | Pluggable framework | Model and prompt variants, side-by-side comparison, preference logging | Allow-listed variants and decision logging done; richer comparison open |
 | Evaluation study | Precision and recall against manual labels, instructor quality, acceptance rate | Open: protocol and scorer ready, no real data yet |
 | Emergent-behaviour analysis | Goal propagation and unexpected outputs in interaction logs | Open: agent steps, tokens and durations are logged |

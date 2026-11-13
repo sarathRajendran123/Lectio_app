@@ -169,4 +169,61 @@ Baseline before this part: 225 passed, 1 skipped.
 
 **Limits:** the injection test through the audit runs in test mode, where no model reads the text; it proves the pipeline cannot approve, apply or rescore by itself, not that a live model resists the instruction. Recovery assumes one backend process (with several, one restarting would close the others' runs). The restart test calls the recovery function; it does not kill a real server. None of this has run on PostgreSQL.
 
-**Next (Phase 2 onward, per the master prompt):** Paperclip decision document; evaluation pipeline; experiment runner; live alignment feedback; PostgreSQL/CI.
+## Phase 3, items 10 and 11 (2026-11-13): Paperclip decision paper, study pipeline
+
+Baseline before this item: 236 passed, 1 skipped.
+
+- **Item 10, Paperclip:** `docs/PAPERCLIP.md` now ends with a decision paper for the supervisor: what governance Lectio already has and how each part was verified, what Paperclip would add, three options with work and risk. **No decision is recorded; the requirement stays open.** No integration code was added, because no Paperclip installation is available.
+- **Item 11, study pipeline:** `backend/knowledge/study_eval.py` and `scripts/study.py`. Blank issue sheet for the lecturer's own list (filled before seeing findings), export of findings in random order, blind draft rating sheet with a separate key, and scoring: precision, recall and F1 per dimension, abstentions, Cohen's kappa for two raters, draft ratings per model, decisions against the Stakeholder gate result. Output as JSON and Markdown. Definitions are in `docs/EVALUATION.md`.
+
+**Verified:** 20 tests in `tests/test_study_eval.py` (arithmetic against hand-computed examples, refusal of inconsistent sheets, blindness of the rating sheet, an end-to-end export and scoring through the API in test mode); full suite **256 passed, 1 skipped**.
+
+**Limits:** this is tooling. No lecturer has labelled anything, so there is no study result. The export was run against the test-mode API only, not a live server with a token. One rater's file drives the metrics; adjudication between raters and confidence intervals are not implemented.
+
+## Phase 3, items 12 and 13 (2026-11-13): experiment runner, ablations, report output
+
+Baseline before this item: 256 passed, 1 skipped.
+
+- `backend/knowledge/experiment.py`: spec checks (a spec cannot change secrets, database, storage, mode or the trace), measurements of one audit read through the API, comparison of conditions against a baseline, Markdown report.
+- `scripts/run_experiment.py`: one isolated server per run (own process, empty SQLite database, own storage, random credentials, loopback only), then upload, audit, measure, stop. Test mode by default; `--live` must be given to call the model.
+- `experiments/ablation_test_mode.json`: seven conditions (baseline, transcript left out, exam left out, course intent, lecturer rule, automatic drafts off, gate retries off). Its measured output is in `experiments/results/ablation_test_mode/` and summarised in `docs/EVALUATION.md`.
+- The first run reported that identical runs gave different findings. The cause was the comparison, not the audit: assessment titles carry part of a database id, so the wording differed between runs. The identity rule now ignores such ids and decimal scores but keeps whole numbers ("EXT-1" and "EXT-2" stay different). After that, all seven conditions gave identical findings on repeat.
+
+**Verified:** 24 tests in `tests/test_experiment.py`, one of which runs two conditions twice on real isolated servers; the seven-condition spec run for real in test mode (14 audits, all finished); full suite **280 passed, 1 skipped** (322 s).
+
+**Limits:** test mode only, one synthetic course. The lecturer-rule and gate-retry conditions show no effect in test mode and need a `--live` run, which was not done (it spends provider quota). The runner describes what the system did; it does not judge whether findings are right. Not built: analysis of agent interaction logs beyond event counts, usability-study materials.
+
+## Phase 4, item 14 and parts of item 15 (2026-11-13): live alignment feedback, load test, CI file
+
+Baseline before this item: 280 passed, 1 skipped.
+
+**Item 14, live alignment feedback**
+- `POST /api/v1/courses/{id}/draft-feedback` (`backend/services/draft_feedback.py`): a provisional check of text that is still being written. It reads the cognitive level from the text, compares it with an intended level, with the level of the objectives the text addresses (selected, or found by shared words) and, for a new objective, with the course intent; it looks for supporting passages in the teaching material and, for an objective, for a matching assessment task. Every finding carries a sentence on its uncertainty; the passages are returned as excerpts with document type, page or slide.
+- Rules and document search only: no model call, nothing stored except one trace event with a fingerprint of the text, no audit score changed. It also works while an audit is running. A course without documents gets "not checked" reasons instead of findings.
+- UI: "Check this text (not saved)" under the draft edit box in the Approval Center, and "Check wording (not saved)" in the objective review form of the Course workbench. Shown in a box headed "PROVISIONAL CHECK".
+- Settings: `FEEDBACK_SUPPORT_THRESHOLD`, `FEEDBACK_OBJECTIVE_MATCH`, `FEEDBACK_DUPLICATE_MATCH`.
+
+**Item 15, parts that could be done on this machine**
+- `scripts/load_test.py`: simulated lecturers against a throwaway server in test mode. Measured here (one API process, SQLite, one laptop): 5 users for 20 s: 691 requests, no error, median 125 ms, 95th percentile 293 ms. 20 users for 30 s: 1,583 requests, no error, median 327 ms, 95th percentile 617 ms, slowest 931 ms; the server answered normally afterwards. Three runs with 20 users gave between 52 and 88 requests per second, so treat the figures as an order of magnitude. Results in `experiments/results/load_*`.
+- `.github/workflows/ci.yml`: tests on SQLite, dependency audit and secret scan, the whole suite on PostgreSQL, browser check. **The file has never run.** The PostgreSQL and browser jobs are allowed to fail until someone has seen them run.
+- `tests/conftest.py` accepts `LECTIO_TEST_DATABASE_URL`, so the suite can be pointed at PostgreSQL. Not tried: no PostgreSQL is installed here and the Docker daemon was not running.
+
+**Verified:** 11 tests in `tests/test_draft_feedback.py` (English and German), the new endpoint is covered by the every-endpoint access tests, one test for the load statistics; both UI buttons were clicked through Streamlit's test harness against a throwaway server and rendered the provisional box without an error; full suite **292 passed, 1 skipped**.
+
+**Limits:** the feedback uses the verb rules (two joined demands such as "erklären und bewerten" are read as the first one) and word-overlap matching of objectives, so an objective in other wording or in the other language is missed. In live mode the passage search uses the real retrieval models; that path was not run. No model judges the text. The load test covers read calls and the feedback call, not uploads, audits or model latency. Still open in item 15: PostgreSQL run, a migration tool, a durable job queue, Docker verification. Item 16 (accessibility) not started.
+
+## Phase 4, items 15 and 16, and the closing report (2026-11-13, not committed)
+
+Baseline before this part: 292 passed, 1 skipped.
+
+- **Schema file was behind the code.** `backend/db/migrations/versions/001_initial.sql`, which Docker uses to create the PostgreSQL database, lacked seven tables: course intents, lecturer rules, draft reviews, the trace, finding decisions, applied drafts and assessment source links. A running Docker stack still worked because start-up creates missing tables, but the file did not describe the database. The seven tables were generated from the ORM for PostgreSQL and added. A new test checks, without PostgreSQL, that every ORM table and column is in the file; run against the old file it fails, as it should. Whether the added SQL executes on PostgreSQL was **not** tried (no database here).
+- `docs/DATABASE_SCHEMA.md` gained the four governance tables it was missing (32 tables).
+- **Migration tool:** not added. Alembic would be a new dependency, which the project rules say to ask about first.
+- **Accessibility (item 16):** colour contrast measured against WCAG AA. Body text 12.8 to 14.5:1, button text 6.5:1, focus ring 3.4:1 (non-text, needs 3:1). Two Bloom badges on the Generated Content page failed with white text (analyse 1.96:1, evaluate 1.63:1) and the empty-state grey was 4.45:1; changed to darker shades of the same colours (5.1:1, 5.2:1, 6.0:1). A test now checks these pairs. No screen-reader or keyboard test was done.
+- **Closing report:** `docs/RESEARCH_READINESS.md`, with the status of all sixteen work-plan items, the required automated tests, and what blocks a study result.
+
+**Verified:** full suite **294 passed, 1 skipped**; `compileall` clean.
+
+**Next:** see `docs/RESEARCH_READINESS.md`, section 3. Most remaining items need real course material, lecturers, provider quota, a PostgreSQL database, a running Docker daemon, or a decision.
+
+**Next (per the master prompt, superseded by the readiness report):** evaluation pipeline; experiment runner; live alignment feedback; PostgreSQL/CI.

@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from the SQLAlchemy models (`backend/db/models/`) on 2026-11-05: 28 tables. The PostgreSQL DDL for the production setup is `backend/db/migrations/versions/001_initial.sql`; ORM column types are checked against it by `tests/test_postgres_regressions.py`.
+Generated from the SQLAlchemy models (`backend/db/models/`) on 2026-11-05; the four governance tables were added on 2026-11-13: 32 tables. The PostgreSQL DDL for the production setup is `backend/db/migrations/versions/001_initial.sql`; `tests/test_postgres_regressions.py` checks that every ORM table and column is in it (always) and that the column types match (only with a PostgreSQL database).
 
 ## Notes
 - **Engines**: SQLite (local, `aiosqlite`) and PostgreSQL 15 (Docker, `asyncpg`). JSON columns compile to JSONB on PostgreSQL.
@@ -223,6 +223,23 @@ users >-< roles (user_roles) ; users -< refresh_tokens ; departments -< users
 | processed_at | DATETIME | yes |  |
 | metadata | JSON | no |  |
 
+### `course_intents`
+
+Insert-only. A saved intent is a new version; the highest version is active.
+
+| Column | Type | Null | Key / default |
+|---|---|---|---|
+| id | UUID | no | PK |
+| course_id | UUID | no | FK -> courses.id (CASCADE) |
+| version | INTEGER | no |  |
+| goals | TEXT | no |  |
+| cognitive_levels | JSON | no |  |
+| audience | TEXT | yes |  |
+| scope | TEXT | yes |  |
+| constraints | TEXT | yes |  |
+| created_by | UUID | yes | FK -> users.id (SET NULL) |
+| created_at | DATETIME | no |  |
+
 ### `courses`
 
 | Column | Type | Null | Key / default |
@@ -249,6 +266,26 @@ users >-< roles (user_roles) ; users -< refresh_tokens ; departments -< users
 | name | VARCHAR(255) | no |  |
 | code | VARCHAR(20) | no | unique |
 | faculty | VARCHAR(255) | yes |  |
+| created_at | DATETIME | no |  |
+
+### `draft_reviews`
+
+One Stakeholder-gate review per generated draft: score, threshold, attempts, issues.
+
+| Column | Type | Null | Key / default |
+|---|---|---|---|
+| content_id | UUID | no | PK; FK -> generated_content.id (CASCADE) |
+| score | FLOAT | no |  |
+| threshold | FLOAT | no |  |
+| passed | BOOLEAN | no |  |
+| attempts | INTEGER | no |  |
+| issues | JSON | no |  |
+| checks | JSON | no |  |
+| rationale | TEXT | no |  |
+| task_id | VARCHAR(64) | yes |  |
+| intent_id | VARCHAR(64) | yes |  |
+| intent_version | INTEGER | yes |  |
+| constraint_ids | JSON | no |  |
 | created_at | DATETIME | no |  |
 
 ### `finding_decisions`
@@ -294,6 +331,25 @@ users >-< roles (user_roles) ; users -< refresh_tokens ; departments -< users
 | bloom_verb | VARCHAR(100) | yes |  |
 | source_document_id | UUID | yes | FK -> course_artifacts.id (SET NULL) |
 | is_generated | BOOLEAN | no |  |
+| created_at | DATETIME | no |  |
+
+### `lecturer_constraints`
+
+Insert-only. A rule is replaced or retired by a new row pointing at it.
+
+| Column | Type | Null | Key / default |
+|---|---|---|---|
+| id | UUID | no | PK |
+| user_id | UUID | no | FK -> users.id (CASCADE) |
+| course_id | UUID | yes | FK -> courses.id (CASCADE) |
+| scope | VARCHAR(20) | no |  |
+| kind | VARCHAR(20) | no |  |
+| text | TEXT | no |  |
+| source_type | VARCHAR(40) | no |  |
+| source_id | VARCHAR(64) | yes |  |
+| decision | VARCHAR(20) | yes |  |
+| rejected_fingerprint | VARCHAR(64) | yes |  |
+| supersedes_id | UUID | yes | FK -> lecturer_constraints.id (SET NULL) |
 | created_at | DATETIME | no |  |
 
 ### `modules`
@@ -368,6 +424,28 @@ users >-< roles (user_roles) ; users -< refresh_tokens ; departments -< users
 | description | TEXT | yes |  |
 | sequence_order | INTEGER | yes |  |
 | created_at | DATETIME | no |  |
+
+### `trace_events`
+
+Append-only, hash-chained per `chain_key`. Database triggers refuse UPDATE, DELETE and TRUNCATE (installed at start-up by `services/trace.py`).
+
+| Column | Type | Null | Key / default |
+|---|---|---|---|
+| id | UUID | no | PK |
+| chain_key | VARCHAR(80) | no |  |
+| seq | INTEGER | no |  |
+| ts | VARCHAR(40) | no |  |
+| run_id | VARCHAR(64) | yes |  |
+| course_id | VARCHAR(64) | yes |  |
+| event_type | VARCHAR(40) | no |  |
+| agent | VARCHAR(80) | yes |  |
+| task_id | VARCHAR(64) | yes |  |
+| parent_id | VARCHAR(64) | yes |  |
+| subject_type | VARCHAR(20) | yes |  |
+| subject_id | VARCHAR(64) | yes |  |
+| payload | JSON | no |  |
+| prev_hash | VARCHAR(64) | no |  |
+| hash | VARCHAR(64) | no |  |
 
 ### `user_roles`
 

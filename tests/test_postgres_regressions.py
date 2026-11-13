@@ -121,3 +121,21 @@ def test_orm_column_types_match_the_postgres_migration():
             if orm_len and max_len and orm_len > max_len:
                 problems.append(f"{key}: ORM allows {orm_len} chars but DB column holds {max_len}")
     assert not problems, "ORM and PostgreSQL schema disagree:\n" + "\n".join(problems)
+
+
+def test_every_orm_table_and_column_is_in_the_postgres_schema_file():
+    """Runs without PostgreSQL. Docker creates the database from 001_initial.sql, so a model change that is not
+    copied into that file goes unnoticed until someone deploys. (Extra nullable columns in the file are allowed.)"""
+    import re
+    from pathlib import Path
+    import db.models  # noqa: F401  registers every model
+    from db.base import Base
+
+    sql = (Path(__file__).resolve().parents[1] / "backend/db/migrations/versions/001_initial.sql").read_text(encoding="utf-8")
+    declared = {}
+    for match in re.finditer(r"CREATE TABLE(?: IF NOT EXISTS)?\s+(\w+)\s*\((.*?)\n\);", sql, re.S | re.I):
+        names = {m.group(1) for m in (re.match(r'"?(\w+)"?\s+[A-Za-z]', line.strip()) for line in match.group(2).split("\n")) if m}
+        declared[match.group(1)] = names - {"PRIMARY", "UNIQUE", "FOREIGN", "CONSTRAINT", "CHECK", "EXCLUDE"}
+    missing = {table.name: sorted({c.name for c in table.columns} - declared.get(table.name, set()))
+               for table in Base.metadata.sorted_tables}
+    assert {t: cols for t, cols in missing.items() if cols} == {}

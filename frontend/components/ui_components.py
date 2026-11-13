@@ -11,8 +11,8 @@ BLOOM_COLOURS = {
     "remember":   "#6c757d",
     "understand": "#0d6efd",
     "apply":      "#198754",
-    "analyse":    "#0dcaf0",
-    "evaluate":   "#ffc107",
+    "analyse":    "#087990",   # darker than the usual cyan: white text needs 4.5:1
+    "evaluate":   "#946200",   # darker than the usual amber: white text needs 4.5:1
     "create":     "#dc3545",
 }
 
@@ -69,12 +69,42 @@ def render_citations(citations: list):
             st.caption(c.get('verification','Source reference; verify relevance against the document.'))
 
 
+def render_draft_feedback(result: dict):
+    """Provisional check of unsaved text: level, objectives, findings with their uncertainty, source excerpts."""
+    with st.container(border=True):
+        st.caption("PROVISIONAL CHECK · " + result.get("notice", ""))
+        bloom = result.get("bloom") or {}
+        level = bloom.get("level") or "not recognised"
+        st.write(f"Cognitive level read from the text: {level}" + (f" (verb: {bloom['verb']})" if bloom.get("verb") else "")
+                 + (f" · intended: {bloom['intended']}" if bloom.get("intended") else ""))
+        for objective in result.get("objectives", []):
+            st.write(f"Objective addressed: {objective.get('code') or ''} {objective['text']}")
+            st.caption(f"Level: {objective.get('bloom_level') or 'unknown'} · " + ("selected by you" if objective.get("selected") else "found by shared words"))
+        findings = result.get("findings", [])
+        if not findings:
+            st.write("No provisional finding for this text.")
+        for finding in findings:
+            st.write(f"{finding['severity'].upper()}: {finding['message']}")
+            st.caption("Uncertainty: " + finding["uncertainty"])
+        for reason in result.get("not_checked", []):
+            st.caption("Not checked: " + reason)
+        for title, excerpts in (("Closest passages in the teaching material", result.get("evidence", [])),
+                                ("Closest assessment tasks", result.get("assessment_evidence", []))):
+            if excerpts:
+                st.caption(title)
+                for e in excerpts:
+                    place = " · ".join(str(p) for p in (e.get("artifact_type"), f"page {e['page']}" if e.get("page") else None,
+                                                         f"slide {e['slide']}" if e.get("slide") else None, f"search match {e['match']:.2f}") if p)
+                    st.caption(place)
+                    st.text(e["excerpt"])
+
+
 # ── Empty state ───────────────────────────────────────────────────────────────
 
 def empty_state(title: str, message: str):
     st.markdown(
         f"""
-        <div style="text-align:center; padding:3rem; color:#6c757d;">
+        <div style="text-align:center; padding:3rem; color:#526461;">
             <h3>{title}</h3>
             <p>{message}</p>
         </div>

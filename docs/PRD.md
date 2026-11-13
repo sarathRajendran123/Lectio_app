@@ -41,9 +41,10 @@ Hierarchy in code: `lecturer < coordinator < dept_head < admin` (`backend/auth/r
 | F10 | Lecturer dashboard, reports, approval center, workbench | Done (Streamlit) |
 | F11 | Audit trail of agent steps, tokens and durations | Done |
 | F12 | Pluggable model and prompt variants, side-by-side comparison | Done (allow-listed variants) |
-| F13 | Evaluation study with real MAAI course materials | Open (protocol and scorer exist: `docs/EVALUATION.md`, `scripts/evaluate.py`) |
-| F14 | Governance and orchestration through an external Paperclip deployment | Open (process adapter only: `docs/PAPERCLIP.md`) |
-| F15 | Emergent-behaviour analysis of interaction logs | Open |
+| F13 | Evaluation study with real MAAI course materials | Open (study tooling exists: `scripts/study.py`, `scripts/run_experiment.py`; no lecturer labels or real material yet) |
+| F14 | Governance and orchestration through an external Paperclip deployment | Open, needs a supervisor decision (process adapter and decision paper: `docs/PAPERCLIP.md`) |
+| F15 | Emergent-behaviour analysis of interaction logs | Open (trace and per-run event counts exist; no analysis tooling) |
+| F16 | Provisional alignment feedback while text is edited | Done (rules and document search; not run in live mode) |
 
 ## Non-functional requirements
 - **Human in the loop**: no automatic write-back; every generated item is labelled a suggestion.

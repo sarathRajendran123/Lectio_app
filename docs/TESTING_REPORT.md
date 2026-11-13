@@ -46,7 +46,7 @@ Docker image build and `docker compose up`; PostgreSQL deployment (one test skip
 
 ## How to run
 ```bash
-python -m pytest -q                       # full suite (236 passed, 1 skipped on 2026-11-13)
+python -m pytest -q                       # full suite (294 passed, 1 skipped on 2026-11-13)
 LECTIO_SKIP_MODEL_TESTS=1 python -m pytest -q   # skip the real-model tests
 python scripts/verify_live.py             # needs OPENROUTER_API_KEY
 python scripts/run_dataset.py datasets/en_algorithms   # against a running local API
@@ -56,6 +56,72 @@ python scripts/run_dataset.py datasets/en_algorithms   # against a running local
 
 `python -m pytest -q`: **77 passed, 1 skipped** (about 85 s). New file `tests/test_phase1_governance.py` (17 tests): intent versioning and validation; intent on every audit event and hand-over; a changed intent reaching later runs while earlier runs keep theirs; intent and constraints in the model prompt; decisions becoming constraints, supersede, retire, general vs course scope; a rejected draft not passing again; gate scoring; gate retry with adjusted instructions, intent kept and model switched; retry limit and no false pass; failed generations recorded; per-model-call logging without prompt text or secrets; trace order, linkage and hash-chain verification; ORM, SQL and tamper detection; briefing in plain language; per-finding and per-draft trace.
 Failures found while writing them and fixed: gate relevance compared singular and plural words as different (now 5-letter stems); a test assumed one start event per director task.
+
+## Update 2026-11-13 (Phase 4: schema file, contrast, closing run)
+
+Baseline 292 passed, 1 skipped. After: **294 passed, 1 skipped**.
+
+| Test | What it shows |
+|---|---|
+| `test_every_orm_table_and_column_is_in_the_postgres_schema_file` | every ORM table and column appears in `001_initial.sql`; runs without PostgreSQL; failed against the previous file (seven tables missing) |
+| `test_text_colours_meet_wcag_aa_contrast` | white text on every Bloom badge, body and grey label text, and button text reach 4.5:1; the focus ring reaches 3:1 |
+
+Not run: the schema file on PostgreSQL; a screen reader or keyboard-only check.
+
+## Update 2026-11-13 (Phase 4: live alignment feedback, load test)
+
+Baseline 280 passed, 1 skipped. After: **292 passed, 1 skipped**. `tests/test_draft_feedback.py`, 11 tests, all in test mode (verb rules and word-overlap search, no model).
+
+| Area | What the tests show |
+|---|---|
+| Labelling | the answer is marked provisional, says no model was used and that it is not an audit result; every finding states its uncertainty |
+| Evidence | a task on a taught topic returns the matching slide passage; only passages of this course are returned; an untaught topic is "insufficient evidence", with no passage |
+| Level | below the intended level: warning; at the level: nothing; above: note; no verb recognised: "unclear", never a guess |
+| Objectives (German) | a task below the level of its selected objective is flagged; the objective a task addresses is found without being selected; none found is said so |
+| New objective | near-duplicate of an existing one, not matched by an exam task, outside the levels of the course intent |
+| Empty course | three "not checked" reasons and no finding |
+| Side effects | no draft, report or objective changes; the trace holds a fingerprint, not the text, and still verifies |
+| Robustness | works during a running audit; too short, too long, unknown type or level, or an objective of another course: 422 |
+
+Also: the new endpoint is part of the every-endpoint login and isolation tests; one test checks the load statistics (it found an off-by-one in the percentile, fixed before the recorded runs).
+
+Checked by hand: both new buttons clicked through Streamlit's test harness against a throwaway server; `scripts/load_test.py` with 5 and 20 users (figures in `docs/DEVELOPMENT_PROGRESS.md`).
+
+Not run: the feedback in live mode; the pages in a real browser; `.github/workflows/ci.yml`; the suite on PostgreSQL.
+
+## Update 2026-11-13 (Phase 3, items 12 and 13: experiment runner)
+
+Baseline 256 passed, 1 skipped. After: **280 passed, 1 skipped** (322 s). `tests/test_experiment.py`, 24 tests. Measurements in the unit tests are made up to check arithmetic.
+
+| Area | What the tests show |
+|---|---|
+| Spec | the bundled spec is valid; ten malformed specs are refused; a spec cannot change secrets, database, storage, mode or the trace (8 settings tried) |
+| Finding identity | the same finding is recognised in another run despite new ids and scores; different documents, dimensions, objective numbers or German verbs stay different |
+| Comparison | means, stability, overlap, findings only in one condition and score changes match a hand-computed example; no change is invented for a dimension that was not assessed |
+| Honesty | one run cannot show stability (n/a); failed runs are counted and listed; the report states test mode and that it does not judge correctness |
+| Real run | two conditions, two runs each, on separate servers: all finish, identical runs give identical findings, trace valid, no model call, the left-out transcript removes the delivery findings, no credential in the saved results |
+
+Also run by hand: the seven-condition spec (14 audits), results in `experiments/results/ablation_test_mode/`.
+
+Not run: any experiment with `--live`; more than one course.
+
+## Update 2026-11-13 (Phase 3, item 11: study pipeline)
+
+Baseline 236 passed, 1 skipped. After: **256 passed, 1 skipped**. `tests/test_study_eval.py`, 20 tests. Every label in these tests is made up to check arithmetic.
+
+| Area | What the tests show |
+|---|---|
+| Precision, recall, F1 | match a hand-computed example per dimension and in total; two findings for one issue count once for recall |
+| Undefined figures | nothing judged or no issue listed gives "n/a", never 100% |
+| Abstention | a dimension the system could not assess is shown but left out of the totals |
+| Sheet checks | unknown dimension, duplicate issue id, wrong label, match to an unknown or other-dimension issue, match on a rejected finding: refused |
+| Agreement | Cohen's kappa matches a hand-computed example; only findings both raters judged count; undefined without variation |
+| Blind rating | the sheet contains no model, style, status, quality score or draft id; order is repeatable per seed |
+| Draft figures | means per criterion and model, edit burden, decisions and gate cross-table match a hand-computed example; invalid ratings refused |
+| Files | CSV round trip with German text, quotes, line breaks and an Excel byte-order mark |
+| End to end | export from an audited course through the API, scoring of unfilled sheets (all "n/a"), then of filled sheets |
+
+Not run: a study with lecturers; the export against a live server.
 
 ## Update 2026-11-13 (Phase 2, item 9, second part: every endpoint, injection, cancel, restart)
 

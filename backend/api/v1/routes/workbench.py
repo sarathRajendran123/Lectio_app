@@ -177,6 +177,23 @@ async def generate(course_id:UUID,body:GenerationRequest,user=Depends(get_curren
         'rationale':review['rationale'],'quality':{'score':review['score'],'passed':review['passed'],'issues':review['issues'],'attempts':review['attempts']}}
         for r,review in zip(records,reviews)]
 
+class DraftFeedbackRequest(BaseModel):
+    text:str=Field(min_length=8,max_length=6000)
+    content_type:Literal['clo','exercise','quiz','description','assessment_suggestion']
+    objective_ids:list[UUID]=Field(default_factory=list,max_length=20)
+    intended_level:Literal['remember','understand','apply','analyse','evaluate','create']|None=None
+
+@router.post('/courses/{course_id}/draft-feedback')
+async def draft_feedback(course_id:UUID,body:DraftFeedbackRequest,user=Depends(get_current_user),db=Depends(get_db, scope="function")):
+    """Provisional check of text that is still being written; stores nothing but a trace event and changes no score."""
+    await _assert_course_access(course_id,user,db)
+    if body.objective_ids:
+        found=await db.scalar(select(func.count()).select_from(LearningObjective).join(Module).where(
+            Module.course_id==course_id,LearningObjective.id.in_(body.objective_ids)))
+        if found!=len(set(body.objective_ids)):raise HTTPException(422,'An objective does not belong to this course.')
+    from services import draft_feedback as feedback
+    return await feedback.assess(db,course_id,body.text,body.content_type,body.objective_ids,body.intended_level)
+
 @router.get('/approvals/{content_id}/history')
 async def decision_history(content_id:UUID,user=Depends(get_current_user),db=Depends(get_db, scope="function")):
     item=await _content_access(content_id,user,db)

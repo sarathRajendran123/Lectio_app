@@ -2,7 +2,7 @@
 import json
 import streamlit as st
 from utils.session_utils import get_client, safe_api_call
-from components.ui_components import render_citations
+from components.ui_components import render_citations, render_draft_feedback
 
 def show_workbench():
     st.title('Course workbench')
@@ -75,6 +75,11 @@ def show_workbench():
                 levels=[None,'remember','understand','apply','analyse','evaluate','create']
                 bloom=st.selectbox('Reviewed Bloom level',levels,index=levels.index(objective.get('bloom_level')) if objective.get('bloom_level') in levels else 0,format_func=lambda v:v or 'Unknown')
                 save=st.form_submit_button('Save reviewed objective')
+                check=st.form_submit_button('Check wording (not saved)')
+            if check:
+                feedback,err=safe_api_call(client.workbench,base+'/draft-feedback','POST',{'text':text[:6000],'content_type':'clo','intended_level':bloom})
+                if err:st.error(err)
+                else:render_draft_feedback(feedback)
             if save:
                 _,err=safe_api_call(client.workbench,base+'/objectives/'+objective['id'],'PATCH',{'text':text,'bloom_level':bloom})
                 if err:st.error(err)

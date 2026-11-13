@@ -1,7 +1,7 @@
 """LECTIO — Approval Center Page"""
 import streamlit as st
 from utils.session_utils import get_client, safe_api_call
-from components.ui_components import render_citations, bloom_chip, empty_state, status_badge
+from components.ui_components import render_citations, render_draft_feedback, bloom_chip, empty_state, status_badge
 
 CONTENT_LABELS = {
     "clo": "CLO", "quiz": "Quiz", "exercise": "Exercise",
@@ -140,6 +140,18 @@ def _render_approval_card(client, item: dict, status_filter: str):
                 key=f"rev_txt_{content_id}",
                 height=200,
             )
+            if st.button("Check this text (not saved)", key=f"chk_{content_id}"):
+                if len(revision.strip()) < 8:
+                    st.warning("Write at least a few words to check.")
+                else:
+                    kind = item.get("content_type") if item.get("content_type") in ("clo", "exercise", "quiz", "description") else "assessment_suggestion"
+                    feedback, err = safe_api_call(client.workbench, f"courses/{item.get('course_id')}/draft-feedback", "POST",
+                                                  {"text": revision[:6000], "content_type": kind})
+                    if err:
+                        st.error(err)
+                    st.session_state[f"fb_{content_id}"] = feedback
+            if st.session_state.get(f"fb_{content_id}"):
+                render_draft_feedback(st.session_state[f"fb_{content_id}"])
             comment = st.text_input("Revision reason (optional)", key=f"cmt_rev_{content_id}")
             if st.button("Submit Revision", key=f"conf_rev_{content_id}", type="primary"):
                 if not revision.strip():

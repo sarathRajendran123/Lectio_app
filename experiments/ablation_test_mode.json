@@ -1,0 +1,14 @@
+{
+  "dataset": "datasets/en_algorithms",
+  "repeats": 2,
+  "conditions": [
+    {"name": "baseline", "description": "all four course files, default settings, no course intent, no lecturer rules"},
+    {"name": "no_transcript", "description": "lecture transcript left out (no check of delivered against planned)", "exclude": [".vtt"]},
+    {"name": "no_exam", "description": "exam left out", "exclude": ["exam"]},
+    {"name": "with_intent", "description": "course intent stated: analyse and evaluate levels expected",
+     "intent": {"goals": "Students should be able to analyse and evaluate algorithms, not only describe them.", "cognitive_levels": ["analyse", "evaluate"]}},
+    {"name": "with_rule", "description": "one lecturer rule recorded before the audit", "constraints": ["Keep exercises short and tied to one lecture."]},
+    {"name": "no_auto_drafts", "description": "automatic drafts after the audit switched off", "env": {"GENERATION_AUTO_ENABLED": "false"}},
+    {"name": "no_gate_retries", "description": "Stakeholder gate may not ask for a second attempt", "env": {"QUALITY_MAX_RETRIES": "0"}}
+  ]
+}
