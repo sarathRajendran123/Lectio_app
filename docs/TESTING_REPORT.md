@@ -46,7 +46,7 @@ Docker image build and `docker compose up`; PostgreSQL deployment (one test skip
 
 ## How to run
 ```bash
-python -m pytest -q                       # full suite (196 passed, 1 skipped on 2026-11-13)
+python -m pytest -q                       # full suite (225 passed, 1 skipped on 2026-11-13)
 LECTIO_SKIP_MODEL_TESTS=1 python -m pytest -q   # skip the real-model tests
 python scripts/verify_live.py             # needs OPENROUTER_API_KEY
 python scripts/run_dataset.py datasets/en_algorithms   # against a running local API
@@ -56,6 +56,21 @@ python scripts/run_dataset.py datasets/en_algorithms   # against a running local
 
 `python -m pytest -q`: **77 passed, 1 skipped** (about 85 s). New file `tests/test_phase1_governance.py` (17 tests): intent versioning and validation; intent on every audit event and hand-over; a changed intent reaching later runs while earlier runs keep theirs; intent and constraints in the model prompt; decisions becoming constraints, supersede, retire, general vs course scope; a rejected draft not passing again; gate scoring; gate retry with adjusted instructions, intent kept and model switched; retry limit and no false pass; failed generations recorded; per-model-call logging without prompt text or secrets; trace order, linkage and hash-chain verification; ORM, SQL and tamper detection; briefing in plain language; per-finding and per-draft trace.
 Failures found while writing them and fixed: gate relevance compared singular and plural words as different (now 5-letter stems); a test assumed one start event per director task.
+
+## Update 2026-11-13 (Phase 2, item 9, first part: approval, concurrency, roles, fuzzing)
+
+Baseline 196 passed, 1 skipped. After: **225 passed, 1 skipped** (about 167 s). `tests/test_phase2_resilience.py`, 29 tests, run three times in a row without a failure.
+
+| Area | What the tests show |
+|---|---|
+| Model output fuzzing | malformed, incomplete, over-long or fabricated drafts (non-verbatim quote, unknown source number) are refused; markup stays plain text |
+| Model client, network mocked | one fallback after a temporary error; none after the quota error or a refused request; cut-off output fails; refused output is not cached; an identical validated request costs no second call |
+| Upload fuzzing | too many entries, path traversal, macros, embedded objects, compression bomb, corrupt archive: all refused |
+| Roles | hierarchy order; lecturer gets 403 on three admin routes; admin cannot deactivate own account |
+| Approval transitions | reject then approve kept in order; revise without text 422; apply after reject 409; second apply 409; unknown decision refused |
+| Concurrency | 3 parallel audit starts: one 202, others 409; 3 parallel applies: one 200, others 409 |
+
+Not run: a role check for every endpoint; injection text in an uploaded document through a full audit; cancellation and restart recovery; any of this on PostgreSQL (SQLite serialises writers).
 
 ## Update 2026-11-13 (Phase 2, item 8: extraction and retrieval)
 

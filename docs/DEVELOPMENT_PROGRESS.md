@@ -135,4 +135,22 @@ Baseline before this item: 133 passed, 1 skipped.
 
 **Limits and open decisions:** both keys are synthetic and written by the same author as the rules; eight extraction cases is a small sample. Outcomes in tables or free prose are not extracted. The fusion weakness was recorded, not fixed: the 24-passage set exaggerates it and tuning on it would overfit, so it has to be re-measured on a real bilingual course. Courses extracted before this change stored list-item outcomes with their marker ("- explain ..."); re-extracting such a course can add the same outcome again without the marker.
 
-**Next (Phase 2 onward, per the master prompt):** role-matrix, concurrency, injection and fuzz tests; Paperclip decision document; evaluation pipeline; experiment runner; live alignment feedback; PostgreSQL/CI.
+## Phase 2, item 9, first part (2026-11-13): approval, concurrency, role and fuzz tests (not committed)
+
+Baseline before this item: 196 passed, 1 skipped. Tests only; no application code was changed.
+
+`tests/test_phase2_resilience.py` (29 tests):
+- **Model output fuzzing:** broken JSON, missing or extra fields, a quotation that is not verbatim in its source, a source number that was never supplied and over-long fields are all refused; markup in a draft is kept as plain text.
+- **Model client (network mocked):** one fallback model after a temporary error; no fallback on the daily-quota error or a refused request; cut-off output is an error; output refused by validation is not cached; an identical validated request is answered from the cache without a second call.
+- **Upload fuzzing:** archives with 5,000+ entries, path traversal, macros, embedded objects, a high-ratio compression bomb and a corrupt archive are refused.
+- **Roles:** hierarchy order; a lecturer gets 403 on the admin user list, system statistics and audit logs; an admin cannot deactivate their own account.
+- **Approval transitions:** reject then approve is recorded in order; revise needs text; a rejected draft cannot be applied; a draft cannot be applied twice; an unknown decision is refused.
+- **Concurrency:** three simultaneous audit starts for one course admit exactly one; three simultaneous applies of one draft apply exactly once.
+
+**Verified:** full suite **225 passed, 1 skipped**; the new file passed three times in a row.
+
+**Observed, not changed:** a rejected draft can afterwards be approved (the later decision wins and both stay in the history). Whether that should be allowed is a lecturer-workflow decision.
+
+**Still open in item 9:** a role check for every endpoint (only the admin routes and course isolation are covered); prompt-injection text inside an uploaded document through a full audit; cancelling a run and recovery after a server restart; the concurrency tests on PostgreSQL (SQLite serialises writers, so they are weaker evidence there).
+
+**Next (Phase 2 onward, per the master prompt):** the open item 9 points above; Paperclip decision document; evaluation pipeline; experiment runner; live alignment feedback; PostgreSQL/CI.
