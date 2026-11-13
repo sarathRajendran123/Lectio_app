@@ -46,7 +46,7 @@ Docker image build and `docker compose up`; PostgreSQL deployment (one test skip
 
 ## How to run
 ```bash
-python -m pytest -q                       # full suite (88 passed, 1 skipped on 2026-11-12)
+python -m pytest -q                       # full suite (196 passed, 1 skipped on 2026-11-13)
 LECTIO_SKIP_MODEL_TESTS=1 python -m pytest -q   # skip the real-model tests
 python scripts/verify_live.py             # needs OPENROUTER_API_KEY
 python scripts/run_dataset.py datasets/en_algorithms   # against a running local API
@@ -56,6 +56,65 @@ python scripts/run_dataset.py datasets/en_algorithms   # against a running local
 
 `python -m pytest -q`: **77 passed, 1 skipped** (about 85 s). New file `tests/test_phase1_governance.py` (17 tests): intent versioning and validation; intent on every audit event and hand-over; a changed intent reaching later runs while earlier runs keep theirs; intent and constraints in the model prompt; decisions becoming constraints, supersede, retire, general vs course scope; a rejected draft not passing again; gate scoring; gate retry with adjusted instructions, intent kept and model switched; retry limit and no false pass; failed generations recorded; per-model-call logging without prompt text or secrets; trace order, linkage and hash-chain verification; ORM, SQL and tamper detection; briefing in plain language; per-finding and per-draft trace.
 Failures found while writing them and fixed: gate relevance compared singular and plural words as different (now 5-letter stems); a test assumed one start event per director task.
+
+## Update 2026-11-13 (Phase 2, item 8: extraction and retrieval)
+
+Baseline 133 passed, 1 skipped. After: **196 passed, 1 skipped** (about 184 s; the retrieval tests load the embedding and reranker models).
+
+`tests/test_extraction_eval.py` (44 tests):
+
+| Area | What the tests show |
+|---|---|
+| Measured quality | precision and recall of at least 90% for outcomes and schedule on the dev and the held-out cases (currently 100%); the metric code checked on a hand-computed example |
+| Realistic phrasing | 11 English and German outcome formulations are found; list items count only under an outcomes heading or opening line |
+| Look-alikes | 14 organisational or similar lines are not outcomes (attendance, grades, prerequisites, "the lecturer will be able to", negations, the opening line itself); 10 slide and paper lines are read strictly |
+| Schedule | nine notations are read; ten lines that are not teaching weeks are left out (holiday, exam, deadline, running text, out of range); a date inside a sentence no longer cuts it |
+
+`tests/test_retrieval_eval.py` (19 tests):
+
+| Area | What the tests show |
+|---|---|
+| Set and metrics | 24 passages, 34 paraphrased queries, four language pairs; recall@k and MRR checked on a hand-computed ranking |
+| Keyword search | German words stay whole; the tokeniser fix raises German MRR by more than 0.1 and leaves English unchanged; same-language recall@3 is 100% (English) and at least 90% at 5 (German) |
+| Known limit | keyword search and the offline test backend find no English passage for a German query: asserted, not hidden |
+| Real models (3 tests) | embeddings: recall@5 100%, MRR at least 0.85, each language pair at least 0.8; equal-weight fusion is worse than embeddings alone across languages by more than 0.3 MRR and not worse within a language; reranking 20 candidates brings cross-language top-1 back |
+
+Measured figures are in `docs/EVALUATION.md`. All keys are provisional and synthetic.
+Found and fixed: BM25 tokeniser split German words at umlauts; a sentence was cut at "1. Mai"; organisational lines were extracted as outcomes; holiday and exam weeks became schedule topics.
+
+Not run: any of this on real MAAI documents; retrieval through the SQL vector store with a realistic number of chunks (the comparison ranks 24 passages in memory).
+
+## Update 2026-11-12 (Phase 2, item 7: Bloom classifier)
+
+Baseline 97 passed, 1 skipped. After: **133 passed, 1 skipped** (about 119 s). New file `tests/test_bloom.py` (36 tests):
+
+| Area | Tests | What they show |
+|---|---|---|
+| Accuracy on the labelled set | 4 | set is balanced (8 per level and language) and well formed; English and German each at least 95% on dev and held-out with recall of at least 85% per level; the challenge split stays a measured weakness (between 15% and 45%, with three named failure cases); the metric code is checked on a hand-computed example |
+| Rules | 17 | 14 sentence structures (noun traps, inflections, coordination, separable and conjugated German verbs, an idiom); question forms; no level invented when no demand is stated; highest level over several sentences; ambiguous verbs flagged |
+| Model-assisted | 15 | the model is asked only for open items, in one call; optional re-ask for ambiguous verbs keeps the rule level on record; ten malformed replies (not JSON, wrong types, unknown level, out-of-range index, provider error) leave the item unclassified; a mixed reply is validated item by item; extraction calls the model only in live mode and when enabled |
+
+Measured figures (agreement with a provisional, not lecturer-reviewed key): old word list 57.5% of 120, new rules 84.2%; by split see `docs/EVALUATION.md`.
+Found while testing and fixed: "operating systems" was read as the verb "operate" ("-ing" forms now count only where they act as verbs); German verbs ending in "-ern" ("erläutern") were not matched.
+
+Not run: `scripts/evaluate_bloom.py --llm` (needs a provider key and model calls), so the model-assisted accuracy is unmeasured.
+
+## Update 2026-11-12 (Phase 2, item 6: delivery verification)
+
+Baseline 88 passed, 1 skipped. After: **97 passed, 1 skipped** (about 118 s). New file `tests/test_delivery.py` (9 tests):
+
+| Required case | Test | Result |
+|---|---|---|
+| Matching transcript is not flagged | `test_a_transcript_that_matches_its_slides_raises_no_delivery_gap` | all sections covered, nothing unplanned |
+| Omitted planned topic is flagged | `test_a_transcript_that_omits_a_planned_topic_is_flagged_with_the_reason` | the omitted section is not covered, 0 of 2 points |
+| Different wording is not flagged | `test_a_topic_taught_in_different_wording_is_not_flagged` | all covered although no slide sentence is repeated |
+| Unexpected taught content is identified | `test_unexpected_taught_content_is_identified_and_examples_are_not_flagged` | new subject flagged; an example beside planned content listed only; small talk ignored |
+| Valid transcript and slide references | `test_findings_carry_valid_transcript_and_slide_references` | chunk ids, slide numbers, documents and excerpts all resolve |
+| Also | partial coverage with the missing points; semantic match of a paraphrase with no shared words and a configurable threshold (stand-in embeddings); no transcript reported as unverified; full audit of the English sample (sorting and complexity not covered, 60%, evidence ids exist in the stored excerpts, plain-language briefing) | passed |
+
+Found while testing and fixed: a closing remark of eight content words was flagged as unplanned content (minimum raised to 12); an example without a transition is absorbed into its topic's segment, so the test now uses one that starts its own segment. One existing test was adjusted: it assumed every tool call is a retrieval; the delivery comparison is now a second kind.
+
+Not run: the real embedding model on the semantic path, German transcripts, real lecture recordings, a live model.
 
 ## Update 2026-11-12 (Phase 1 completion, second session)
 

@@ -67,7 +67,18 @@ class Settings(BaseSettings):
     llm_reasoning_effort: str = "low"   # limits hidden thinking tokens on reasoning models ("" disables)
     quality_threshold: float = 0.6     # Stakeholder gate: drafts below this are retried, then shown with a warning
     quality_max_retries: int = 1       # extra generation attempts per weak draft (each costs a model call)
-    trace_enabled: bool = True         # append-only trace of agent steps, model calls and decisions
+    bloom_llm_fallback: bool = True     # live mode: ask the model for items the verb rules cannot classify (one call per extraction)
+    bloom_llm_max_items: int = 40
+    # Planned vs delivered (transcript against slides). See services/delivery_check.py.
+    delivery_point_term_coverage: float = 0.4    # share of a planned point's content words a transcript segment must contain
+    delivery_point_similarity: float = 0.55      # or: semantic similarity (neural backend only)
+    delivery_covered_share: float = 0.6          # share of a section's points that must be addressed to count as covered
+    delivery_unplanned_term_overlap: float = 0.25  # below this (and below the similarity) a segment is taught-but-not-planned
+    delivery_unplanned_similarity: float = 0.4
+    delivery_min_segment_terms: int = 12         # shorter transcript segments are small talk, never flagged
+    delivery_max_sections: int = 300
+    delivery_max_segments: int = 600
+    trace_enabled: bool = True        # append-only trace of agent steps, model calls and decisions
     trace_anchor_path: str = ""        # chain heads outside the database; default <ARTIFACT_STORAGE_PATH>/trace_anchors.jsonl
     llm_cache_enabled: bool = True   # identical validated requests are reused, not re-billed
 

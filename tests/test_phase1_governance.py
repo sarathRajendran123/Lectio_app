@@ -299,7 +299,8 @@ def test_run_trace_is_ordered_linked_and_verifies(audited, client, headers):
             assert any(s < e["seq"] for s in starts[e["task_id"]])          # a step ends after it starts
     tools = [e for e in events if e["event_type"] == "tool_call"]
     assert all(e["task_id"] and e["agent"] for e in tools)                  # every tool call belongs to a task and an agent
-    assert all("query_fingerprint" in e["payload"] and "query" not in e["payload"] for e in tools)
+    assert all("query_fingerprint" in e["payload"] and "query" not in e["payload"] for e in tools if e["payload"]["tool"] == "retrieve")
+    assert {e["payload"]["tool"] for e in tools} == {"retrieve", "delivery_verification"}
 
 
 def test_trace_refuses_update_and_delete_and_detects_tampering(client, headers):

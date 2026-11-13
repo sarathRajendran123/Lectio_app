@@ -1,0 +1,53 @@
+{
+  "note": "Synthetic syllabus and slide snippets with the outcome lines and schedule entries a careful reader would extract. Provisional key written during development (AI-assisted); not real MAAI material and not lecturer-reviewed. See README.md.",
+  "cases": [
+    {
+      "id": "en-1", "language": "en", "split": "dev", "doc_type": "module_manual",
+      "text": "# CS201 Algorithms — Module Manual\nThis module introduces the design and analysis of algorithms.\nStudents who are not able to attend the lab must notify the lecturer in advance.\n\n## Learning outcomes\nOn successful completion of this module, students will be able to:\n- explain the principle of divide and conquer\n- implement binary search and hash tables in Python\n- analyse the running time of recursive algorithms\n- summarise the trade-offs between common data structures\n\n## Assessment\nStudents will receive their grades within four weeks after the exam.\nStudents should bring a laptop to every lab session.\n\n## Weekly schedule\nWeek 1: Sorting and complexity\nWeek 2: Binary search\nWeek 3 (12 Oct): Hash tables\nWeek 4 - Graph traversal\nWeek 5: Reading week (no lecture)\nWeek 6: Midterm exam",
+      "outcomes": ["explain the principle of divide and conquer", "implement binary search and hash tables in Python", "analyse the running time of recursive algorithms", "summarise the trade-offs between common data structures"],
+      "weeks": [[1, "Sorting and complexity"], [2, "Binary search"], [3, "Hash tables"], [4, "Graph traversal"]]
+    },
+    {
+      "id": "en-2", "language": "en", "split": "dev", "doc_type": "syllabus",
+      "text": "Course description\nThe course covers relational databases. Students will be assigned to lab groups in the first week.\nCLO1: Design a normalised relational schema for a given scenario.\nCLO2: Formulate SQL queries with joins and aggregation.\nCLO3: Evaluate the isolation level required by an application.\nBy the end of the course, participants can explain how a query optimiser chooses a plan.\nThe lecturer will be able to answer questions during office hours.\nPrerequisites: Students should have completed Programming 1.\nSchedule\nWk 1: Relational model\nWk 2: SQL basics\nWk. 3: Normalisation\nLecture 4: Transactions\nWeek 5 deadline: submit assignment 1\nIn week 2 we had 30 students in the lab.",
+      "outcomes": ["CLO1: Design a normalised relational schema for a given scenario.", "CLO2: Formulate SQL queries with joins and aggregation.", "CLO3: Evaluate the isolation level required by an application.", "By the end of the course, participants can explain how a query optimiser chooses a plan."],
+      "weeks": [[1, "Relational model"], [2, "SQL basics"], [3, "Normalisation"], [4, "Transactions"]]
+    },
+    {
+      "id": "en-3", "language": "en", "split": "test", "doc_type": "module_manual",
+      "text": "Module: Operating Systems\nIntended learning outcomes\n1. Describe the life cycle of a process.\n2. Compare scheduling strategies with respect to fairness.\n3. Implement a simple memory allocator in C.\nTeaching methods\nLectures and weekly labs. Attendance in the labs is compulsory.\nStudents are expected to be able to program in C before the course starts.\nTimetable\nSession 1: Processes and threads\nSession 2: Scheduling\nSession 3: No class (public holiday)\nSession 4: Memory management",
+      "outcomes": ["Describe the life cycle of a process.", "Compare scheduling strategies with respect to fairness.", "Implement a simple memory allocator in C."],
+      "weeks": [[1, "Processes and threads"], [2, "Scheduling"], [4, "Memory management"]]
+    },
+    {
+      "id": "en-4", "language": "en", "split": "test", "doc_type": "slides",
+      "text": "Today's agenda\nWe will be able to finish chapter 3 if time permits.\nAfter this lecture, students will be able to trace the execution of quicksort.\nStudents will work in pairs on the exercise.\nLO2: Explain the role of the pivot element.\nResearchers were able to show a speed-up of 30 percent.",
+      "outcomes": ["After this lecture, students will be able to trace the execution of quicksort.", "LO2: Explain the role of the pivot element."],
+      "weeks": []
+    },
+    {
+      "id": "de-1", "language": "de", "split": "dev", "doc_type": "module_manual",
+      "text": "# INF201 Algorithmen und Datenstrukturen — Modulhandbuch\nDieses Modul behandelt Entwurf und Analyse grundlegender Algorithmen.\n\n## Lernziele\nDie Studierenden können die binäre Suche erklären und ihre Komplexität bewerten.\nDie Studierenden sind in der Lage, Hashtabellen zu implementieren.\nDie Studierenden kennen die wichtigsten Sortierverfahren.\n\n## Organisatorisches\nStudierende können sich bis zum 1. Mai zur Prüfung anmelden.\nDie Studierenden sollen einen Laptop zu den Übungen mitbringen.\n\n## Zeitplan\nWoche 1: Sortieren und Komplexität\nWoche 2: Binäre Suche\nWoche 3: Hashtabellen\nWoche 4: vorlesungsfrei\nWoche 5: Graphen und Tiefensuche",
+      "outcomes": ["Die Studierenden können die binäre Suche erklären und ihre Komplexität bewerten.", "Die Studierenden sind in der Lage, Hashtabellen zu implementieren.", "Die Studierenden kennen die wichtigsten Sortierverfahren."],
+      "weeks": [[1, "Sortieren und Komplexität"], [2, "Binäre Suche"], [3, "Hashtabellen"], [5, "Graphen und Tiefensuche"]]
+    },
+    {
+      "id": "de-2", "language": "de", "split": "dev", "doc_type": "module_manual",
+      "text": "Modul: Datenbanken\nQualifikationsziele\nNach erfolgreichem Abschluss des Moduls können die Studierenden\n- ein relationales Schema entwerfen,\n- SQL-Anfragen mit Verbunden formulieren,\n- Transaktionskonzepte erläutern.\nInhalte\nRelationenmodell, SQL, Normalformen, Transaktionen.\nPrüfungsleistung\nKlausur (90 Minuten). Die Lernziele werden in der Klausur abgeprüft.\nTermine\n1. Woche: Relationenmodell\n2. Woche: SQL-Grundlagen\nVorlesung 3: Normalformen\nSitzung 4: Transaktionen\nWoche 5: Klausur",
+      "outcomes": ["ein relationales Schema entwerfen", "SQL-Anfragen mit Verbunden formulieren", "Transaktionskonzepte erläutern"],
+      "weeks": [[1, "Relationenmodell"], [2, "SQL-Grundlagen"], [3, "Normalformen"], [4, "Transaktionen"]]
+    },
+    {
+      "id": "de-3", "language": "de", "split": "test", "doc_type": "module_manual",
+      "text": "Modulbeschreibung Betriebssysteme\nKompetenzen\nDie Absolventinnen und Absolventen können Prozesse und Threads unterscheiden.\nDie Teilnehmenden sind in der Lage, Scheduling-Verfahren zu vergleichen.\nLZ3: Speicherverwaltung mit Paging beschreiben.\nVoraussetzungen\nDie Studierenden sollen Grundkenntnisse in C mitbringen.\nStudierende, die nicht in der Lage sind teilzunehmen, melden sich bitte ab.\nAblauf\nKW 42: Prozesse\nKW 43: Scheduling\nKW 44: Feiertag, keine Vorlesung\nKW 45: Speicherverwaltung",
+      "outcomes": ["Die Absolventinnen und Absolventen können Prozesse und Threads unterscheiden.", "Die Teilnehmenden sind in der Lage, Scheduling-Verfahren zu vergleichen.", "LZ3: Speicherverwaltung mit Paging beschreiben."],
+      "weeks": [[42, "Prozesse"], [43, "Scheduling"], [45, "Speicherverwaltung"]]
+    },
+    {
+      "id": "de-4", "language": "de", "split": "test", "doc_type": "slides",
+      "text": "Agenda\nNach dieser Vorlesung können die Studierenden Quicksort von Hand durchführen.\nDie Studierenden werden in der Lage sein, die Laufzeit abzuschätzen.\nDie Forscher waren in der Lage, die Laufzeit zu halbieren.\nStudierende werden in Zweiergruppen eingeteilt.",
+      "outcomes": ["Nach dieser Vorlesung können die Studierenden Quicksort von Hand durchführen.", "Die Studierenden werden in der Lage sein, die Laufzeit abzuschätzen."],
+      "weeks": []
+    }
+  ]
+}

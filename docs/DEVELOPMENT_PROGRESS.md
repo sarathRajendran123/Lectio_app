@@ -80,4 +80,59 @@ Full suite after these changes: **88 passed, 1 skipped**.
 - Nothing in this session was run against a live model.
 - No Alembic migration; `docs/Tasks.md`, `DATABASE_SCHEMA.md` and `Architecture.md` do not yet describe the Phase 1 tables and events.
 
-**Next (Phase 2 onward, per the master prompt):** transcript-to-slide delivery verification; Bloom validation; extraction/retrieval evaluation; role-matrix, concurrency, injection and fuzz tests; Paperclip decision document; evaluation pipeline; experiment runner; live alignment feedback; PostgreSQL/CI.
+## Phase 2, item 6 (2026-11-12): transcript-to-slide delivery verification (not committed)
+
+Phase 1 was committed as `dc0ae46`. Baseline before this item: 88 passed, 1 skipped.
+
+**Before:** the fourth dimension (content ↔ delivery) only checked that slides or a transcript exist for each planned weekly topic, and could not be scored without a weekly schedule. The plain-language texts for `delivery_not_covered`, `delivery_partial` and `delivery_unplanned` existed, but no code produced those findings.
+
+**Now** (`backend/services/delivery_check.py`, called from `agents/audit_checks.py` for the delivery dimension):
+- Each slide or notes paragraph is a planned section, split into its points (sentences). The transcript is split into teaching segments at transitions ("next", "finally", "als Nächstes") or when a sentence shares no content word with the running segment.
+- A planned point is addressed when a transcript segment contains enough of its content words (default 40%) or, with the neural backend, is semantically close (default 0.55). Literal wording is never required.
+- A section is covered (default: at least 60% of its points addressed), partial, or not covered. Substantive transcript segments that match no planned section are reported as taught but not planned; a segment that reads as an example beside planned content is listed, not flagged; short segments (small talk) are ignored.
+- Findings: `delivery_not_covered` (warning), `delivery_partial` and `delivery_unplanned` (information), each with the slide reference, the transcript excerpt and the unmatched points. The report stores the full comparison under `delivery_verification`.
+- When a transcript and planned material both exist, the dimension is scored on the share of planned sections found in the transcript (partial counts half) and no longer needs a weekly schedule; the earlier planned-material number is kept as `planned_material_score`. Without a transcript the report says delivery is unverified.
+- All thresholds are settings (`DELIVERY_*`). The comparison is a traced tool call.
+
+**Verified:** 9 tests in `tests/test_delivery.py`; full suite **97 passed, 1 skipped**. On the English sample course the audit now reports binary search, hash tables and graph traversal as covered and sorting and complexity analysis as not covered (the sample lecture never mentions them): 60%, warning.
+
+**Limits:** with the lexical test backend only shared words count, so real synonyms need the neural backend; that path was tested with a stand-in embedding function, not with the real model. Not run on real lecture recordings, on German material, or against a live model. Timestamps are not shown because the chunker does not keep them. The thresholds are defaults, not calibrated against labelled data. The delivery findings are not yet shown in a dedicated part of the reports page (they appear in the findings list and the briefing).
+
+## Phase 2, item 7 (2026-11-12): Bloom classifier validation and improvement (not committed)
+
+Baseline before this item: 97 passed, 1 skipped.
+
+- **Evaluation set** `datasets/bloom/labelled.csv`: 120 items, English and German, with dev, held-out and challenge splits. The labels are provisional (written during development, not lecturer-reviewed); `datasets/bloom/README.md` states the labelling rules.
+- **Measurement** `backend/knowledge/bloom_eval.py` and `scripts/evaluate_bloom.py`: accuracy, coverage, precision, recall and F1 per level, per language.
+- **Weaknesses found in the old word list** (57.5% on the whole set, German 43%): no inflected forms ("categorises", "erklärt"); no German separable verbs ("wenden ... an", "einzusetzen"); the longest verb anywhere in the text won, not the main demand; nouns counted as verbs ("a list", "the test"); verbs listed under two levels silently took the later one; questions without a verb got nothing.
+- **Classifier rewritten** (`backend/knowledge/bloom_classifier.py`, same `classify_text` signature): inflections, separable verbs, noun guards (determiners in English, capitalisation in German, "-ing" adjectives), main demand = first action verb with directly coordinated verbs taking the higher level, highest level over several sentences, question-form fallback, one level per verb with an explicit list of ambiguous verbs, and `classify_detail` returning the evidence.
+- **Model fallback wired in**: `classify_hybrid` / `classify_many_with_llm` (one call, reply validated item by item, items are treated as data); used by course-model extraction in live mode for objectives and questions the rules cannot classify (`BLOOM_LLM_FALLBACK`, `BLOOM_LLM_MAX_ITEMS`), traced as its own task.
+- **Results** (agreement with the provisional key; details in `docs/EVALUATION.md`): dev 70% to 100%, held-out 58% to 100%, challenge 21% to 21%, all 57.5% to 84.2%.
+
+**Verified:** 36 tests in `tests/test_bloom.py`; full suite **133 passed, 1 skipped**.
+
+**Limits:** the key is not lecturer-reviewed and the same author wrote items and rules, so the held-out figure is weak evidence. The challenge split shows the rules still fail on purpose clauses, nominalised demands and verbs outside the lexicon. The model-assisted variant was tested with a mock only; its accuracy is unmeasured, so the keyword-versus-hybrid comparison is still open. On long teaching text the level is a weak signal.
+
+## Phase 2, item 8 (2026-11-13): extraction and retrieval evaluation (not committed)
+
+Baseline before this item: 133 passed, 1 skipped.
+
+**Extraction**
+- Labelled cases `datasets/extraction/cases.json` (8 snippets, English and German, 24 outcomes, 22 schedule entries, with look-alikes). Provisional, synthetic key.
+- The line rules moved to `backend/knowledge/outline_rules.py` (no database import) and were rewritten: outcome codes, "students can / will be able to / sind in der Lage" with organisational and negated lines excluded, list items under an outcomes heading or an opening line, a modal directly governing an action verb; delivery documents stay strict. Schedule lines now cover "Wk. 3", "Lecture 4", "2. Woche", "Week 3 (12 Oct)", and leave out holiday and exam weeks.
+- `services/course_model.py` uses these functions; extracted outcomes are stored without their list marker.
+- Result on all cases: outcomes precision 57% to 100%, recall 71% to 100%; schedule precision 74% to 100%, recall 64% to 100% (agreement with the provisional key; held-out cases included).
+- Bug fixed on the way: a German sentence was cut at "1. Mai".
+
+**Retrieval**
+- Labelled set `datasets/retrieval/labelled.json` (24 passages, 34 paraphrased queries, 12 of them cross-language). Provisional, synthetic key.
+- `backend/knowledge/quality_eval.py` measures recall@1/3/5 and MRR per language pair for keyword search, the offline test backend, embeddings, rank fusion and reranking; `scripts/evaluate_retrieval.py --neural` runs the real models.
+- **Defect fixed:** the BM25 tokeniser split German words at umlauts. German top-1 with keyword search 45% to 64%.
+- **Measured with the real models:** embeddings alone MRR 0.90; equal-weight fusion 0.72 because cross-language queries drop to 0.39 and 0.27; fusion plus reranker (as the application does) 0.84, with cross-language repaired but same-language top-1 lower. Full table in `docs/EVALUATION.md`.
+- Lexical scoring moved to `backend/rag/lexical.py` so it can be measured without a database; behaviour unchanged.
+
+**Verified:** 44 tests in `tests/test_extraction_eval.py`, 19 in `tests/test_retrieval_eval.py` (3 of them with the real embedding and reranker models); full suite **196 passed, 1 skipped**.
+
+**Limits and open decisions:** both keys are synthetic and written by the same author as the rules; eight extraction cases is a small sample. Outcomes in tables or free prose are not extracted. The fusion weakness was recorded, not fixed: the 24-passage set exaggerates it and tuning on it would overfit, so it has to be re-measured on a real bilingual course. Courses extracted before this change stored list-item outcomes with their marker ("- explain ..."); re-extracting such a course can add the same outcome again without the marker.
+
+**Next (Phase 2 onward, per the master prompt):** role-matrix, concurrency, injection and fuzz tests; Paperclip decision document; evaluation pipeline; experiment runner; live alignment feedback; PostgreSQL/CI.

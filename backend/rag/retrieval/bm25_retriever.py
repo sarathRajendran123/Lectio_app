@@ -31,7 +31,7 @@ def _tokenise(text: str) -> List[str]:
     Lowercases and strips punctuation — consistent with BM25 expectations.
     """
     text = text.lower()
-    tokens = re.findall(r"\b[a-z0-9]+\b", text)
+    tokens = re.findall(r"\w+", text)   # Unicode letters: "schlüssel" stays one token (it used to split at the umlaut)
     return tokens
 
 
