@@ -46,7 +46,7 @@ Docker image build and `docker compose up`; PostgreSQL deployment (one test skip
 
 ## How to run
 ```bash
-python -m pytest -q                       # full suite (225 passed, 1 skipped on 2026-11-13)
+python -m pytest -q                       # full suite (236 passed, 1 skipped on 2026-11-13)
 LECTIO_SKIP_MODEL_TESTS=1 python -m pytest -q   # skip the real-model tests
 python scripts/verify_live.py             # needs OPENROUTER_API_KEY
 python scripts/run_dataset.py datasets/en_algorithms   # against a running local API
@@ -56,6 +56,21 @@ python scripts/run_dataset.py datasets/en_algorithms   # against a running local
 
 `python -m pytest -q`: **77 passed, 1 skipped** (about 85 s). New file `tests/test_phase1_governance.py` (17 tests): intent versioning and validation; intent on every audit event and hand-over; a changed intent reaching later runs while earlier runs keep theirs; intent and constraints in the model prompt; decisions becoming constraints, supersede, retire, general vs course scope; a rejected draft not passing again; gate scoring; gate retry with adjusted instructions, intent kept and model switched; retry limit and no false pass; failed generations recorded; per-model-call logging without prompt text or secrets; trace order, linkage and hash-chain verification; ORM, SQL and tamper detection; briefing in plain language; per-finding and per-draft trace.
 Failures found while writing them and fixed: gate relevance compared singular and plural words as different (now 5-letter stems); a test assumed one start event per director task.
+
+## Update 2026-11-13 (Phase 2, item 9, second part: every endpoint, injection, cancel, restart)
+
+Baseline 225 passed, 1 skipped. After: **236 passed, 1 skipped** (about 195 s). `tests/test_phase2_access.py`, 11 tests.
+
+| Area | What the tests show |
+|---|---|
+| Login | every endpoint except login and refresh refuses a missing or forged token |
+| Course isolation | an outsider gets 403 or 404 on every course-scoped endpoint (50+), with valid input and real identifiers; the owner's export is unchanged |
+| Admin routes | 403 for a lecturer on all of them; no self-promotion; a deactivated account is refused at once |
+| Injected instructions | audit of a document carrying an instruction: nothing approved, applied or rescored, trace valid; an obedient stand-in model's reply is refused; source text is passed only as marked data |
+| Cancel | run ends as cancelled, worker gone, no partial reports, one closing trace event, lock released, new audit runs |
+| Restart | interrupted run and document closed as failed; recovery repeatable; finished runs untouched |
+
+Not run: the injection against a live model; killing a real server process; several backend processes; PostgreSQL.
 
 ## Update 2026-11-13 (Phase 2, item 9, first part: approval, concurrency, roles, fuzzing)
 

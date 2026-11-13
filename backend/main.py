@@ -32,14 +32,10 @@ async def lifespan(app: FastAPI):
     await ensure_admin_user()
     logger.info(f"{settings.app_name} ready.")
     # Recover interrupted background work instead of leaving permanent spinners.
-    from sqlalchemy import update
-    from db.models.generated_content import AgentRun
-    from db.models.artifact import CourseArtifact
-    from db.session import AsyncSessionLocal
-    async with AsyncSessionLocal() as db:
-        await db.execute(update(AgentRun).where(AgentRun.status == "running").values(status="failed", error_message="Server restarted during audit; please rerun."))
-        await db.execute(update(CourseArtifact).where(CourseArtifact.processing_status.in_(["pending","parsing","chunking","embedding","storing"])).values(processing_status="error",processing_error="Server restarted during processing; retry ingestion."))
-        await db.commit()
+    from services.recovery import recover_interrupted_work
+    recovered = await recover_interrupted_work()
+    if recovered["runs"] or recovered["documents"]:
+        logger.warning("Closed interrupted work after restart: %s", recovered)
     if settings.runtime_mode == "live" and settings.retrieval_backend == "neural":
         # Load embedding weights in the background so the first search/upload/projection is not the one that waits.
         import asyncio

@@ -14,7 +14,8 @@ Status: Done, In progress, Open. Update this file with every change (see `Rules.
 | Drafts | Automatic drafts for the worst gaps (capped); model findings that need an objective or an assessment get draftable types; no duplicate drafts |
 | Projection | Projected scores from approved drafts, shown on Alignment Reports |
 | Frontend | Page speed fix (`localhost`, connection reuse, short read cache); larger type |
-| Quality | 60 tests passing; live provider and German retrieval checks recorded |
+| Quality | 236 tests passing (2026-11-13); live provider and German retrieval checks recorded |
+| Safety tests | Every endpoint checked for login and course isolation; approval transitions; parallel audit starts and applies; upload and model-output fuzzing; injected instructions in a document; cancel; restart recovery (`tests/test_phase2_resilience.py`, `tests/test_phase2_access.py`) |
 | Docs | PRD, Architecture, Design, Rules, Memory, Tasks, roadmap, progress, security checklist, testing report, schema, release checklist |
 
 ## Open
@@ -24,7 +25,8 @@ Status: Done, In progress, Open. Update this file with every change (see `Rules.
 | High | PostgreSQL rehearsal | set `LECTIO_TEST_POSTGRES_DSN` to run the skipped regression test |
 | High | Evaluation with real MAAI course materials | labels and metrics: `docs/EVALUATION.md` |
 | Medium | External Paperclip integration (governance, budgets, audit log) | process adapter exists |
-| Medium | Durable job queue for multi-instance deployment | scheduler is single-worker |
+| Medium | Durable job queue for multi-instance deployment | scheduler is single-worker; restart recovery assumes one backend process |
+| Medium | Injection test against a live model | only run in test mode and with a stand-in model so far |
 | Medium | Real migration system (Alembic) | tables are created at start-up |
 | Medium | Draft generation for model findings that are not about objectives or assessments | none have a handler yet |
 | Medium | Accessibility audit with a screen reader | not done |
