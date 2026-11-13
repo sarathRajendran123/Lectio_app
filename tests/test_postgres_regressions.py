@@ -139,3 +139,42 @@ def test_every_orm_table_and_column_is_in_the_postgres_schema_file():
     missing = {table.name: sorted({c.name for c in table.columns} - declared.get(table.name, set()))
                for table in Base.metadata.sorted_tables}
     assert {t: cols for t, cols in missing.items() if cols} == {}
+
+
+def test_task_ids_fit_their_columns():
+    """SQLite ignores VARCHAR lengths; PostgreSQL rejected drafts and dropped trace events whose task id was longer than 64."""
+    import db.models  # noqa: F401
+    from db.base import Base
+
+    uuid_text = str(uuid.uuid4())
+    longest_agent = "content_generation_agent"
+    longest_dimension = "content_assessment"
+    formats = [f"{uuid_text}:draft:{uuid_text}", f"course:{uuid_text}:draft:{uuid_text}", f"{uuid_text}:{longest_agent}:coordination",
+               f"{uuid_text}:metadata_assessment_agent:metadata_assessment", f"{uuid_text}:{longest_dimension}:model_review"]
+    longest = max(len(f) for f in formats)
+    for table, column in (("trace_events", "task_id"), ("trace_events", "parent_id"), ("draft_reviews", "task_id")):
+        assert Base.metadata.tables[table].c[column].type.length >= longest + 40, (table, column)   # headroom for longer names
+
+
+def test_a_trace_write_waiting_on_another_transaction_gives_up_instead_of_hanging():
+    """PostgreSQL only: an uncommitted event of a chain must not block a second writer of that chain forever."""
+    if not os.environ.get("LECTIO_TEST_DATABASE_URL", "").startswith("postgresql"):
+        pytest.skip("needs the suite to run on PostgreSQL (LECTIO_TEST_DATABASE_URL)")
+    import asyncio
+    import time
+    from db.session import AsyncSessionLocal
+    from services import trace
+
+    chain = f"lock-{uuid.uuid4()}"
+
+    async def scenario():
+        async with AsyncSessionLocal() as holder:
+            await trace.aemit("unit_test", {"n": 1}, db=holder, run_id=chain)     # uncommitted, like a request mid-way
+            started = time.monotonic()
+            result = await trace.aemit("unit_test", {"n": 2}, run_id=chain)     # a second writer of the same chain
+            waited = time.monotonic() - started
+            await holder.commit()
+        return result, waited
+
+    result, waited = asyncio.run(scenario())
+    assert result is None and waited < 60                                       # logged as not recorded, not stuck

@@ -39,6 +39,7 @@ from db.models.governance import TraceEvent
 
 logger = logging.getLogger(__name__)
 GENESIS = "0" * 64
+TRACE_LOCK_TIMEOUT_MS = 3000
 _ctx: contextvars.ContextVar[dict] = contextvars.ContextVar("lectio_trace", default={})
 _lock = threading.Lock()
 
@@ -161,6 +162,10 @@ async def aemit(event_type: str, payload: Optional[dict] = None, *, db=None, sub
         for _ in range(8):
             try:
                 async with AsyncSessionLocal() as session:
+                    if session.bind.dialect.name == "postgresql":
+                        # An uncommitted event of the same chain in another transaction would otherwise block this
+                        # insert until that transaction ends; if the caller is waiting for us, that is forever.
+                        await session.execute(text(f"SET LOCAL lock_timeout = '{TRACE_LOCK_TIMEOUT_MS}ms'"))
                     row = await _insert(session, fields)
                     await session.commit()
                     return str(row.id)

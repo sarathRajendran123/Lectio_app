@@ -46,7 +46,7 @@ Docker image build and `docker compose up`; PostgreSQL deployment (one test skip
 
 ## How to run
 ```bash
-python -m pytest -q                       # full suite (294 passed, 1 skipped on 2026-11-13)
+python -m pytest -q                       # full suite (297 passed, 2 skipped on SQLite; 299 passed on PostgreSQL; 2026-11-13)
 LECTIO_SKIP_MODEL_TESTS=1 python -m pytest -q   # skip the real-model tests
 python scripts/verify_live.py             # needs OPENROUTER_API_KEY
 python scripts/run_dataset.py datasets/en_algorithms   # against a running local API
@@ -56,6 +56,29 @@ python scripts/run_dataset.py datasets/en_algorithms   # against a running local
 
 `python -m pytest -q`: **77 passed, 1 skipped** (about 85 s). New file `tests/test_phase1_governance.py` (17 tests): intent versioning and validation; intent on every audit event and hand-over; a changed intent reaching later runs while earlier runs keep theirs; intent and constraints in the model prompt; decisions becoming constraints, supersede, retire, general vs course scope; a rejected draft not passing again; gate scoring; gate retry with adjusted instructions, intent kept and model switched; retry limit and no false pass; failed generations recorded; per-model-call logging without prompt text or secrets; trace order, linkage and hash-chain verification; ORM, SQL and tamper detection; briefing in plain language; per-finding and per-draft trace.
 Failures found while writing them and fixed: gate relevance compared singular and plural words as different (now 5-letter stems); a test assumed one start event per director task.
+
+## Update 2026-11-13 (PostgreSQL and Docker)
+
+The suite now runs on PostgreSQL with `LECTIO_TEST_DATABASE_URL` (plus `LECTIO_TEST_POSTGRES_DSN` for the column-type test). Run against PostgreSQL 15 in Docker, created from `001_initial.sql`.
+
+| Run | Result |
+|---|---|
+| PostgreSQL, before the fixes | 267 passed, 22 failed, 6 errors; a second attempt hung (lock wait, see below) |
+| PostgreSQL, after the fixes | **299 passed**, nothing skipped |
+| SQLite, after the fixes | **297 passed, 2 skipped** (the two tests that need PostgreSQL) |
+
+| New test | What it shows |
+|---|---|
+| `test_task_ids_fit_their_columns` | the longest task-id formats fit `trace_events` and `draft_reviews` with headroom |
+| `test_a_trace_write_waiting_on_another_transaction_gives_up_instead_of_hanging` | PostgreSQL only: a second writer of a chain gives up within seconds instead of waiting forever |
+| `test_an_audit_still_completes_when_debug_turns_on_sql_echo` | with `DEBUG=true` an audit finishes; without the fix it ends as failed ("Extra data") |
+| `test_drafts_without_supporting_material_are_reported_as_such_not_as_a_provider_error` | German course in test mode: the run says no supporting passage was found, not to check an API key |
+
+Changed test: the two tamper tests remove the trace triggers with the statement for the engine in use (they used SQLite syntax).
+
+Docker, checked by hand in test mode: both images build; stack starts; both sample courses upload and audit; `scripts/check_ui.py` passes all 11 pages against the Docker API; traces verify; PostgreSQL refuses a direct trace UPDATE.
+
+Not run: the stack in live mode; the CI workflow on GitHub.
 
 ## Update 2026-11-13 (Phase 4: schema file, contrast, closing run)
 

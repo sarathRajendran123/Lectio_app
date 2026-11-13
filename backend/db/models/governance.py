@@ -68,7 +68,7 @@ class DraftReview(Base):
     issues:         Mapped[list]      = mapped_column(JSONB, default=list)
     checks:         Mapped[dict]      = mapped_column(JSONB, default=dict)
     rationale:      Mapped[str]       = mapped_column(Text, nullable=False, default="")
-    task_id:        Mapped[Optional[str]] = mapped_column(String(64), index=True)
+    task_id:        Mapped[Optional[str]] = mapped_column(String(160), index=True)   # "<run>:draft:<gap>" is 79 characters
     intent_id:      Mapped[Optional[str]] = mapped_column(String(64))
     intent_version: Mapped[Optional[int]] = mapped_column(Integer)
     constraint_ids: Mapped[list]      = mapped_column(JSONB, default=list)
@@ -91,8 +91,8 @@ class TraceEvent(Base):
     course_id:    Mapped[Optional[str]] = mapped_column(String(64), index=True)
     event_type:   Mapped[str]       = mapped_column(String(40), nullable=False, index=True)
     agent:        Mapped[Optional[str]] = mapped_column(String(80))
-    task_id:      Mapped[Optional[str]] = mapped_column(String(64), index=True)
-    parent_id:    Mapped[Optional[str]] = mapped_column(String(64))
+    task_id:      Mapped[Optional[str]] = mapped_column(String(160), index=True)    # "<run>:<agent>:<dimension>" reaches 76 characters
+    parent_id:    Mapped[Optional[str]] = mapped_column(String(160))
     subject_type: Mapped[Optional[str]] = mapped_column(String(20))                           # gap | draft | course | run
     subject_id:   Mapped[Optional[str]] = mapped_column(String(64))
     payload:      Mapped[dict]      = mapped_column(JSONB, default=dict)

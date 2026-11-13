@@ -4,7 +4,7 @@ Written 2026-11-13 at the end of the work plan in the master prompt (Phases 1 to
 
 Status words: **Done** = implemented and verified as described; **Partly** = implemented, with a named part not verified or not built; **Open** = not done; **Needs a decision** = cannot be finished by development alone.
 
-Suite on 2026-11-13: 294 passed, 1 skipped (the PostgreSQL schema test, which needs a database). All of it runs in test mode: no language model is called and retrieval is word overlap, except 6 tests that load the real embedding and reranker models.
+Suite on 2026-11-13: 297 passed, 2 skipped on SQLite (two tests need PostgreSQL); 299 passed on PostgreSQL 15. All of it runs in test mode: no language model is called and retrieval is word overlap, except 6 tests that load the real embedding and reranker models.
 
 ## 1. Work plan items
 
@@ -24,7 +24,7 @@ Suite on 2026-11-13: 294 passed, 1 skipped (the PostgreSQL schema test, which ne
 | 12 | Experiment runner and ablations | Partly | `scripts/run_experiment.py`, isolated server per run; 7-condition ablation run in test mode | no `--live` run, so model-dependent conditions (rules, gate retries) show no effect yet |
 | 13 | Research metrics and report outputs | Partly | JSON and Markdown reports from the study and experiment tools | no study data to report; interaction-log analysis beyond event counts not built |
 | 14 | Live alignment feedback | Done (rules only) | `/courses/{id}/draft-feedback`; buttons in Approval Center and workbench; `test_draft_feedback.py` | live-mode retrieval path not run; no model judgement; verb and word-overlap limits |
-| 15 | PostgreSQL, migrations, durable jobs, Docker, browser CI, load | Partly | schema file completed and now checked by a test; CI workflow written; load test run (20 users, no errors) | no PostgreSQL run; no migration tool (new dependency, needs approval); no durable queue; Docker daemon not running; CI never executed |
+| 15 | PostgreSQL, migrations, durable jobs, Docker, browser CI, load | Partly | whole suite passes on PostgreSQL (three PostgreSQL-only defects fixed); Docker stack built and run end to end in test mode; CI workflow written; load test run (20 users, no errors) | no migration tool (new dependency, needs approval); no durable queue; Docker not run in live mode; CI never executed |
 | 16 | Accessibility and smaller items | Partly | colour contrast measured and fixed (two Bloom badges, one grey); contrast test | no screen-reader or keyboard test; pages not opened in a real browser this session |
 
 ## 2. Required automated tests (master prompt list)
@@ -42,7 +42,7 @@ Suite on 2026-11-13: 294 passed, 1 skipped (the PostgreSQL schema test, which ne
 | Concurrency | yes | `test_phase2_resilience.py` | yes (SQLite) |
 | Role matrix, every endpoint | yes | `test_phase2_access.py` (endpoint list read from the app) | yes |
 | Upload fuzzing | yes | `test_security.py`, `test_phase2_resilience.py` | yes |
-| PostgreSQL | partly | schema completeness runs always; column types and the whole suite need a database | no |
+| PostgreSQL | yes | whole suite with `LECTIO_TEST_DATABASE_URL`; schema completeness runs always | no (needs a database; CI job written) |
 | Browser flow | script only | `scripts/check_browser.py`, CI job | no |
 | Load | script and statistics test | `scripts/load_test.py`, `test_experiment.py` | statistics only |
 | Security CI | written | `.github/workflows/ci.yml` (pip-audit, secret scan) | never executed |
@@ -59,4 +59,4 @@ Suite on 2026-11-13: 294 passed, 1 skipped (the PostgreSQL schema test, which ne
 
 **What must not be reported as a result.** Every figure measured so far is agreement with keys the developer wrote, on synthetic material, mostly in test mode. They show that the software computes what it should and where the rules fail; they say nothing about usefulness to lecturers.
 
-**Before deployment.** PostgreSQL run of the suite, a migration tool, Docker verification, a first CI run, and rotation of credentials that were exposed earlier (by the account owner).
+**Before deployment.** A migration tool, Docker in live mode, a first CI run, and rotation of credentials that were exposed earlier (by the account owner).

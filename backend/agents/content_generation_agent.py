@@ -78,6 +78,7 @@ class ContentGenerationAgent(BaseAgent):
         self._rejected = self._load_rejected(course_id)
         errors       = list(state.get("error_log", []))
         failures     = 0
+        self._failure_reasons = []
 
         for gap in actionable:
             item, tokens = self._generate_for_gap(
@@ -101,9 +102,13 @@ class ContentGenerationAgent(BaseAgent):
         if failures and not generated:
             from agents.graph.state import WorkflowError
             from datetime import datetime, timezone
+            no_evidence = self._failure_reasons and all("Insufficient source evidence" in r for r in self._failure_reasons)
             errors.append(WorkflowError(
                 agent=self.name,
                 message=(
+                    f"No draft was written for {failures} finding(s): no supporting passage was found in the teaching "
+                    "material, so nothing could be grounded. Upload the relevant material, or write the change yourself."
+                    if no_evidence else
                     f"All {failures} content generation attempt(s) failed — "
                     "check backend logs for the underlying LLM error "
                     "(invalid/expired API key, decommissioned model, or rate limit)."
@@ -167,6 +172,7 @@ class ContentGenerationAgent(BaseAgent):
             return best.item, spent[0]
         except Exception as e:
             logger.error(f"[Generation] Failed for gap {gap.gap_id}: {e}", exc_info=True)
+            getattr(self, "_failure_reasons", []).append(str(e))
             return None, spent[0]
 
     def _draft(self, **kwargs):

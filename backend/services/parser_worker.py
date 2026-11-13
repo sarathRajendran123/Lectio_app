@@ -1,6 +1,7 @@
 """Parser subprocess: bounded lifetime; Linux CPU/address-space ceilings."""
-import json
 import sys
+RESULT, sys.stdout = sys.stdout, sys.stderr   # stdout is reserved for the one JSON result (see workflow_worker)
+import json
 from dataclasses import asdict
 
 def main():
@@ -16,7 +17,8 @@ def main():
         raise ValueError('No extractable text. For scanned PDFs, install Tesseract or upload a text/OCR version.')
     if len(parsed.all_text()) > 5_000_000:
         raise ValueError('Extracted text exceeds 5 million characters.')
-    print(json.dumps(asdict(parsed)))
+    RESULT.write(json.dumps(asdict(parsed)))
+    RESULT.flush()
 
 if __name__ == '__main__':
     main()

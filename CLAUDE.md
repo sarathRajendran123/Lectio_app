@@ -150,7 +150,7 @@ $env:LECTIO_SKIP_MODEL_TESTS = "1"; .venv\Scripts\python.exe -m pytest -q
 
 - The suite takes three to four minutes (many tests run whole audits through the worker subprocess), so run it in the background or with a long timeout. Do not conclude it hangs.
 - Two files (`test_german_retrieval.py`, `test_retrieval_eval.py`) load the real embedding and reranker models when `sentence-transformers` is installed. `LECTIO_SKIP_MODEL_TESTS=1` skips those six tests and runs offline.
-- One PostgreSQL test (ORM column types against `001_initial.sql`) is skipped unless `LECTIO_TEST_POSTGRES_DSN` is set, so "1 skipped" is the normal result (7 with the model tests skipped).
+- Two PostgreSQL tests are skipped on SQLite, so "2 skipped" is the normal result (8 with the model tests skipped). To run the whole suite on PostgreSQL, start a PostgreSQL 15 container created from `001_initial.sql` and set `LECTIO_TEST_DATABASE_URL` (asyncpg URL) and `LECTIO_TEST_POSTGRES_DSN`; it needs `asyncpg` and `psycopg2-binary` in the venv. SQLite ignores VARCHAR lengths and locks differently, so length overflows and lock waits only show on PostgreSQL: run it there after any change to models or to trace writing.
 - Warnings about `database is locked` in a background thread can appear in the concurrency tests on SQLite. Look at the pass and fail counts, and report such warnings instead of hiding them.
 - There is no linter, formatter or type checker configured. `compileall` is the syntax check. Do not add or run a formatter.
 
@@ -173,7 +173,7 @@ Other scripts (each needs the local API running unless noted):
 | `python scripts/load_test.py --users 20 --seconds 30` | load test on a throwaway server in test mode (no API needed) |
 | `python scripts/reembed.py` | re-embed stored chunks after `EMBEDDING_MODEL` changes |
 | `python scripts/check_browser.py` | Playwright browser check; needs `requirements-qa.txt` and `python -m playwright install chromium` |
-| `docker compose up --build` | live stack; has never been verified, say so if you touch it |
+| `docker compose up --build` | full stack; verified end to end in test mode on 2026-11-13, never in live mode |
 
 There is no build step for local work. "Build" means the Docker images.
 
@@ -187,7 +187,7 @@ There is no build step for local work. "Build" means the Docker images.
 
 **Sync and async.** Routes and services are async. Agents are synchronous (LangGraph nodes) and reach the database with `self._run_async(coro)`, which runs the coroutine on its own thread and loop. Inside agent code open your own session with `AsyncSessionLocal()`; never pass a request's session into an agent or a thread. The engine uses `NullPool` on purpose for this reason. Blocking work in a route goes through `asyncio.to_thread`. Work handed to a thread pool must be wrapped in `trace.bind(...)` or it loses the trace context.
 
-**Subprocess protocol.** `workflow_worker.py` and `parser_worker.py` return their result as one JSON document on stdout; the parent does `json.loads(stdout)`. Nothing else may be written to stdout on those code paths: no `print`, no call to `setup_logging` (it logs to stdout). Use `logger`.
+**Subprocess protocol.** `workflow_worker.py` and `parser_worker.py` return their result as one JSON document on stdout; the parent does `json.loads(stdout)`. Nothing else may be written to stdout on those code paths: no `print`, no call to `setup_logging` (it logs to stdout). Use `logger`. Both workers keep the real stdout in `RESULT` and point `sys.stdout` at stderr before any import (SQL echo with `DEBUG=true` used to break every audit); keep those first lines first and write the result only through `RESULT`.
 
 **Routes.** Every data route takes `user=Depends(get_current_user)` and calls `_assert_course_access(course_id, user, db)` (or `_content_access` / `_run_access`) before touching data. Every query is filtered by course. Retrieval only uses chunks whose artifact has `processing_status == 'done'`. Only login, refresh and `/health` are open. Request bodies are pydantic models with length limits.
 

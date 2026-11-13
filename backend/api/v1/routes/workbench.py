@@ -136,11 +136,13 @@ async def generate(course_id:UUID,body:GenerationRequest,user=Depends(get_curren
     async with _generation_lock:
         try:
             context=await asyncio.to_thread(rag.retrieve,query,str(course_id),8)
+            # Committed on their own: the gate below writes to the same chain from a worker thread, and an uncommitted
+            # event of this request would make that write wait for this request forever (PostgreSQL).
             await trace.aemit('draft_requested',{'content_type':body.content_type,'alternatives':body.alternatives,'styles':list(body.prompt_styles),
                 'models':list(body.models),'purpose_fingerprint':trace.fingerprint(body.purpose)[:16],'gap_id':str(gap.id) if gap else None,
-                'intent':course_intent.ref(intent),'constraint_ids':constraint_ids},db=db,subject=('course',course_id),course_id=str(course_id),agent='lecturer')
+                'intent':course_intent.ref(intent),'constraint_ids':constraint_ids},subject=('course',course_id),course_id=str(course_id),agent='lecturer')
             await trace.aemit('tool_call',{'tool':'retrieve','query_fingerprint':trace.fingerprint(query)[:16],'top_k':8,'results':len(context),
-                'chunk_ids':[c.chunk_id for c in context[:8]]},db=db,course_id=str(course_id),agent='content_generation_agent',
+                'chunk_ids':[c.chunk_id for c in context[:8]]},course_id=str(course_id),agent='content_generation_agent',
                 task_id=f'course:{course_id}:draft_request')
             for variant in range(body.alternatives):
                 style=body.prompt_styles[variant%len(body.prompt_styles)]

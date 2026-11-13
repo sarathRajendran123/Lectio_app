@@ -10,7 +10,7 @@ from sqlalchemy import select, text
 
 from config import settings
 from services import trace
-from test_phase1_governance import API, _audit, _course, _events
+from test_phase1_governance import API, _audit, _course, _drop_trace_guards, _events
 
 DIMENSIONS = {"metadata_content", "content_assessment", "metadata_assessment", "content_delivery"}
 
@@ -101,8 +101,7 @@ def test_anchor_exposes_removed_tail_and_a_consistently_rewritten_chain(client, 
             await trace.aemit("unit_test", {"n": 3}, run_id=cut)                            # later events do not disturb an anchor
             assert (await trace.verify_chain(db, cut))["valid"]
             # A database owner removes the guards.
-            await db.execute(text("DROP TRIGGER trace_events_no_update"))
-            await db.execute(text("DROP TRIGGER trace_events_no_delete"))
+            await _drop_trace_guards(db)
             # 1. Cut events off the end: the remaining chain is internally consistent, only the anchor shows it.
             await db.execute(text("DELETE FROM trace_events WHERE chain_key=:c AND seq>=3"), {"c": cut})
             # 2. Change the last event and recompute its hash so the chain still links.

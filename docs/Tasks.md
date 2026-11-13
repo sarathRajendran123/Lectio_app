@@ -25,8 +25,8 @@ Status: Done, In progress, Open. Update this file with every change (see `Rules.
 ## Open
 | Priority | Task | Notes |
 |---|---|---|
-| High | Verify `docker compose up --build` end to end | daemon was unavailable during development |
-| High | PostgreSQL rehearsal | set `LECTIO_TEST_POSTGRES_DSN` for the schema test, `LECTIO_TEST_DATABASE_URL` for the whole suite; neither tried |
+| High | Verify `docker compose up --build` in live mode | built and run end to end in test mode on 2026-11-13; live mode (models, provider) not run |
+| Done 2026-11-13 | PostgreSQL rehearsal | whole suite passes on PostgreSQL 15 (299); three defects found and fixed |
 | High | First run of `.github/workflows/ci.yml` | written without access to GitHub Actions |
 | High | Evaluation with real MAAI course materials | labels and metrics: `docs/EVALUATION.md` |
 | Medium | External Paperclip integration (governance, budgets, audit log) | process adapter exists; decision paper for the supervisor in `docs/PAPERCLIP.md`, not yet decided |

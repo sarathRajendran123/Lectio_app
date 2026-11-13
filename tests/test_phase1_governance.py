@@ -35,6 +35,15 @@ def _audit(client, headers, base):
     return run
 
 
+async def _drop_trace_guards(db):
+    """What a database owner could do: remove the append-only triggers (names differ per engine, see trace.install_guards)."""
+    if db.bind.dialect.name == "postgresql":
+        await db.execute(text("DROP TRIGGER IF EXISTS trace_events_guard ON trace_events"))
+    else:
+        await db.execute(text("DROP TRIGGER IF EXISTS trace_events_no_update"))
+        await db.execute(text("DROP TRIGGER IF EXISTS trace_events_no_delete"))
+
+
 def _events(client, headers, run, kind=None):
     data = client.get(f"{API}/runs/{run}/trace", headers=headers).json()
     return [e for e in data["events"] if kind is None or e["event_type"] == kind], data["integrity"]
@@ -326,7 +335,7 @@ def test_trace_refuses_update_and_delete_and_detects_tampering(client, headers):
                     await db.execute(text(statement), {"c": chain})         # the database refuses plain SQL too
                 await db.rollback()
             # Someone with database-owner rights drops the guard and edits a row: the chain exposes it.
-            await db.execute(text("DROP TRIGGER trace_events_no_update"))
+            await _drop_trace_guards(db)
             await db.execute(text("UPDATE trace_events SET payload='{\"n\": 99}' WHERE chain_key=:c AND seq=2"), {"c": chain})
             await db.commit()
             broken = await trace.verify_chain(db, chain)

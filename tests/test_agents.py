@@ -75,3 +75,43 @@ def test_confirmations_are_not_gaps_and_fixable_findings_get_draftable_gap_types
     assert [g.gap_type for g in result.gaps] == ['live_missing_objective', 'live_missing_assessment', 'live_alignment_review']
     assert result.findings['live_review']['confirmed'] == ['Binary search objective is supported by the slides']
     assert not any('supported' in g.description for g in result.gaps)
+
+
+def test_an_audit_still_completes_when_debug_turns_on_sql_echo(client, headers, monkeypatch):
+    """DEBUG=true turns on SQL echo, which writes every statement to stdout. The audit worker's stdout must still hold
+    only its JSON result; before the fix every audit in that configuration failed with 'Extra data'."""
+    import time
+    monkeypatch.setenv("DEBUG", "true")                                      # inherited by the worker subprocess
+    course = client.post("/api/v1/courses", headers=headers, json={"code": "ECHO-DEBUG", "title": "Sorting"}).json()["id"]
+    base = f"/api/v1/courses/{course}"
+    r = client.post(base + "/artifacts", headers=headers, data={"artifact_type": "slides"},
+                    files={"file": ("lecture.txt", b"Merge sort splits the list and merges the sorted halves in n log n time.", "text/plain")})
+    assert r.status_code == 201, r.text
+    run = client.post(base + "/run-audit", headers=headers).json()["run_id"]
+    for _ in range(600):
+        state = client.get(f"/api/v1/runs/{run}", headers=headers).json()
+        if state["status"] != "running":
+            break
+        time.sleep(.1)
+    assert state["status"] in ("completed", "needs_review", "waiting_for_human"), state
+    assert "Extra data" not in (state["error_message"] or "")
+
+
+def test_drafts_without_supporting_material_are_reported_as_such_not_as_a_provider_error(client, headers):
+    """German course in test mode: draft queries carry English template wording, word-overlap search finds no passage,
+    so no draft can be grounded. The run must say that, instead of sending the lecturer to check an API key."""
+    import time
+    from test_multilingual_model import _upload
+    course = client.post("/api/v1/courses", headers=headers, json={"code": "DE-NOEVIDENCE", "title": "Algorithmen"}).json()["id"]
+    base = f"/api/v1/courses/{course}"
+    for name, kind, mime in [("modulhandbuch.md", "syllabus", "text/markdown"), ("vorlesung.txt", "slides", "text/plain"),
+                             ("klausur.txt", "exam", "text/plain")]:
+        _upload(client, headers, base, "de_algorithmen", name, kind, mime)
+    run = client.post(base + "/run-audit", headers=headers).json()["run_id"]
+    for _ in range(600):
+        state = client.get(f"/api/v1/runs/{run}", headers=headers).json()
+        if state["status"] != "running":
+            break
+        time.sleep(.1)
+    assert state["status"] == "needs_review", state
+    assert "no supporting passage was found" in state["error_message"] and "API key" not in state["error_message"]

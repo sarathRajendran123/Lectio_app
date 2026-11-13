@@ -282,7 +282,7 @@ One Stakeholder-gate review per generated draft: score, threshold, attempts, iss
 | issues | JSON | no |  |
 | checks | JSON | no |  |
 | rationale | TEXT | no |  |
-| task_id | VARCHAR(64) | yes |  |
+| task_id | VARCHAR(160) | yes |  |
 | intent_id | VARCHAR(64) | yes |  |
 | intent_version | INTEGER | yes |  |
 | constraint_ids | JSON | no |  |
@@ -439,8 +439,8 @@ Append-only, hash-chained per `chain_key`. Database triggers refuse UPDATE, DELE
 | course_id | VARCHAR(64) | yes |  |
 | event_type | VARCHAR(40) | no |  |
 | agent | VARCHAR(80) | yes |  |
-| task_id | VARCHAR(64) | yes |  |
-| parent_id | VARCHAR(64) | yes |  |
+| task_id | VARCHAR(160) | yes |  |
+| parent_id | VARCHAR(160) | yes |  |
 | subject_type | VARCHAR(20) | yes |  |
 | subject_id | VARCHAR(64) | yes |  |
 | payload | JSON | no |  |

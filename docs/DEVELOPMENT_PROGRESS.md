@@ -34,7 +34,7 @@ What was actually done, in order, with how it was verified. Latest first within 
 ## Current state
 60 tests pass, 1 skipped (PostgreSQL needs a DSN). Live provider and real-model checks passed on 2026-11-03 and 2026-11-04. Not verified: Docker build, PostgreSQL deployment, external Paperclip, evaluation on real course data.
 
-## Phase 1 (2026-11-12): Stakeholder gate, course intent, constraints, append-only trace (not committed)
+## Phase 1 (2026-11-12): Stakeholder gate, course intent, constraints, append-only trace
 
 **Completed and tested (17 new tests, `tests/test_phase1_governance.py`):**
 - `services/trace.py` + table `trace_events`: hash-chained, append-only event log (audit created, agent start/complete/failed, agent messages, tool calls, model calls, quality checks, retries, findings, drafts, lecturer decisions, apply). ORM refuses UPDATE/DELETE; SQLite and PostgreSQL triggers abort them; `verify_chain` detects edits, removals and reordering. Not tamper-proof against a database owner who rewrites the whole chain (head hash is not anchored outside the DB).
@@ -80,7 +80,7 @@ Full suite after these changes: **88 passed, 1 skipped**.
 - Nothing in this session was run against a live model.
 - No Alembic migration; `docs/Tasks.md`, `DATABASE_SCHEMA.md` and `Architecture.md` do not yet describe the Phase 1 tables and events.
 
-## Phase 2, item 6 (2026-11-12): transcript-to-slide delivery verification (not committed)
+## Phase 2, item 6 (2026-11-12): transcript-to-slide delivery verification
 
 Phase 1 was committed as `dc0ae46`. Baseline before this item: 88 passed, 1 skipped.
 
@@ -98,7 +98,7 @@ Phase 1 was committed as `dc0ae46`. Baseline before this item: 88 passed, 1 skip
 
 **Limits:** with the lexical test backend only shared words count, so real synonyms need the neural backend; that path was tested with a stand-in embedding function, not with the real model. Not run on real lecture recordings, on German material, or against a live model. Timestamps are not shown because the chunker does not keep them. The thresholds are defaults, not calibrated against labelled data. The delivery findings are not yet shown in a dedicated part of the reports page (they appear in the findings list and the briefing).
 
-## Phase 2, item 7 (2026-11-12): Bloom classifier validation and improvement (not committed)
+## Phase 2, item 7 (2026-11-12): Bloom classifier validation and improvement
 
 Baseline before this item: 97 passed, 1 skipped.
 
@@ -113,7 +113,7 @@ Baseline before this item: 97 passed, 1 skipped.
 
 **Limits:** the key is not lecturer-reviewed and the same author wrote items and rules, so the held-out figure is weak evidence. The challenge split shows the rules still fail on purpose clauses, nominalised demands and verbs outside the lexicon. The model-assisted variant was tested with a mock only; its accuracy is unmeasured, so the keyword-versus-hybrid comparison is still open. On long teaching text the level is a weak signal.
 
-## Phase 2, item 8 (2026-11-13): extraction and retrieval evaluation (not committed)
+## Phase 2, item 8 (2026-11-13): extraction and retrieval evaluation
 
 Baseline before this item: 133 passed, 1 skipped.
 
@@ -151,7 +151,7 @@ Baseline before this item: 196 passed, 1 skipped. Tests only; no application cod
 
 **Observed, not changed:** a rejected draft can afterwards be approved (the later decision wins and both stay in the history). Whether that should be allowed is a lecturer-workflow decision.
 
-## Phase 2, item 9, second part (2026-11-13): every endpoint, injection, cancel, restart (not committed)
+## Phase 2, item 9, second part (2026-11-13): every endpoint, injection, cancel, restart
 
 Baseline before this part: 225 passed, 1 skipped.
 
@@ -225,5 +225,28 @@ Baseline before this part: 292 passed, 1 skipped.
 **Verified:** full suite **294 passed, 1 skipped**; `compileall` clean.
 
 **Next:** see `docs/RESEARCH_READINESS.md`, section 3. Most remaining items need real course material, lecturers, provider quota, a PostgreSQL database, a running Docker daemon, or a decision.
+
+## PostgreSQL and Docker verification (2026-11-13)
+
+Baseline before this part: 294 passed, 1 skipped (SQLite).
+
+**PostgreSQL.** A throwaway PostgreSQL 15 container was created from `001_initial.sql` exactly as Docker Compose does (34 tables, no errors), and the whole suite was run against it. First run: 267 passed, 22 failed, 6 errors. All of it was hidden by SQLite. Found and fixed:
+1. **Task ids longer than their columns.** Task ids such as `<run>:<agent>:<dimension>` (up to 76 characters) and `<run>:draft:<gap>` (79) did not fit `trace_events.task_id`, `trace_events.parent_id` and `draft_reviews.task_id` (64). SQLite ignores lengths. On PostgreSQL most agent trace events were rejected (logged, not raised), and audit and lecturer drafts could not be saved. Widened to 160 in the models, the schema file and `DATABASE_SCHEMA.md`.
+2. **A request could hang forever on PostgreSQL.** The "generate draft" request wrote its first trace events in its own open transaction, then waited for a worker thread that wrote the next events of the same chain through another connection; that insert waited for the open transaction. Seen live in `pg_stat_activity`. The request now commits those opening events before starting the thread. As a safety net, a trace write from a separate connection on PostgreSQL waits at most 3 s, then is logged as not recorded instead of hanging.
+3. Two tamper tests used SQLite's syntax to drop the trace triggers; they now use the right statement per engine.
+
+After the fixes: **299 passed on PostgreSQL, nothing skipped** (including the column-type comparison with the schema file, which had never run before, and the new lock test).
+
+**Docker.** Both images built (backend 2.95 GB, frontend 1.07 GB). The stack was started under a separate project name with fresh volumes, in test mode. The existing `lectio_app_*` volumes were not touched. Found and fixed:
+4. **Every audit failed when `DEBUG=true`.** Debug turns on SQL echo, which writes to stdout; the audit worker returns its result as the only JSON document on stdout, so the parent got "Extra data" and marked every run as failed. Both workers (audit and parser) now keep stdout for the result only and send everything else to stderr. This also affected a local start with the same `.env`.
+5. **Misleading message when no draft could be grounded.** If every draft failed for lack of a supporting passage, the run said to check the API key. It now says that no supporting passage was found.
+
+Then, through Docker: the English and German sample courses were uploaded and audited (same scores as in test mode on SQLite); the English run produced drafts and waits for the lecturer; all 11 pages passed `scripts/check_ui.py` against the Docker API; the UI container reached the API container; all six run traces and the course chains verified; PostgreSQL refused a direct UPDATE of the trace ("trace_events is append-only"). The verification stack and its volumes were removed afterwards.
+
+**Also changed:** the CI PostgreSQL job now loads the schema file first and installs the driver the schema test uses (`psycopg2-binary`, not `psycopg`). For the local runs, `asyncpg` (already pinned in `requirements.txt`) and `psycopg2-binary` were installed into `.venv`; no requirements file was changed.
+
+**Verified:** SQLite 297 passed, 2 skipped (the two PostgreSQL-only tests); PostgreSQL 299 passed. Three new tests: task ids fit their columns, a blocked trace write gives up (PostgreSQL only), an audit completes with `DEBUG=true`, plus one for the draft-failure message.
+
+**Not verified:** the stack in live mode (model calls, the 2.8 GB embedding models), a migration tool, several backend processes, the CI workflow on GitHub.
 
 **Next (per the master prompt, superseded by the readiness report):** evaluation pipeline; experiment runner; live alignment feedback; PostgreSQL/CI.
