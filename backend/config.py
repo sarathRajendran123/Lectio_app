@@ -31,7 +31,9 @@ class Settings(BaseSettings):
     paperclip_company_id: str = ""
     paperclip_agent_id: str = ""
     parser_timeout_seconds: int = 60
-    workflow_timeout_seconds: int = 600
+    workflow_timeout_seconds: int = 600     # working time of one audit; time spent paused is not counted
+    pause_poll_seconds: float = 1.0         # how often a paused audit checks whether it may continue
+    pause_max_seconds: int = 1800           # a run paused longer than this is stopped, so it cannot hold capacity forever
     max_concurrent_runs: int = 2
     llm_timeout_seconds: int = 90
     paperclip_enabled: bool = False

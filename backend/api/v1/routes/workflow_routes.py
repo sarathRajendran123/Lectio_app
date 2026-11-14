@@ -394,6 +394,27 @@ async def reject_content(
     )
 
 
+@runs_router.post('/runs/{run_id}/pause')
+async def pause_run(run_id: UUID, user=Depends(get_current_user), db=Depends(get_db, scope="function")):
+    """Hold a running audit before its next agent step. The step in progress finishes first."""
+    run = await _run_access(run_id,user,db)
+    if not await workflow_service.set_paused(run_id,True,db):
+        raise HTTPException(status_code=409,detail='Only a running audit can be paused.')
+    from services import trace
+    await trace.aemit('run_paused',{'by':'lecturer'},db=db,subject=('run',run_id),run_id=str(run_id),course_id=str(run.course_id),agent='lecturer')
+    return {'status':'paused','note':'The agent step in progress finishes; the audit then waits. Course intent and rules changed now apply when it continues.'}
+
+
+@runs_router.post('/runs/{run_id}/resume')
+async def resume_run(run_id: UUID, user=Depends(get_current_user), db=Depends(get_db, scope="function")):
+    run = await _run_access(run_id,user,db)
+    if not await workflow_service.set_paused(run_id,False,db):
+        raise HTTPException(status_code=409,detail='Only a paused audit can be continued.')
+    from services import trace
+    await trace.aemit('run_resumed',{'by':'lecturer'},db=db,subject=('run',run_id),run_id=str(run_id),course_id=str(run.course_id),agent='lecturer')
+    return {'status':'running'}
+
+
 @runs_router.post('/runs/{run_id}/cancel')
 async def cancel_run(run_id: UUID, user=Depends(get_current_user), db=Depends(get_db, scope="function")):
     await _run_access(run_id,user,db)

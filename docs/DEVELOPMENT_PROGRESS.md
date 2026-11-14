@@ -55,7 +55,7 @@ What was actually done, in order, with how it was verified. Latest first within 
 - Existing databases need the new tables: they are created at start-up; guards are installed at start-up. No Alembic migration yet.
 - Not exercised with a live model since the changes (mocked and local-test only).
 
-## Phase 1 completion (2026-11-12, second session; not committed)
+## Phase 1 completion (2026-11-12, second session)
 
 The four Phase 1 items were re-checked against the code and the project description before anything was changed. Baseline at the start of the session: 77 passed, 1 skipped. All four existed and their tests passed, but each fell short of the description in a specific way. Those gaps were closed in this order; 11 new tests in `tests/test_phase1_completion.py`.
 
@@ -212,7 +212,7 @@ Baseline before this item: 280 passed, 1 skipped.
 
 **Limits:** the feedback uses the verb rules (two joined demands such as "erklären und bewerten" are read as the first one) and word-overlap matching of objectives, so an objective in other wording or in the other language is missed. In live mode the passage search uses the real retrieval models; that path was not run. No model judges the text. The load test covers read calls and the feedback call, not uploads, audits or model latency. Still open in item 15: PostgreSQL run, a migration tool, a durable job queue, Docker verification. Item 16 (accessibility) not started.
 
-## Phase 4, items 15 and 16, and the closing report (2026-11-13, not committed)
+## Phase 4, items 15 and 16, and the closing report (2026-11-13)
 
 Baseline before this part: 292 passed, 1 skipped.
 
@@ -248,5 +248,19 @@ Then, through Docker: the English and German sample courses were uploaded and au
 **Verified:** SQLite 297 passed, 2 skipped (the two PostgreSQL-only tests); PostgreSQL 299 passed. Three new tests: task ids fit their columns, a blocked trace write gives up (PostgreSQL only), an audit completes with `DEBUG=true`, plus one for the draft-failure message.
 
 **Not verified:** the stack in live mode (model calls, the 2.8 GB embedding models), a migration tool, several backend processes, the CI workflow on GitHub.
+
+## Remaining software items from the exposé (2026-11-14)
+
+Baseline before this part: 297 passed, 2 skipped (SQLite).
+
+- **Slide-outline drafts.** New content type `slide_outline` in the generation request, the workbench form, the Approval Center and the draft check. The Stakeholder gate lowers the structure score of an outline with fewer than three slide headings (English "Slide n", German "Folie n", or section headings). An outline is for the lecturer: it cannot be applied to the course model (422).
+- **Granularity variants.** A draft request takes `granularity` (brief, standard, detailed), one per alternative like the prompt styles. Brief uses up to 4 retrieved passages, standard 8, detailed 12, each with its own instruction to the model; the level is in the draft title, the response and the trace. The default (standard) behaves as before. "Level of detail" selector in the workbench.
+- **Pause, redirect, continue.** `POST /runs/{id}/pause` and `/resume`. A paused audit finishes the agent step in progress and waits before the next one. While it waits the course stays locked and no second audit starts, but the lecturer can change the course intent or their rules; when the audit continues, the worker loads them again and the remaining steps use them. Trace events: `run_paused`, `run_held`, `run_continued` (with what was reloaded), `run_resumed`. Time spent paused does not count against the audit time limit; a run paused longer than `PAUSE_MAX_SECONDS` (default 30 minutes) is stopped, so it cannot hold capacity forever. A paused run counts as active for admission and is closed by restart recovery. Buttons "Pause audit" and "Continue audit" in the workbench.
+- **Interaction-log analysis.** `backend/knowledge/trace_analysis.py`, `GET /runs/{id}/trace/analysis`, `GET /courses/{id}/trace/analysis`, `scripts/analyse_trace.py`. Per run: goal propagation (share of agent events carrying the intent in force, and where it is missing), delegation (assignments, steps without an assignment, agents outside the roster), traceability (findings recorded without an agent decision, evidence cited that no retrieval returned, findings recorded under another agent), quality loop (failed checks, retries, model switches), failures, pauses, time per agent. Per course: lecturer decisions, rules, draft requests. Output as JSON and Markdown.
+- First real observation from it (test-mode audit of the English sample course with an intent): 132 of 133 agent events carry the intent. The one without is the Course Director's first step, which starts before it has loaded the intent. Left as it is; it is now a known, tested fact.
+
+**Verified:** 14 new tests (3 in `test_draft_feedback.py`, 3 in `test_phase2_access.py`, 8 in `test_trace_analysis.py`); full suite on SQLite **311 passed, 2 skipped**; all 11 pages pass `check_ui.py` against a throwaway server; the Continue button and the new form fields were exercised through Streamlit's test harness.
+
+**Not verified:** this batch on PostgreSQL (Docker was not running; no model or column changed, but the pause routes write to the trace); slide outlines and granularity with a live model (test mode writes a fixed template, so the content of an outline is unseen); pages in a real browser. The log analysis gives descriptive indicators, not Colosseum's regret-based metrics, and has only seen test-mode logs.
 
 **Next (per the master prompt, superseded by the readiness report):** evaluation pipeline; experiment runner; live alignment feedback; PostgreSQL/CI.

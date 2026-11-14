@@ -106,10 +106,20 @@ def show_workbench():
                 if info.get('error_message'):st.warning(info['error_message'])
                 x,y=st.columns(2)
                 if x.button('Refresh audit progress'):st.rerun()
-                if info['status']=='running' and y.button('Cancel audit'):
+                if info['status'] in ('running','paused') and y.button('Cancel audit'):
                     _,err=safe_api_call(client.workbench,'runs/'+run+'/cancel','POST')
                     if err:st.error(err)
                     else:st.rerun()
+                if info['status']=='running' and x.button('Pause audit'):
+                    _,err=safe_api_call(client.workbench,'runs/'+run+'/pause','POST')
+                    if err:st.error(err)
+                    else:st.rerun()
+                if info['status']=='paused':
+                    st.caption('Paused. The step that was running finishes first. You can change the course intent or your rules now; they apply when the audit continues.')
+                    if y.button('Continue audit',type='primary'):
+                        _,err=safe_api_call(client.workbench,'runs/'+run+'/resume','POST')
+                        if err:st.error(err)
+                        else:st.rerun()
                 steps,_=safe_api_call(client.get_run_steps,run)
                 if steps:st.dataframe(steps,width="stretch",hide_index=True)
         matrix,err=safe_api_call(client.workbench,base+'/matrix')
@@ -179,7 +189,7 @@ def show_workbench():
         st.subheader('Grounded alternatives')
         st.caption('Every result is a draft. Sources remain unchanged until you explicitly approve a proposal.')
         with st.form('generate'+cid):
-            kind=st.selectbox('Content type',['clo','exercise','quiz','description','assessment_suggestion'])
+            kind=st.selectbox('Content type',['clo','exercise','quiz','description','assessment_suggestion','slide_outline'],format_func=lambda v:v.replace('_',' '))
             purpose=st.text_area('Purpose and relevant course topic',placeholder='Create an exercise on binary search complexity')
             constraints=st.text_area('Constraints',placeholder='Academic level, format, target Bloom level, duration…')
             modules,_=safe_api_call(client.list_modules,cid)
@@ -190,13 +200,14 @@ def show_workbench():
             profiles,_=safe_api_call(client.workbench,'system/agent-profiles')
             styles=st.multiselect('Prompt styles',(profiles or {}).get('prompt_styles',['conceptual','applied','reflective']),default=['conceptual','applied'])
             models=st.multiselect('Configured model variants',(profiles or {}).get('models',[]))
+            depths=st.multiselect('Level of detail',(profiles or {}).get('granularity',['brief','standard','detailed']),default=['standard'],help='Each alternative uses the next selected level: brief uses fewer source passages, detailed uses more.')
             expected_format=st.text_input('Expected output format',placeholder='Two questions with marking criteria, or a short module description')
             alternatives=st.slider('Alternatives',1,3,2)
             submit=st.form_submit_button('Generate draft alternatives',type='primary')
         if submit:
             with st.spinner('Retrieving course evidence and preparing drafts…'):
                 result,err=safe_api_call(client.workbench,base+'/generate','POST',{'content_type':kind,'purpose':purpose,
-                    'constraints':constraints,'objective_ids':[o['id'] for o in selected_objectives],'alternatives':alternatives,'models':models,'prompt_styles':styles or ['conceptual'],'expected_format':expected_format})
+                    'constraints':constraints,'objective_ids':[o['id'] for o in selected_objectives],'alternatives':alternatives,'models':models,'prompt_styles':styles or ['conceptual'],'granularity':depths or ['standard'],'expected_format':expected_format})
             if err:st.error(err)
             else:st.session_state['variants'+cid]=result
         variants=st.session_state.get('variants'+cid,[])

@@ -84,7 +84,7 @@ class AlignmentResult:
 @dataclass
 class GeneratedContentItem:
     item_id:       str
-    content_type:  str    # clo | description | exercise | quiz | assessment_suggestion
+    content_type:  str    # clo | description | exercise | quiz | assessment_suggestion | slide_outline
     title:         str
     content:       str
     bloom_level:   Optional[str]

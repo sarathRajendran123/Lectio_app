@@ -122,6 +122,32 @@ async def verify_run_trace(run_id: UUID, user=Depends(get_current_user), db=Depe
     return await trace.verify_chain(db, str(run_id))
 
 
+@router.get("/runs/{run_id}/trace/analysis")
+async def analyse_run_trace(run_id: UUID, user=Depends(get_current_user), db=Depends(get_db, scope="function")):
+    """Goal propagation, delegation, traceability and quality-loop indicators for one run (knowledge/trace_analysis.py)."""
+    from knowledge import trace_analysis
+    run = await _run_course(db, run_id)
+    await _assert_course_access(run.course_id, user, db)
+    rows = (await db.scalars(select(TraceEvent).where(TraceEvent.chain_key == str(run_id)).order_by(TraceEvent.seq))).all()
+    return trace_analysis.analyse_run([trace.to_dict(r) for r in rows])
+
+
+@router.get("/courses/{course_id}/trace/analysis")
+async def analyse_course_trace(course_id: UUID, user=Depends(get_current_user), db=Depends(get_db, scope="function")):
+    """The lecturer-side log of a course and the same indicators for its latest runs (at most 20)."""
+    from db.models.generated_content import AgentRun
+    from knowledge import trace_analysis
+    await _assert_course_access(course_id, user, db)
+
+    async def chain(key):
+        rows = (await db.scalars(select(TraceEvent).where(TraceEvent.chain_key == key).order_by(TraceEvent.seq))).all()
+        return [trace.to_dict(r) for r in rows]
+
+    runs = (await db.scalars(select(AgentRun.id).where(AgentRun.course_id == course_id).order_by(AgentRun.started_at.desc()).limit(20))).all()
+    return {"course": trace_analysis.analyse_course(await chain(f"course:{course_id}")),
+            "runs": {str(run_id): trace_analysis.analyse_run(await chain(str(run_id))) for run_id in runs}}
+
+
 @router.get("/courses/{course_id}/trace")
 async def course_trace(course_id: UUID, event_type: Optional[str] = None, user=Depends(get_current_user), db=Depends(get_db, scope="function")):
     """Events outside any audit run: intent changes, rules, draft requests and the decisions on those drafts."""

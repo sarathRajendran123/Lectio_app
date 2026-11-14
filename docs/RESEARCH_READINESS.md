@@ -4,7 +4,7 @@ Written 2026-11-13 at the end of the work plan in the master prompt (Phases 1 to
 
 Status words: **Done** = implemented and verified as described; **Partly** = implemented, with a named part not verified or not built; **Open** = not done; **Needs a decision** = cannot be finished by development alone.
 
-Suite on 2026-11-13: 297 passed, 2 skipped on SQLite (two tests need PostgreSQL); 299 passed on PostgreSQL 15. All of it runs in test mode: no language model is called and retrieval is word overlap, except 6 tests that load the real embedding and reranker models.
+Suite: 311 passed, 2 skipped on SQLite (2026-11-14; two tests need PostgreSQL); 299 passed on PostgreSQL 15 (2026-11-13, before the 2026-11-14 additions). All of it runs in test mode: no language model is called and retrieval is word overlap, except 6 tests that load the real embedding and reranker models.
 
 ## 1. Work plan items
 
@@ -60,3 +60,32 @@ Suite on 2026-11-13: 297 passed, 2 skipped on SQLite (two tests need PostgreSQL)
 **What must not be reported as a result.** Every figure measured so far is agreement with keys the developer wrote, on synthetic material, mostly in test mode. They show that the software computes what it should and where the rules fail; they say nothing about usefulness to lecturers.
 
 **Before deployment.** A migration tool, Docker in live mode, a first CI run, and rotation of credentials that were exposed earlier (by the account owner).
+
+## 4. Status against the exposé and the project description (checked 2026-11-13)
+
+Each deliverable named in the exposé or in the project description, checked against the code and a run on that date. Counting Done as 1, Partly as 0.5 and Open as 0 is a rough guide, not a measurement.
+
+| Deliverable | Status | Basis |
+|---|---|---|
+| Ingest slides, PDF, DOCX, PPTX, Markdown, transcripts | Done | `test_formats.py`, upload fuzzing tests |
+| Course model: embeddings, semantic chunking, topic clustering, metadata schema | Done | clustering is a bounded grouping of at most 200 chunks |
+| Course Director with goal propagation | Done | intent reaches every agent task (Phase 1 tests) |
+| Four alignment agents | Done | full audit journeys, English and German |
+| Stakeholder agent as quality broker (plain language, variants with rationale, retry or reassign, decisions become constraints) | Done | rule-based gate; no model judge |
+| Lecturer dashboard and annotation interface | Done | all 11 pages pass `check_ui.py` |
+| Append-only audit log of tool calls, agent decisions, inter-agent messages; trace per finding | Done | hash chain, triggers on SQLite and PostgreSQL |
+| Content creation: objectives, exercises, quizzes, module descriptions, slide outlines | Done (test mode) | slide outlines added 2026-11-14; content with a live model unseen |
+| Live alignment feedback while creating | Done (rules) | not run with a live model |
+| Pluggable agent pool: model, prompt and granularity variants, side-by-side view, preference logging | Done (test mode) | granularity added 2026-11-14; no live multi-model comparison run |
+| Experiment framework | Done (test mode) | 7-condition ablation run; no live run |
+| Lecturer can pause, override or redirect agents | Done | pause, change intent or rules, continue; cancel; dismissals (2026-11-14) |
+| Paperclip integration | Open | decision paper in `docs/PAPERCLIP.md` |
+| Runs on PostgreSQL and in Docker | Done (test mode) | 299 tests on PostgreSQL; Docker end to end in test mode |
+| Architecture document | Done | `docs/Architecture.md` |
+| Evaluation with real MAAI material (precision / recall, generation quality, acceptance rate) | Partly | tooling ready; no material, no labels, no study |
+| Live-model validation (live audits, Bloom with model, live experiments) | Open | needs provider quota |
+| Emergent-behaviour analysis of interaction logs | Partly | analysis tooling built 2026-11-14 (descriptive indicators); no live logs analysed, no case study |
+| Semester 1 research report | Open | not in the repository |
+| Final comparative study report | Open | needs the study |
+
+Software deliverables (first fourteen rows): 13 Done, 1 Open (Paperclip), about 93 %. Research deliverables (last six rows): 1 Done, 2 Partly, 3 Open, about 33 %. All twenty: about 75 %. (Before 2026-11-14: about 80 %, 25 % and 65 %.) Several "Done" rows are verified in test mode only; see the notes.

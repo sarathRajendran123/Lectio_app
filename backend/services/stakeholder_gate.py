@@ -34,6 +34,8 @@ def assess(text: str, citations: list, *, content_type: str, target: str, intent
         structure = 0.0; issues.append("The draft is too short to be usable.")
     elif content_type in ("quiz", "assessment", "assessment_suggestion") and "?" not in text and not re.search(r"(?i)\b(question|aufgabe|frage)\b", text):
         structure = 0.4; issues.append("No question was found in an assessment draft.")
+    elif content_type == "slide_outline" and len(re.findall(r"(?im)^\s*(?:#{2,4}\s+\S|(?:slide|folie)\s*\d+)", text)) < 4:
+        structure = 0.4; issues.append("A slide outline needs at least three slides with their own headings.")   # 4 = title + 3 slides
     elif content_type == "clo" and classify_text(text)[0] is None:
         structure = 0.5; issues.append("The objective has no measurable action verb.")
     checks["structure"] = structure

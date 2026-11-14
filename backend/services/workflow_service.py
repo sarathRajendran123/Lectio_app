@@ -83,7 +83,7 @@ class WorkflowService:
                 cwd=str(Path(__file__).resolve().parents[1]),
                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
             self.processes[run_id] = process
-            stdout, stderr = await asyncio.wait_for(process.communicate(), settings.workflow_timeout_seconds)
+            stdout, stderr = await self._wait_for_worker(run_id, process)
             if process.returncode:
                 logger.error("Workflow worker failed: %s", stderr.decode(errors='replace')[-2000:])
                 raise RuntimeError('Workflow worker failed. Check configuration and backend logs.')
@@ -103,6 +103,40 @@ class WorkflowService:
             await self._update_run(run_id,'failed',error=str(exc)[:500] or 'Workflow exceeded time limit.')
         finally:
             self.processes.pop(run_id,None)
+
+    async def _wait_for_worker(self, run_id, process):
+        """Wait for the worker. Working time is limited by WORKFLOW_TIMEOUT_SECONDS; paused time by PAUSE_MAX_SECONDS."""
+        import asyncio, time
+        from config import settings
+        finished = asyncio.ensure_future(process.communicate())
+        worked = paused = 0.0
+        last = time.monotonic()
+        try:
+            while True:
+                done, _ = await asyncio.wait({finished}, timeout=max(settings.pause_poll_seconds, 0.2))
+                if done:
+                    return finished.result()
+                now = time.monotonic()
+                async with AsyncSessionLocal() as db:
+                    status = await db.scalar(select(AgentRun.status).where(AgentRun.id == uuid.UUID(run_id)))
+                if status == "paused":
+                    paused += now - last
+                else:
+                    worked += now - last
+                last = now
+                if worked > settings.workflow_timeout_seconds:
+                    raise RuntimeError("Workflow exceeded time limit.")
+                if paused > settings.pause_max_seconds:
+                    raise RuntimeError(f"The audit was paused for more than {settings.pause_max_seconds // 60} minutes and was stopped.")
+        finally:
+            if not finished.done():
+                finished.cancel()
+
+    async def set_paused(self, run_id, paused: bool, db) -> bool:
+        """Pause a running audit or let a paused one continue. False when the run is not in the state to change from."""
+        before, after = ("running", "paused") if paused else ("paused", "running")
+        result = await db.execute(update(AgentRun).where(AgentRun.id == uuid.UUID(str(run_id)), AgentRun.status == before).values(status=after))
+        return bool(result.rowcount)
 
     async def cancel(self, run_id):
         task=self.tasks.get(str(run_id))

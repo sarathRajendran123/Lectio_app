@@ -34,7 +34,7 @@ def show_generated_content():
 
     status_filter = col2.selectbox("Status", STATUS_FILTER_OPTS)
     type_filter   = col3.selectbox("Type",
-                                    ["all", "clo", "quiz", "exercise", "assessment", "description", "assessment_suggestion"])
+                                    ["all", "clo", "quiz", "exercise", "assessment", "description", "assessment_suggestion", "slide_outline"])
 
     # ── Load items ─────────────────────────────────────────────────────────
     if status_filter == "all":

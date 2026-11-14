@@ -38,8 +38,36 @@ _stakeholder  = StakeholderAgent()
 
 # ── Node wrappers (LangGraph expects plain functions) ─────────────────────────
 
+REDIRECTABLE = ('course_intent', 'lecturer_constraints', 'guidance', 'dismissed_findings')
+
+def hold_while_paused(agent, state, step):
+    """Wait before a step while the lecturer has paused the run. Returns the state, with the lecturer's intent and
+    rules loaded again after a pause, so that what they changed in the meantime steers the remaining steps."""
+    import time, uuid
+    from sqlalchemy import select
+    from config import settings
+    from db.models.generated_content import AgentRun
+    from db.session import AsyncSessionLocal
+    from services import trace
+    async def status():
+        async with AsyncSessionLocal() as db:
+            return await db.scalar(select(AgentRun.status).where(AgentRun.id == uuid.UUID(state['run_id'])))
+    if agent._run_async(status()) != 'paused':
+        return state
+    ids = dict(run_id=state['run_id'], course_id=state['course_id'], agent=agent.name)
+    started = time.monotonic()
+    trace.emit('run_held', {'before_step': step}, **ids)
+    while agent._run_async(status()) == 'paused':
+        time.sleep(max(settings.pause_poll_seconds, 0.1))
+    fresh = _director._load_course_context(state['course_id'], state.get('initiated_by'))
+    changed = [key for key in REDIRECTABLE if key in fresh and fresh[key] != state.get(key)]
+    trace.emit('run_continued', {'before_step': step, 'held_ms': int((time.monotonic() - started) * 1000), 'reloaded': changed}, **ids)
+    return {**state, **{key: fresh[key] for key in changed}}
+
+
 def execute_agent(agent, state, dimension=None):
     import time, uuid
+    state = hold_while_paused(agent, state, dimension or 'coordination')
     from db.models.generated_content import AgentStep
     from db.session import AsyncSessionLocal
     from agents.graph.state import AlignmentResult

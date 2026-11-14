@@ -180,3 +180,64 @@ def test_text_colours_meet_wcag_aa_contrast():
         assert _contrast(colour, "#FAF9F6") >= 4.5 and _contrast(colour, "#FFFFFF") >= 4.5, colour
     assert _contrast("#FFFFFF", "#24695D") >= 4.5                            # primary button text
     assert _contrast("#B87928", "#FAF9F6") >= 3.0                            # focus ring, a non-text indicator
+
+
+# ── slide outlines and granularity variants ──────────────────────────────────
+
+def test_a_slide_outline_can_be_requested_is_checked_by_the_gate_and_cannot_be_applied(client, headers, english):
+    course, base = english
+    r = client.post(base + "/generate", headers=headers, json={"content_type": "slide_outline", "purpose": "Outline a lecture on hash tables and collisions",
+                                                               "alternatives": 1})
+    assert r.status_code == 201, r.text
+    draft = r.json()[0]
+    assert draft["title"].startswith("Slide outline · Alternative 1") and draft["citations"] and draft["approval_status"] == "pending"
+    # Test mode writes a fixed template, which is not an outline: the gate lowers the score and names the problem
+    # (a structure weakness alone does not fail a draft, as for a quiz without a question).
+    assert draft["quality"]["score"] < 1 and any("at least three slides" in issue for issue in draft["quality"]["issues"])
+    assert client.post(f"{API}/approvals/{draft['id']}/approve", headers=headers).status_code == 200
+    applied = client.post(f"{API}/approvals/{draft['id']}/apply", headers=headers, json={})
+    assert applied.status_code == 422 and "cannot be applied" in applied.text       # an outline is for the lecturer, not for the course model
+
+
+def test_the_gate_accepts_a_real_outline_in_english_and_german_and_refuses_a_paragraph():
+    from services import stakeholder_gate
+    cite = [{"citation": "[Slides, p.1]"}]
+    english_outline = ("## Hash tables\n\n### Slide 1: Hash functions\n- keys map to slots\n- load factor\n\n### Slide 2: Collisions\n- two keys, one slot\n\n"
+                       "### Slide 3: Chaining and open addressing\n- linked lists\n- probing")
+    german_outline = ("Folie 1: Hashfunktionen\n- Schlüssel auf Tabellenplätze\nFolie 2: Kollisionen\n- zwei Schlüssel, ein Platz\n"
+                      "Folie 3: Verkettung\n- verkettete Listen\nFolie 4: Offene Adressierung\n- Sondieren nach freiem Platz")
+    for text, target in ((english_outline, "hash tables collisions"), (german_outline, "Hashtabellen Kollisionen")):
+        review = stakeholder_gate.assess(text, cite, content_type="slide_outline", target=target, intent=None)
+        assert review["checks"]["structure"] == 1.0 and review["passed"], review
+    paragraph = "Hash tables map keys to slots using a hash function, and collisions are handled by chaining or by open addressing with probing."
+    review = stakeholder_gate.assess(paragraph, cite, content_type="slide_outline", target="hash tables collisions", intent=None)
+    assert review["checks"]["structure"] == 0.4 and "at least three slides" in " ".join(review["issues"])
+
+
+def test_granularity_variants_use_different_amounts_of_source_material_and_are_labelled(client, headers, english, monkeypatch):
+    from api.v1.routes import workbench
+    from rag.generation.grounded_generator import GroundedGenerator
+    course, base = english
+    seen = []
+    original = GroundedGenerator.generate
+
+    def spy(self, task_prompt, context_chunks, extra_instructions=None):
+        seen.append((len(context_chunks), task_prompt))
+        return original(self, task_prompt, context_chunks, extra_instructions)
+
+    monkeypatch.setattr(GroundedGenerator, "generate", spy)
+    monkeypatch.setitem(workbench.GRANULARITY, "brief", (1, workbench.GRANULARITY["brief"][1]))     # the sample course has few passages
+    r = client.post(base + "/generate", headers=headers, json={"content_type": "exercise", "purpose": "Practise binary search, sorting and hash tables",
+                                                               "alternatives": 2, "prompt_styles": ["applied"], "granularity": ["brief", "detailed"]})
+    assert r.status_code == 201, r.text
+    brief, detailed = r.json()
+    assert (brief["granularity"], detailed["granularity"]) == ("brief", "detailed")
+    assert brief["title"].endswith("(applied, brief)") and detailed["title"].endswith("(applied, detailed)")
+    assert seen[0][0] == 1 and seen[1][0] > 1                                    # the brief variant saw fewer passages
+    assert "Granularity: brief. Keep it brief" in seen[0][1] and "Granularity: detailed. Be detailed" in seen[1][1]
+    request = client.get(base + "/trace", headers=headers, params={"event_type": "draft_requested"}).json()["events"][-1]
+    assert request["payload"]["granularity"] == ["brief", "detailed"]
+    default = client.post(base + "/generate", headers=headers, json={"content_type": "exercise", "purpose": "Practise binary search once more", "alternatives": 1})
+    assert default.json()[0]["granularity"] == "standard" and default.json()[0]["title"].endswith("(conceptual)")   # unchanged default
+    assert client.post(base + "/generate", headers=headers, json={"content_type": "exercise", "purpose": "Practise binary search", "granularity": ["huge"]}).status_code == 422
+    assert client.get(f"{API}/system/agent-profiles", headers=headers).json()["granularity"] == ["brief", "standard", "detailed"]

@@ -296,3 +296,90 @@ def test_work_interrupted_by_a_restart_is_closed_and_can_be_repeated(client, hea
     again = client.post(base + "/run-audit", headers=headers)
     assert again.status_code == 202, again.text                                   # the course is not locked by the lost run
     _wait(client, headers, again.json()["run_id"])
+
+
+# ── pausing, redirecting and continuing an audit ─────────────────────────────
+
+def _until(client, headers, run, wanted, seconds=90):
+    state = {}
+    for _ in range(seconds * 5):
+        state = client.get(f"{API}/runs/{run}", headers=headers).json()
+        if state["status"] in wanted:
+            break
+        time.sleep(.2)
+    return state
+
+
+def test_a_paused_audit_waits_takes_up_a_changed_intent_and_then_finishes(client, headers):
+    course, base = _small_course(client, headers, "PAUSE1")
+    client.post(base + "/artifacts", headers=headers, data={"artifact_type": "exam"},
+                files={"file": ("exam.txt", b"Question 1. Explain how merge sort splits the list and merges the sorted halves.", "text/plain")})
+    run = client.post(base + "/run-audit", headers=headers).json()["run_id"]
+    paused = client.post(f"{API}/runs/{run}/pause", headers=headers)
+    assert paused.status_code == 200 and paused.json()["status"] == "paused", paused.text
+    assert client.post(f"{API}/runs/{run}/pause", headers=headers).status_code == 409         # already paused
+    time.sleep(6)                                                                              # the worker has started and is waiting
+    assert client.get(f"{API}/runs/{run}", headers=headers).json()["status"] == "paused"
+    assert client.get(base + "/reports", headers=headers).json() == []                         # no step ran
+    assert client.get(f"{API}/runs/{run}/steps", headers=headers).json() == []
+    assert client.post(base + "/extract-model", headers=headers).status_code == 409            # the course stays locked
+    assert client.post(base + "/run-audit", headers=headers).status_code == 409                # and no second audit starts
+    # Redirect: the lecturer states an intent while the audit waits.
+    intent = client.put(base + "/intent", headers=headers, json={"goals": "Students evaluate and create sorting algorithms.",
+                                                                 "cognitive_levels": ["evaluate", "create"]})
+    assert intent.status_code == 200, intent.text
+    resumed = client.post(f"{API}/runs/{run}/resume", headers=headers)
+    assert resumed.status_code == 200 and resumed.json() == {"status": "running"}
+    assert client.post(f"{API}/runs/{run}/resume", headers=headers).status_code == 409         # not paused any more
+    state = _until(client, headers, run, ("completed", "needs_review", "waiting_for_human", "failed", "cancelled"))
+    assert state["status"] in ("completed", "needs_review", "waiting_for_human"), state
+    trace = client.get(f"{API}/runs/{run}/trace", headers=headers).json()
+    kinds = [e["event_type"] for e in trace["events"]]
+    assert trace["integrity"]["valid"] and {"run_paused", "run_held", "run_continued", "run_resumed"} <= set(kinds)
+    assert kinds.index("run_held") < kinds.index("run_continued") < kinds.index("agent_start")   # nothing ran before the lecturer continued
+    continued = next(e for e in trace["events"] if e["event_type"] == "run_continued")
+    assert continued["payload"]["held_ms"] >= 2000 and "course_intent" in continued["payload"]["reloaded"]
+    version = client.get(base + "/intent", headers=headers).json()
+    decisions = [e for e in trace["events"] if e["event_type"] == "agent_decision"]
+    assert decisions and all(e["payload"]["intent"]["id"] == version["intent"]["id"] for e in decisions if e["payload"].get("intent"))
+    gap_types = {g["gap_type"] for r in client.get(base + "/reports", headers=headers).json()
+                 for g in client.get(f"{API}/reports/{r['id']}", headers=headers).json()["gaps"]}
+    assert any(t.startswith("intent_level") for t in gap_types), gap_types                     # the new intent steered the audit
+    assert client.post(f"{API}/runs/{run}/pause", headers=headers).status_code == 409         # a finished audit cannot be paused
+
+
+def test_a_paused_audit_can_be_cancelled_and_one_left_paused_too_long_is_stopped(client, headers, monkeypatch):
+    from config import settings
+    course, base = _small_course(client, headers, "PAUSE2")
+    run = client.post(base + "/run-audit", headers=headers).json()["run_id"]
+    assert client.post(f"{API}/runs/{run}/pause", headers=headers).status_code == 200
+    time.sleep(3)
+    assert client.post(f"{API}/runs/{run}/cancel", headers=headers).status_code == 200
+    assert client.get(f"{API}/runs/{run}", headers=headers).json()["status"] == "cancelled"
+    monkeypatch.setattr(settings, "pause_max_seconds", 2)
+    run = client.post(base + "/run-audit", headers=headers).json()["run_id"]
+    assert client.post(f"{API}/runs/{run}/pause", headers=headers).status_code == 200
+    state = _until(client, headers, run, ("failed", "completed", "cancelled"), seconds=60)
+    assert state["status"] == "failed" and "paused for more than" in state["error_message"], state
+    again = client.post(base + "/run-audit", headers=headers)                                  # the course is free again
+    assert again.status_code == 202, again.text
+    _until(client, headers, again.json()["run_id"], ("completed", "needs_review", "waiting_for_human", "failed"))
+
+
+def test_a_paused_audit_is_closed_by_restart_recovery(client, headers):
+    import asyncio
+    from db.models.generated_content import AgentRun
+    from db.session import AsyncSessionLocal
+    from services.recovery import recover_interrupted_work
+    course, base = _small_course(client, headers, "PAUSE3")
+    lost = uuid.uuid4()
+
+    async def scenario():
+        async with AsyncSessionLocal() as db:
+            db.add(AgentRun(id=lost, course_id=uuid.UUID(course), workflow_type="full_audit", status="paused"))
+            await db.commit()
+        await recover_interrupted_work()
+        async with AsyncSessionLocal() as db:
+            return (await db.get(AgentRun, lost)).status
+
+    assert asyncio.run(scenario()) == "failed"

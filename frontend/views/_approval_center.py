@@ -5,7 +5,7 @@ from components.ui_components import render_citations, render_draft_feedback, bl
 
 CONTENT_LABELS = {
     "clo": "CLO", "quiz": "Quiz", "exercise": "Exercise",
-    "assessment": "Assessment", "description": "Description",
+    "assessment": "Assessment", "description": "Description", "slide_outline": "Slide outline",
 }
 
 
@@ -144,7 +144,7 @@ def _render_approval_card(client, item: dict, status_filter: str):
                 if len(revision.strip()) < 8:
                     st.warning("Write at least a few words to check.")
                 else:
-                    kind = item.get("content_type") if item.get("content_type") in ("clo", "exercise", "quiz", "description") else "assessment_suggestion"
+                    kind = item.get("content_type") if item.get("content_type") in ("clo", "exercise", "quiz", "description", "slide_outline") else "assessment_suggestion"
                     feedback, err = safe_api_call(client.workbench, f"courses/{item.get('course_id')}/draft-feedback", "POST",
                                                   {"text": revision[:6000], "content_type": kind})
                     if err:

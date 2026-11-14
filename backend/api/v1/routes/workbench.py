@@ -88,14 +88,21 @@ async def matrix(course_id:UUID,user=Depends(get_current_user),db=Depends(get_db
     stale=stale or old_version!=model.updated_at.isoformat()
     return {'run_id':str(latest),'rows':rows,'stale':stale,'notice':'Heuristic matches in supplied documents; lecturer review required.'}
 
+# How much a variant covers: number of retrieved passages it may use, and the instruction given to the model.
+GRANULARITY={'brief':(4,'Keep it brief: the essential points only, in a few sentences or bullet points.'),
+    'standard':(8,''),
+    'detailed':(12,'Be detailed: cover sub-topics separately and add a worked example or marking guidance where the sources support it.')}
+DEFAULT_FORMAT={'slide_outline':'slide outline: one section per slide, the slide title as heading and two to four bullet points as text, in teaching order'}
+
 class GenerationRequest(BaseModel):
-    content_type:Literal['clo','exercise','quiz','description','assessment_suggestion']
+    content_type:Literal['clo','exercise','quiz','description','assessment_suggestion','slide_outline']
     purpose:str=Field(min_length=8,max_length=2000)
     constraints:str=Field(default='',max_length=2000)
     objective_ids:list[UUID]=Field(default_factory=list,max_length=20)
     alternatives:int=Field(default=2,ge=1,le=3)
     models:list[str]=Field(default_factory=list,max_length=3)
     prompt_styles:list[Literal['conceptual','applied','reflective']]=Field(default_factory=lambda:['conceptual','applied','reflective'],max_length=3,min_length=1)
+    granularity:list[Literal['brief','standard','detailed']]=Field(default_factory=lambda:['standard'],max_length=3,min_length=1)
     gap_id:UUID|None=None
     expected_format:str=Field(default='',max_length=500)
 
@@ -135,33 +142,37 @@ async def generate(course_id:UUID,body:GenerationRequest,user=Depends(get_curren
     records=[]
     async with _generation_lock:
         try:
-            context=await asyncio.to_thread(rag.retrieve,query,str(course_id),8)
+            top_k=max(GRANULARITY[g][0] for g in body.granularity)
+            context=await asyncio.to_thread(rag.retrieve,query,str(course_id),top_k)
             # Committed on their own: the gate below writes to the same chain from a worker thread, and an uncommitted
             # event of this request would make that write wait for this request forever (PostgreSQL).
             await trace.aemit('draft_requested',{'content_type':body.content_type,'alternatives':body.alternatives,'styles':list(body.prompt_styles),
-                'models':list(body.models),'purpose_fingerprint':trace.fingerprint(body.purpose)[:16],'gap_id':str(gap.id) if gap else None,
+                'models':list(body.models),'granularity':list(body.granularity),'purpose_fingerprint':trace.fingerprint(body.purpose)[:16],'gap_id':str(gap.id) if gap else None,
                 'intent':course_intent.ref(intent),'constraint_ids':constraint_ids},subject=('course',course_id),course_id=str(course_id),agent='lecturer')
-            await trace.aemit('tool_call',{'tool':'retrieve','query_fingerprint':trace.fingerprint(query)[:16],'top_k':8,'results':len(context),
-                'chunk_ids':[c.chunk_id for c in context[:8]]},course_id=str(course_id),agent='content_generation_agent',
+            await trace.aemit('tool_call',{'tool':'retrieve','query_fingerprint':trace.fingerprint(query)[:16],'top_k':top_k,'results':len(context),
+                'chunk_ids':[c.chunk_id for c in context[:top_k]]},course_id=str(course_id),agent='content_generation_agent',
                 task_id=f'course:{course_id}:draft_request')
             for variant in range(body.alternatives):
                 style=body.prompt_styles[variant%len(body.prompt_styles)]
                 model=body.models[variant%len(body.models)] if body.models else settings.openrouter_model
+                level=body.granularity[variant%len(body.granularity)]
+                passages,depth=GRANULARITY[level]
+                variant_context=context[:passages]
                 prompt=f'Generate {body.content_type}. Purpose: {body.purpose}. Alternative {variant+1}. '+\
-                    f'Use {style} style. Expected format: {body.expected_format or body.content_type}. Constraints: {body.constraints}. Related finding: {gap.description if gap else "none selected"}. '+\
+                    f'Use {style} style. Granularity: {level}. {depth} Expected format: {body.expected_format or DEFAULT_FORMAT.get(body.content_type,body.content_type)}. Constraints: {body.constraints}. Related finding: {gap.description if gap else "none selected"}. '+\
                     'Outcomes: '+'; '.join(o.text for o in objectives)
                 task_id=f'course:{course_id}:draft:{uuid4()}'
                 choices=[model]+[m for m in settings.llm_models if m!=model][:1]
-                def gated(prompt=prompt,style=style,choices=choices,task_id=task_id):
+                def gated(prompt=prompt,style=style,choices=choices,task_id=task_id,context=variant_context):
                     with trace.context(course_id=str(course_id),agent='content_generation_agent',task_id=task_id,
                             intent=course_intent.ref(intent),constraint_ids=constraint_ids):
                         return stakeholder_gate.produce(lambda extra,chosen:GroundedGenerator(model=chosen).generate(prompt,context,extra),
                             content_type=body.content_type,target=query,intent=intent,constraint_ids=constraint_ids,
                             rejected_fingerprints=rejected,guidance=guidance,style=style,models=choices)
                 result,review=await asyncio.to_thread(gated)
-                reviews.append({**review,'task_id':task_id})
+                reviews.append({**review,'task_id':task_id,'granularity':level})
                 record=GeneratedContentRecord(course_id=course_id,content_type=body.content_type,
-                    title=f'{body.content_type.title()} · Alternative {variant+1} ({style})',content=result.content,
+                    title=f'{body.content_type.replace("_"," ").capitalize() if "_" in body.content_type else body.content_type.title()} · Alternative {variant+1} ({style}{"" if level=="standard" else ", "+level})',content=result.content,
                     source_gap_id=gap.id if gap else None,
                     citations=result.citations,model_used=result.model,approval_status='pending',confidence_score=None)
                 db.add(record);records.append(record)
@@ -176,12 +187,12 @@ async def generate(course_id:UUID,body:GenerationRequest,user=Depends(get_curren
             agent='stakeholder_agent',task_id=review['task_id'])
     await db.flush()
     return [{'id':str(r.id),'title':r.title,'content':r.content,'citations':r.citations,'model_used':r.model_used,'approval_status':'pending',
-        'rationale':review['rationale'],'quality':{'score':review['score'],'passed':review['passed'],'issues':review['issues'],'attempts':review['attempts']}}
+        'granularity':review['granularity'],'rationale':review['rationale'],'quality':{'score':review['score'],'passed':review['passed'],'issues':review['issues'],'attempts':review['attempts']}}
         for r,review in zip(records,reviews)]
 
 class DraftFeedbackRequest(BaseModel):
     text:str=Field(min_length=8,max_length=6000)
-    content_type:Literal['clo','exercise','quiz','description','assessment_suggestion']
+    content_type:Literal['clo','exercise','quiz','description','assessment_suggestion','slide_outline']
     objective_ids:list[UUID]=Field(default_factory=list,max_length=20)
     intended_level:Literal['remember','understand','apply','analyse','evaluate','create']|None=None
 
@@ -396,6 +407,7 @@ async def projection(course_id:UUID,user=Depends(get_current_user),db=Depends(ge
 async def agent_profiles(user=Depends(get_current_user)):
     return {'models':settings.llm_models,
         'prompt_styles':['conceptual','applied','reflective'],
+        'granularity':list(GRANULARITY),
         'contracts':[{'agent':name,'responsibility':role} for name,role in [
             ('course_director','Load source/model versions, propagate course constraints and route dependencies'),
             ('metadata_content_agent','Compare objectives and metadata with teaching evidence in both directions'),
