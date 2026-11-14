@@ -54,6 +54,7 @@ def test_projection_moves_only_after_approval_and_stays_below_verified_100(clien
     assert all(d['delta'] == 0 for d in before['dimensions'])          # nothing approved: no movement
     pending = [i for i in client.get('/api/v1/approvals?status=pending', headers=headers).json() if i['course_id'] == course]
     assert pending, 'audit should have drafted fixes for the gaps'
+    pending.sort(key=lambda i: i['content_type'] == 'quiz')              # reject a non-quiz draft, so a draft the projection can count stays
     rejected, accepted = pending[0], pending[1:]
     assert client.post(f"/api/v1/approvals/{rejected['id']}/reject", headers=headers, json='Not suitable').status_code == 200
     for item in accepted:

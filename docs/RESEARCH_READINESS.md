@@ -4,7 +4,7 @@ Written 2026-11-13 at the end of the work plan in the master prompt (Phases 1 to
 
 Status words: **Done** = implemented and verified as described; **Partly** = implemented, with a named part not verified or not built; **Open** = not done; **Needs a decision** = cannot be finished by development alone.
 
-Suite: 311 passed, 2 skipped on SQLite (2026-11-14; two tests need PostgreSQL); 299 passed on PostgreSQL 15 (2026-11-13, before the 2026-11-14 additions). All of it runs in test mode: no language model is called and retrieval is word overlap, except 6 tests that load the real embedding and reranker models.
+Suite: 319 passed, 2 skipped on SQLite (2026-11-14; two tests need PostgreSQL); 299 passed on PostgreSQL 15 (2026-11-13, before the 2026-11-14 additions). All of it runs in test mode: no language model is called and retrieval is word overlap, except 6 tests that load the real embedding and reranker models.
 
 ## 1. Work plan items
 

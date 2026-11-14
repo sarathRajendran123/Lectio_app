@@ -171,6 +171,7 @@ Other scripts (each needs the local API running unless noted):
 | `python scripts/study.py issues-template / export / score` | labelling sheets for lecturers and the metrics from them (`docs/EVALUATION.md`); `export` needs the API and `LECTIO_ACCESS_TOKEN` |
 | `python scripts/run_experiment.py experiments/ablation_test_mode.json --out <folder>` | same course through several configurations, each on its own temporary server and database (no API needed); `--live` spends quota |
 | `python scripts/analyse_trace.py --course <id> --out <folder>` | interaction-log indicators for a course and its runs; needs the API and `LECTIO_ACCESS_TOKEN` |
+| `python scripts/run_defect_suite.py --out <folder>` | broken files and courses with planted misalignments on a throwaway server (no API needed); run it after changing parsers or audit checks |
 | `python scripts/load_test.py --users 20 --seconds 30` | load test on a throwaway server in test mode (no API needed) |
 | `python scripts/reembed.py` | re-embed stored chunks after `EMBEDDING_MODEL` changes |
 | `python scripts/check_browser.py` | Playwright browser check; needs `requirements-qa.txt` and `python -m playwright install chromium` |

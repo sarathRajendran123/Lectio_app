@@ -1,0 +1,4 @@
+Question 1. Explain how insertion sort and merge sort order a list of numbers.
+Question 2. Analyse the running time of binary search on a sorted array with 1024 entries.
+Question 3. Define the load factor of a hash table and name two strategies for collisions in hash tables.
+Question 4. Explain the Ford-Fulkerson algorithm for maximum network flow and compute the maximum flow of the given network with capacities.

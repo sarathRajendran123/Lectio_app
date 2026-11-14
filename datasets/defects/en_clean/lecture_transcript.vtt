@@ -1,0 +1,10 @@
+WEBVTT
+
+00:00:01.000 --> 00:00:41.000
+Today we start with sorting algorithms. Insertion sort and merge sort order a list of numbers; insertion sort needs quadratic time in the worst case, merge sort halves the list and merges the sorted halves in n log n time.
+
+00:00:46.000 --> 00:01:26.000
+Next is binary search. Binary search halves the search space of a sorted array in every step, so its running time is logarithmic and 1024 entries need at most 10 comparisons.
+
+00:01:31.000 --> 00:02:11.000
+Finally hash tables. A hash function maps keys to table slots; collisions occur when two keys share a slot. Chaining stores colliding entries in a linked list, open addressing probes for the next free slot, and the load factor controls the lookup cost.

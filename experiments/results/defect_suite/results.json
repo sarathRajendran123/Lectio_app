@@ -1,0 +1,845 @@
+{
+  "started_at": "2026-11-14T11:24:03+00:00",
+  "mode": "local_test",
+  "files": {
+    "cases": [
+      {
+        "id": "F01",
+        "what": "empty file",
+        "file": "empty.txt",
+        "bytes": 0,
+        "acceptable": [
+          "refused with a reason"
+        ],
+        "http": 422,
+        "outcome": "refused with a reason",
+        "detail": "File is empty.",
+        "seconds": 0.1,
+        "problem": null
+      },
+      {
+        "id": "F02",
+        "what": "only spaces and line breaks",
+        "file": "blank.txt",
+        "bytes": 8,
+        "acceptable": [
+          "refused with a reason"
+        ],
+        "http": 422,
+        "outcome": "refused with a reason",
+        "detail": "Empty or binary text document.",
+        "seconds": 0.0,
+        "problem": null
+      },
+      {
+        "id": "F03",
+        "what": "random bytes named .pdf",
+        "file": "random.pdf",
+        "bytes": 5120,
+        "acceptable": [
+          "refused with a reason"
+        ],
+        "http": 422,
+        "outcome": "refused with a reason",
+        "detail": "File content does not match declared type '.pdf'. Upload was rejected for security reasons.",
+        "seconds": 0.0,
+        "problem": null
+      },
+      {
+        "id": "F04",
+        "what": "PDF header followed by garbage",
+        "file": "truncated.pdf",
+        "bytes": 2209,
+        "acceptable": [
+          "refused with a reason"
+        ],
+        "http": 201,
+        "seconds": 0.9,
+        "stored_as": "50266bf870c4484281b5d44c17500af0_truncated.pdf",
+        "outcome": "refused with a reason",
+        "detail": "The file could not be read as PDF. It may be damaged or incomplete; export or save it again and upload the new file.",
+        "problem": null
+      },
+      {
+        "id": "F05",
+        "what": "valid PDF with one blank page (like a scan)",
+        "file": "scan.pdf",
+        "bytes": 460,
+        "acceptable": [
+          "refused with a reason"
+        ],
+        "http": 201,
+        "seconds": 0.8,
+        "stored_as": "47f9ef5ece7a478d9c8976f8c7d30097_scan.pdf",
+        "outcome": "refused with a reason",
+        "detail": "No extractable text. For scanned PDFs, install Tesseract or upload a text/OCR version.",
+        "problem": null
+      },
+      {
+        "id": "F06",
+        "what": "zip archive named .docx",
+        "file": "notes.docx",
+        "bytes": 130,
+        "acceptable": [
+          "refused with a reason"
+        ],
+        "http": 422,
+        "outcome": "refused with a reason",
+        "detail": "Invalid Office document structure.",
+        "seconds": 0.1,
+        "problem": null
+      },
+      {
+        "id": "F07",
+        "what": "Word document with no text",
+        "file": "empty.docx",
+        "bytes": 36563,
+        "acceptable": [
+          "refused with a reason"
+        ],
+        "http": 201,
+        "seconds": 0.8,
+        "stored_as": "67982fc6df014379a32b55ed159e62c4_empty.docx",
+        "outcome": "refused with a reason",
+        "detail": "The document contains no text.",
+        "problem": null
+      },
+      {
+        "id": "F08",
+        "what": "valid Word document with German text",
+        "file": "Übung.docx",
+        "bytes": 36636,
+        "acceptable": [
+          "processed"
+        ],
+        "http": 201,
+        "seconds": 1.5,
+        "stored_as": "b8f61979ce2d493593a8008ea8271da0_Übung.docx",
+        "chunks": 1,
+        "outcome": "processed",
+        "detail": "1 passage(s)",
+        "problem": null
+      },
+      {
+        "id": "F09",
+        "what": "text saved as Latin-1 with umlauts",
+        "file": "latin1.txt",
+        "bytes": 60,
+        "acceptable": [
+          "refused with a reason"
+        ],
+        "http": 422,
+        "outcome": "refused with a reason",
+        "detail": "Text documents must be UTF-8 encoded.",
+        "seconds": 0.1,
+        "problem": null
+      },
+      {
+        "id": "F10",
+        "what": "text saved as UTF-16",
+        "file": "utf16.txt",
+        "bytes": 200,
+        "acceptable": [
+          "refused with a reason",
+          "processed"
+        ],
+        "http": 422,
+        "outcome": "refused with a reason",
+        "detail": "Text documents must be UTF-8 encoded.",
+        "seconds": 0.1,
+        "problem": null
+      },
+      {
+        "id": "F11",
+        "what": "text with a byte-order mark (as Notepad saves it)",
+        "file": "bom.txt",
+        "bytes": 102,
+        "acceptable": [
+          "processed"
+        ],
+        "http": 201,
+        "seconds": 1.1,
+        "stored_as": "b94d3ce76be342a48f71876bb030a817_bom.txt",
+        "chunks": 1,
+        "outcome": "processed",
+        "detail": "1 passage(s)",
+        "problem": null
+      },
+      {
+        "id": "F12",
+        "what": "text containing zero bytes",
+        "file": "nul.txt",
+        "bytes": 38,
+        "acceptable": [
+          "refused with a reason"
+        ],
+        "http": 422,
+        "outcome": "refused with a reason",
+        "detail": "Empty or binary text document.",
+        "seconds": 0.1,
+        "problem": null
+      },
+      {
+        "id": "F13",
+        "what": "program file",
+        "file": "tool.exe",
+        "bytes": 204,
+        "acceptable": [
+          "refused with a reason"
+        ],
+        "http": 422,
+        "outcome": "refused with a reason",
+        "detail": "File type '.exe' is not allowed. Accepted: pdf, docx, pptx, txt, md, vtt",
+        "seconds": 0.1,
+        "problem": null
+      },
+      {
+        "id": "F14",
+        "what": "double extension",
+        "file": "lecture.pdf.exe",
+        "bytes": 204,
+        "acceptable": [
+          "refused with a reason"
+        ],
+        "http": 422,
+        "outcome": "refused with a reason",
+        "detail": "File type '.exe' is not allowed. Accepted: pdf, docx, pptx, txt, md, vtt",
+        "seconds": 0.0,
+        "problem": null
+      },
+      {
+        "id": "F15",
+        "what": "no extension",
+        "file": "lecture",
+        "bytes": 99,
+        "acceptable": [
+          "refused with a reason"
+        ],
+        "http": 422,
+        "outcome": "refused with a reason",
+        "detail": "File has no extension.",
+        "seconds": 0.0,
+        "problem": null
+      },
+      {
+        "id": "F16",
+        "what": "file name that tries to leave the upload folder",
+        "file": "../../outside.txt",
+        "bytes": 115,
+        "acceptable": [
+          "processed",
+          "refused with a reason"
+        ],
+        "http": 201,
+        "seconds": 1.1,
+        "stored_as": "0f977c8578d748dfb2c5eba3972a7dee_outside.txt",
+        "chunks": 1,
+        "outcome": "processed",
+        "detail": "1 passage(s)",
+        "problem": null
+      },
+      {
+        "id": "F17",
+        "what": "file name with umlauts, spaces and a dash",
+        "file": "Vorlesung Übung – 01.txt",
+        "bytes": 112,
+        "acceptable": [
+          "processed"
+        ],
+        "http": 201,
+        "seconds": 1.2,
+        "stored_as": "caaa373d56594a299d7c093f46d23f81_Vorlesung_Übung___01.txt",
+        "chunks": 1,
+        "outcome": "processed",
+        "detail": "1 passage(s)",
+        "problem": null
+      },
+      {
+        "id": "F18",
+        "what": "file name of 300 characters",
+        "file": "aaaaaaaaaaaaaaaaaaaa…aaaa.txt",
+        "bytes": 115,
+        "acceptable": [
+          "processed",
+          "refused with a reason"
+        ],
+        "http": 201,
+        "seconds": 1.2,
+        "stored_as": "4c786268aec5477aaf14e141cb441cb6_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt",
+        "chunks": 1,
+        "outcome": "processed",
+        "detail": "1 passage(s)",
+        "problem": null
+      },
+      {
+        "id": "F19",
+        "what": "one 2 MB line without any space",
+        "file": "oneline.txt",
+        "bytes": 2000000,
+        "acceptable": [
+          "processed",
+          "refused with a reason"
+        ],
+        "http": 201,
+        "seconds": 1.2,
+        "stored_as": "e7dd7d5ec8e447ea8902804a699c9839_oneline.txt",
+        "outcome": "refused with a reason",
+        "detail": "The document contains no readable text: fewer than 3 different words were found.",
+        "problem": null
+      },
+      {
+        "id": "F20",
+        "what": "transcript without timestamps",
+        "file": "plain.vtt",
+        "bytes": 108,
+        "acceptable": [
+          "processed",
+          "refused with a reason"
+        ],
+        "http": 201,
+        "seconds": 0.5,
+        "stored_as": "a0bef55a20d8464eb3d2e644e9f4b20a_plain.vtt",
+        "outcome": "refused with a reason",
+        "detail": "No spoken text was found. A transcript needs cue lines such as \"00:00:01.000 --> 00:00:05.000\", each followed by what was said.",
+        "problem": null
+      },
+      {
+        "id": "F21",
+        "what": "transcript with a broken timestamp line",
+        "file": "broken.vtt",
+        "bytes": 141,
+        "acceptable": [
+          "processed",
+          "refused with a reason"
+        ],
+        "http": 201,
+        "seconds": 0.5,
+        "stored_as": "ab35606e1878424280eb83bd37e3e7fd_broken.vtt",
+        "outcome": "refused with a reason",
+        "detail": "No spoken text was found. A transcript needs cue lines such as \"00:00:01.000 --> 00:00:05.000\", each followed by what was said.",
+        "problem": null
+      },
+      {
+        "id": "F22",
+        "what": "valid transcript",
+        "file": "good.vtt",
+        "bytes": 138,
+        "acceptable": [
+          "processed"
+        ],
+        "http": 201,
+        "seconds": 1.1,
+        "stored_as": "48e734e3d4ba48e4a252ce8b617a8f7f_good.vtt",
+        "chunks": 1,
+        "outcome": "processed",
+        "detail": "1 passage(s)",
+        "problem": null
+      },
+      {
+        "id": "F23",
+        "what": "Markdown with headings only",
+        "file": "headings.md",
+        "bytes": 35,
+        "acceptable": [
+          "processed",
+          "refused with a reason"
+        ],
+        "http": 201,
+        "seconds": 1.2,
+        "stored_as": "0c19f6aaf45e4a5991f83c4a0cac7bdd_headings.md",
+        "chunks": 3,
+        "outcome": "processed",
+        "detail": "3 passage(s)",
+        "problem": null
+      },
+      {
+        "id": "F24",
+        "what": "only digits and symbols",
+        "file": "symbols.txt",
+        "bytes": 57,
+        "acceptable": [
+          "processed",
+          "refused with a reason"
+        ],
+        "http": 201,
+        "seconds": 1.2,
+        "stored_as": "b6a0d81789414ce7b7682cc8fb4a4971_symbols.txt",
+        "outcome": "refused with a reason",
+        "detail": "The document contains no readable text: fewer than 3 different words were found.",
+        "problem": null
+      },
+      {
+        "id": "F25",
+        "what": "text file declared as PDF by the browser",
+        "file": "declared.txt",
+        "bytes": 116,
+        "acceptable": [
+          "refused with a reason"
+        ],
+        "http": 422,
+        "outcome": "refused with a reason",
+        "detail": "MIME type does not match the file extension.",
+        "seconds": 0.1,
+        "problem": null
+      },
+      {
+        "id": "F26",
+        "what": "unknown document type chosen",
+        "file": "kind.txt",
+        "bytes": 118,
+        "acceptable": [
+          "refused with a reason"
+        ],
+        "http": 422,
+        "outcome": "refused with a reason",
+        "detail": "artifact_type must be one of: syllabus, slides, assignment, transcript, module_manual, other, exam, assessment, schedule, reading",
+        "seconds": 0.1,
+        "problem": null
+      },
+      {
+        "id": "F27",
+        "what": "script tags and SQL in the text",
+        "file": "inject.txt",
+        "bytes": 114,
+        "acceptable": [
+          "processed"
+        ],
+        "http": 201,
+        "seconds": 1.2,
+        "stored_as": "7842c8ee23e14fa5afca365352709920_inject.txt",
+        "chunks": 1,
+        "outcome": "processed",
+        "detail": "1 passage(s)",
+        "problem": null
+      },
+      {
+        "id": "F28",
+        "what": "the same file a second time",
+        "file": "bom.txt",
+        "bytes": 102,
+        "acceptable": [
+          "refused with a reason"
+        ],
+        "http": 409,
+        "outcome": "refused with a reason",
+        "detail": "This file was already uploaded (artifact id: 5651ad40-2f73-474b-b975-4663dc61535e).",
+        "seconds": 0.1,
+        "problem": null
+      }
+    ],
+    "stored_names_leaving_the_folder": [],
+    "server_healthy_afterwards": true
+  },
+  "courses": [
+    {
+      "course": "en_clean",
+      "run_status": "completed",
+      "run_error": null,
+      "dimensions": {
+        "metadata_content": {
+          "status": "warning",
+          "score": 0.7185,
+          "reason": null
+        },
+        "content_assessment": {
+          "status": "pass",
+          "score": 0.8373,
+          "reason": null
+        },
+        "metadata_assessment": {
+          "status": "pass",
+          "score": 1.0,
+          "reason": null
+        },
+        "content_delivery": {
+          "status": "pass",
+          "score": 1.0,
+          "reason": null
+        }
+      },
+      "objectives": [
+        {
+          "code": "EXT-1",
+          "bloom_level": "understand",
+          "text": "explain how insertion sort and merge sort order a list of numbers"
+        },
+        {
+          "code": "EXT-2",
+          "bloom_level": "analyse",
+          "text": "analyse the running time of binary search on a sorted array"
+        },
+        {
+          "code": "EXT-3",
+          "bloom_level": "evaluate",
+          "text": "evaluate chaining and open addressing for collisions in hash tables"
+        }
+      ],
+      "findings": 0,
+      "planted": [],
+      "found": 0,
+      "findings_not_matching_a_planted_defect": [],
+      "trace_valid": true
+    },
+    {
+      "course": "en_defects",
+      "run_status": "waiting_for_human",
+      "run_error": null,
+      "dimensions": {
+        "metadata_content": {
+          "status": "warning",
+          "score": 0.5562,
+          "reason": null
+        },
+        "content_assessment": {
+          "status": "warning",
+          "score": 0.5844,
+          "reason": null
+        },
+        "metadata_assessment": {
+          "status": "fail",
+          "score": 0.4,
+          "reason": null
+        },
+        "content_delivery": {
+          "status": "warning",
+          "score": 0.8,
+          "reason": null
+        }
+      },
+      "objectives": [
+        {
+          "code": "EXT-1",
+          "bloom_level": "understand",
+          "text": "explain how insertion sort and merge sort order a list of numbers"
+        },
+        {
+          "code": "EXT-2",
+          "bloom_level": "analyse",
+          "text": "analyse the running time of binary search on a sorted array"
+        },
+        {
+          "code": "EXT-3",
+          "bloom_level": "evaluate",
+          "text": "evaluate chaining and open addressing for collisions in hash tables"
+        },
+        {
+          "code": "EXT-4",
+          "bloom_level": "apply",
+          "text": "apply breadth-first search to traverse a graph"
+        },
+        {
+          "code": "EXT-5",
+          "bloom_level": "create",
+          "text": "design dynamic programming solutions for optimisation problems such as the knapsack problem"
+        }
+      ],
+      "findings": 11,
+      "planted": [
+        {
+          "id": "EN-1",
+          "what": "objective on dynamic programming is stated but never taught",
+          "dimension": "metadata_content",
+          "keywords": [
+            "dynamic programming",
+            "knapsack"
+          ],
+          "found": true,
+          "by": [
+            "clo_not_covered"
+          ],
+          "mentioned_in_other_dimensions": [
+            "content_assessment",
+            "content_delivery",
+            "metadata_assessment"
+          ]
+        },
+        {
+          "id": "EN-2",
+          "what": "red-black trees are taught but not in the module manual",
+          "dimension": "metadata_content",
+          "keywords": [
+            "red-black",
+            "red black"
+          ],
+          "found": true,
+          "by": [
+            "taught_topic_outside_metadata"
+          ],
+          "mentioned_in_other_dimensions": []
+        },
+        {
+          "id": "EN-3",
+          "what": "exam question on network flow, a topic never taught",
+          "dimension": "content_assessment",
+          "keywords": [
+            "ford-fulkerson",
+            "network flow",
+            "maximum flow",
+            "question 4",
+            "exam.txt"
+          ],
+          "found": true,
+          "by": [
+            "assessment_weak_support"
+          ],
+          "mentioned_in_other_dimensions": []
+        },
+        {
+          "id": "EN-4",
+          "what": "hash-table objective says evaluate, the exam only asks to define and name",
+          "dimension": "metadata_assessment",
+          "keywords": [
+            "chaining",
+            "hash"
+          ],
+          "found": true,
+          "by": [
+            "assessment_level_below_objective"
+          ],
+          "mentioned_in_other_dimensions": [
+            "content_delivery"
+          ]
+        },
+        {
+          "id": "EN-5",
+          "what": "breadth-first search objective is never assessed",
+          "dimension": "metadata_assessment",
+          "keywords": [
+            "breadth-first",
+            "traverse a graph"
+          ],
+          "found": true,
+          "by": [
+            "clo_not_assessed"
+          ],
+          "mentioned_in_other_dimensions": []
+        },
+        {
+          "id": "EN-6",
+          "what": "dynamic programming objective is never assessed",
+          "dimension": "metadata_assessment",
+          "keywords": [
+            "dynamic programming",
+            "knapsack"
+          ],
+          "found": true,
+          "by": [
+            "clo_not_assessed"
+          ],
+          "mentioned_in_other_dimensions": [
+            "content_assessment",
+            "content_delivery",
+            "metadata_content"
+          ]
+        },
+        {
+          "id": "EN-7",
+          "what": "hash tables are on the slides but skipped in the lecture",
+          "dimension": "content_delivery",
+          "keywords": [
+            "hash"
+          ],
+          "found": true,
+          "by": [
+            "delivery_not_covered"
+          ],
+          "mentioned_in_other_dimensions": [
+            "metadata_assessment"
+          ]
+        },
+        {
+          "id": "EN-8",
+          "what": "lecture digression on quantum computing that is on no slide",
+          "dimension": "content_delivery",
+          "keywords": [
+            "quantum",
+            "qubit"
+          ],
+          "found": true,
+          "by": [
+            "delivery_unplanned"
+          ],
+          "mentioned_in_other_dimensions": []
+        }
+      ],
+      "found": 8,
+      "findings_not_matching_a_planted_defect": [
+        {
+          "dimension": "content_assessment",
+          "gap_type": "topic_not_assessed",
+          "severity": "warning",
+          "description": "Topic 'Graph traversal' has lecture content but no assessment questions."
+        },
+        {
+          "dimension": "content_assessment",
+          "gap_type": "topic_not_assessed",
+          "severity": "warning",
+          "description": "Topic 'Dynamic programming' has lecture content but no assessment questions."
+        },
+        {
+          "dimension": "content_delivery",
+          "gap_type": "topic_not_delivered",
+          "severity": "warning",
+          "description": "Week 5 topic 'Dynamic programming' has no corresponding slides or transcript content."
+        }
+      ],
+      "trace_valid": true
+    },
+    {
+      "course": "de_defects",
+      "run_status": "waiting_for_human",
+      "run_error": null,
+      "dimensions": {
+        "metadata_content": {
+          "status": "fail",
+          "score": 0.521,
+          "reason": null
+        },
+        "content_assessment": {
+          "status": "fail",
+          "score": 0.4353,
+          "reason": null
+        },
+        "metadata_assessment": {
+          "status": "fail",
+          "score": 0.5,
+          "reason": null
+        },
+        "content_delivery": {
+          "status": "warning",
+          "score": 0.6091,
+          "reason": null
+        }
+      },
+      "objectives": [
+        {
+          "code": "EXT-1",
+          "bloom_level": "understand",
+          "text": "Die Studierenden können die binäre Suche in einem sortierten Array erklären."
+        },
+        {
+          "code": "EXT-2",
+          "bloom_level": "understand",
+          "text": "Die Studierenden können Verkettung und offene Adressierung bei Kollisionen in Hashtabellen vergleichen."
+        },
+        {
+          "code": "EXT-3",
+          "bloom_level": "apply",
+          "text": "Die Studierenden können die Tiefensuche auf einen Graphen anwenden."
+        },
+        {
+          "code": "EXT-4",
+          "bloom_level": "create",
+          "text": "Die Studierenden können Lösungen mit dynamischer Programmierung für das Rucksackproblem entwerfen."
+        }
+      ],
+      "findings": 9,
+      "planted": [
+        {
+          "id": "DE-1",
+          "what": "Lernziel zur dynamischen Programmierung wird nicht gelehrt",
+          "dimension": "metadata_content",
+          "keywords": [
+            "dynamischer programmierung",
+            "dynamische programmierung",
+            "rucksack"
+          ],
+          "found": true,
+          "by": [
+            "clo_not_covered"
+          ],
+          "mentioned_in_other_dimensions": [
+            "content_assessment",
+            "content_delivery",
+            "metadata_assessment"
+          ]
+        },
+        {
+          "id": "DE-2",
+          "what": "Rot-Schwarz-Bäume werden gelehrt, stehen aber nicht im Modulhandbuch",
+          "dimension": "metadata_content",
+          "keywords": [
+            "rot-schwarz"
+          ],
+          "found": true,
+          "by": [
+            "taught_topic_outside_metadata"
+          ],
+          "mentioned_in_other_dimensions": []
+        },
+        {
+          "id": "DE-3",
+          "what": "Klausuraufgabe zum maximalen Fluss, der nie gelehrt wird",
+          "dimension": "content_assessment",
+          "keywords": [
+            "ford-fulkerson",
+            "maximalen fluss",
+            "aufgabe 3",
+            "klausur.txt"
+          ],
+          "found": true,
+          "by": [
+            "assessment_weak_support"
+          ],
+          "mentioned_in_other_dimensions": []
+        },
+        {
+          "id": "DE-4",
+          "what": "Lernziel Tiefensuche wird nicht geprüft",
+          "dimension": "metadata_assessment",
+          "keywords": [
+            "tiefensuche"
+          ],
+          "found": true,
+          "by": [
+            "clo_not_assessed"
+          ],
+          "mentioned_in_other_dimensions": [
+            "content_assessment"
+          ]
+        },
+        {
+          "id": "DE-5",
+          "what": "Lernziel dynamische Programmierung wird nicht geprüft",
+          "dimension": "metadata_assessment",
+          "keywords": [
+            "dynamischer programmierung",
+            "dynamische programmierung",
+            "rucksack"
+          ],
+          "found": true,
+          "by": [
+            "clo_not_assessed"
+          ],
+          "mentioned_in_other_dimensions": [
+            "content_assessment",
+            "content_delivery",
+            "metadata_content"
+          ]
+        }
+      ],
+      "found": 5,
+      "findings_not_matching_a_planted_defect": [
+        {
+          "dimension": "content_assessment",
+          "gap_type": "topic_not_assessed",
+          "severity": "warning",
+          "description": "Topic 'Graphen und Tiefensuche' has lecture content but no assessment questions."
+        },
+        {
+          "dimension": "content_assessment",
+          "gap_type": "topic_not_assessed",
+          "severity": "warning",
+          "description": "Topic 'Dynamische Programmierung' has lecture content but no assessment questions."
+        },
+        {
+          "dimension": "content_delivery",
+          "gap_type": "topic_not_delivered",
+          "severity": "warning",
+          "description": "Week 4 topic 'Dynamische Programmierung' has no corresponding slides or transcript content."
+        }
+      ],
+      "trace_valid": true
+    }
+  ]
+}

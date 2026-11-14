@@ -98,14 +98,13 @@ def test_an_audit_still_completes_when_debug_turns_on_sql_echo(client, headers, 
 
 
 def test_drafts_without_supporting_material_are_reported_as_such_not_as_a_provider_error(client, headers):
-    """German course in test mode: draft queries carry English template wording, word-overlap search finds no passage,
-    so no draft can be grounded. The run must say that, instead of sending the lecturer to check an API key."""
+    """A course without any teaching material: findings exist, but no draft can be grounded in a passage.
+    The run must say that, instead of sending the lecturer to check an API key."""
     import time
     from test_multilingual_model import _upload
     course = client.post("/api/v1/courses", headers=headers, json={"code": "DE-NOEVIDENCE", "title": "Algorithmen"}).json()["id"]
     base = f"/api/v1/courses/{course}"
-    for name, kind, mime in [("modulhandbuch.md", "syllabus", "text/markdown"), ("vorlesung.txt", "slides", "text/plain"),
-                             ("klausur.txt", "exam", "text/plain")]:
+    for name, kind, mime in [("modulhandbuch.md", "syllabus", "text/markdown"), ("klausur.txt", "exam", "text/plain")]:
         _upload(client, headers, base, "de_algorithmen", name, kind, mime)
     run = client.post(base + "/run-audit", headers=headers).json()["run_id"]
     for _ in range(600):

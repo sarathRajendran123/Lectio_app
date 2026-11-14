@@ -76,7 +76,7 @@ async def extract_course_model(course_id, db):
             assessment=Assessment(course_id=course_id,title=title,type='assignment',description=chunk.text)
             db.add(assessment);await db.flush()
             bloom,_=classify_text(chunk.text)
-            questions=[t.strip() for t in re.split(r'(?m)(?:^|\n)(?:Question\s+\d+[:.)]?|Q\d+[:.)]|\d+[.)])\s+',chunk.text) if t.strip()]
+            questions=[t.strip() for t in re.split(r'(?m)(?:^|\n)(?:(?:Question|Task|Exercise|Aufgabe|Frage|Übung)\s+\d+[:.)]?|Q\d+[:.)]|\d+[.)])\s+',chunk.text) if t.strip()]
             for question in questions[:50]:
                 qbloom,_=classify_text(question)
                 item=AssessmentQuestion(assessment_id=assessment.id,text=question,bloom_level=qbloom,question_type='unknown')

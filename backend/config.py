@@ -80,6 +80,10 @@ class Settings(BaseSettings):
     delivery_min_segment_terms: int = 12         # shorter transcript segments are small talk, never flagged
     delivery_max_sections: int = 300
     delivery_max_segments: int = 600
+    assessment_objective_match: float = 0.35    # word match from which an exam question counts as being about an objective
+    outside_metadata_title_overlap: float = 0.5 # a slide section whose title words are found in the module metadata below this share ...
+    outside_metadata_text_overlap: float = 0.35 # ... and whose text words are found below this share is reported as taught but not described
+    min_distinct_words: int = 3                 # a document with fewer different words than this is refused as unreadable
     feedback_support_threshold: float = 0.6     # draft feedback: best search match below this is weak support (same cut-off as the audit)
     feedback_objective_match: float = 0.3       # draft feedback: word match from which an objective counts as addressed
     feedback_duplicate_match: float = 0.8       # draft feedback: word match from which a new objective repeats an existing one

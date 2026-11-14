@@ -263,4 +263,52 @@ Baseline before this part: 297 passed, 2 skipped (SQLite).
 
 **Not verified:** this batch on PostgreSQL (Docker was not running; no model or column changed, but the pause routes write to the trace); slide outlines and granularity with a live model (test mode writes a fixed template, so the content of an outline is unseen); pages in a real browser. The log analysis gives descriptive indicators, not Colosseum's regret-based metrics, and has only seen test-mode logs.
 
+## Defect suite: broken files and planted misalignments (2026-11-14)
+
+Baseline before this part: 311 passed, 2 skipped (SQLite).
+
+`scripts/run_defect_suite.py` feeds deliberately defective input to a throwaway server in test mode. Output: `experiments/results/defect_suite/`.
+
+**Part 1, 28 broken files** (empty, wrong type, wrong encoding, corrupt PDF, blank scan, fake Word file, program file, path-traversal name, 300-character name, 2 MB single line, transcripts without cues, script and SQL text, duplicate). Every file was refused with a reason or processed; no server error, no file stored outside the upload folder, server healthy afterwards.
+
+**Part 2, three synthetic courses** (`datasets/defects/`): an aligned control course, an English course with 8 planted misalignments, a German one with 5.
+
+Defects the suite found in Lectio, and what was done:
+1. **Every topic was reported as "not assessed"**, also on the aligned course (3 of its 5 findings). Only the assessment's title, which is a file name, was compared with the topic, and the follow-up search looked in documents of type "assignment" only, never in exams. Fixed: the question text is compared (4-letter word stems, so "Sorting" matches "sort"), and exams are searched. Findings on the aligned course: 5 before, 2 after.
+2. **Processing errors showed internals.** A corrupt PDF produced "pymupdf.FileDataError: Failed to open file 'C:\...'" with the server path; other reasons carried "ValueError:". Fixed: reasons written by our parsers are shown as written, anything else becomes "The file could not be read as PDF ..." and the original goes to the server log.
+3. **Wrong advice for transcripts and Word files.** A transcript without timestamp lines and an empty Word file were told to install Tesseract for scanned PDFs. Fixed: each type has its own sentence.
+
+Found and left open:
+4. **Taught but not in the module manual is not detected** (EN-2, DE-2: a slide section on red-black trees). The check only looks at topics on the weekly schedule. Asserted in the tests as a known gap.
+5. **Two findings remain on the aligned course**: the whole exam is treated as one assessment, so "weak support" and a level mismatch ("targets evaluate, content only reaches remember") are raised for it. The second compares exam verbs with verbs found in lecture prose, which is not a sound comparison.
+6. **A level that is too low is reported as "not assessed"** (EN-4: objective says evaluate, exam asks to define). The lecturer is pointed at the right objective for the wrong reason.
+7. Junk is accepted: a 2 MB line of one letter becomes 1,112 passages; a file of digits and symbols is processed.
+
+Result after the fixes: English 7 of 8 planted defects found, German 4 of 5; the other findings on the two defective courses are all true (topics that really are not in the exam).
+
+Two existing tests were changed, because their setup relied on the false "not assessed" findings: `test_projection_moves_only_after_approval...` now rejects a non-quiz draft first, and `test_drafts_without_supporting_material...` uses a course without teaching material.
+
+**Verified:** 5 new tests in `tests/test_defect_suite.py`; full suite on SQLite **316 passed, 2 skipped**.
+
+**Limits:** test mode only (rules and word-overlap search; a live model may find or miss different things); the courses and the "planted" list were written by the same author as the fixes; three courses. Not run on PostgreSQL.
+
+## The four open defects from the defect suite (2026-11-14)
+
+Baseline before this part: 316 passed, 2 skipped (SQLite). Numbering as in the section above.
+
+4. **Taught but not in the module manual.** New rule in the objectives-and-content check (`audit_checks._undescribed_sections`): every slide or reading section is compared, by word stems, with the module metadata (manual, syllabus, objectives, schedule, course title). A section whose title and text both share too few words is reported as `taught_topic_outside_metadata` (note level, same wording as before). If more than half of all sections fail, nothing is raised and the report says the comparison is not reliable (different wording or language). Thresholds: `OUTSIDE_METADATA_TITLE_OVERLAP`, `OUTSIDE_METADATA_TEXT_OVERLAP`.
+5. **Exams are audited question by question.** "Weak support" and the level mismatch now name the question ("..., question 4, ...") and quote it. The level mismatch is not raised when a stated objective on the same subject asks for that level, because lecture prose rarely uses the verbs of the level it prepares for. German exams ("Aufgabe 1.", "Frage", "Übung", also "Task", "Exercise") are now split into questions; before, only "Question n", "Qn" and "n." were.
+6. **Tested, but lower than stated.** New finding type `assessment_level_below_objective` in the objectives-and-assessment check: an objective whose matching exam tasks (word match, `ASSESSMENT_OBJECTIVE_MATCH`) all sit below its level. It replaces "not assessed" for that objective. Objectives the system derived itself are skipped, because their level is a template default. It has a plain-language text for the lecturer; no draft is generated for it yet.
+7. **Text without words is refused**: fewer than `MIN_DISTINCT_WORDS` (3) different words of three letters or more.
+
+Result on `datasets/defects/` (test mode): aligned course 0 findings (was 5 at the start of the day, 2 after the first fixes); English 8 of 8 planted defects found; German 5 of 5; the 3 other findings on each defective course are true. Each planted defect is now found under the fitting finding type.
+
+**Verified:** 3 new tests and 2 rewritten ones in `tests/test_defect_suite.py` (8 in total); full suite on SQLite **319 passed, 2 skipped**; the two older sample courses were audited again and raise no "taught but not described" finding.
+
+**Limits and what remains open:**
+- The fixes were developed against the same three courses that now show a perfect result, so that result is weak evidence. New, independently written defect courses are the honest next test.
+- On the older English sample course all three exam questions are still reported as weakly supported, two of them wrongly: in test mode the search compares words, and a paraphrased question falls below the cut-off. Whether the embedding search does better was not run.
+- The new rules compare word stems, so they do not work across languages; the guard for rule 4 only catches the case where most sections fail.
+- Not run on PostgreSQL or with a live model.
+
 **Next (per the master prompt, superseded by the readiness report):** evaluation pipeline; experiment runner; live alignment feedback; PostgreSQL/CI.

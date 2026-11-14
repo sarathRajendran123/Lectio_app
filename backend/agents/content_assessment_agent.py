@@ -59,7 +59,7 @@ class ContentAssessmentAlignmentAgent(BaseAgent):
 
         for assessment in assessments:
             score, assessment_gaps, tokens = self._audit_assessment(
-                assessment, course_id
+                assessment, course_id, [clo for mod in modules for clo in mod.get("clos", [])]
             )
             scores.append(score)
             total_tokens += tokens
@@ -110,17 +110,19 @@ class ContentAssessmentAlignmentAgent(BaseAgent):
         updated["total_tokens"] = state.get("total_tokens", 0) + total_tokens
         return updated
 
-    def _audit_assessment(self, assessment: dict, course_id: str):
+    def _audit_assessment(self, assessment: dict, course_id: str, objectives=()):
+        """Each question is compared with the teaching material on its own; an exam is not one block of text."""
+        from config import settings
+        from rag.lexical import lexical_score
         title  = assessment["title"]
-        a_type = assessment.get("type", "assessment")
         gaps   = []
         tokens = 0
+        questions = [q["text"] for q in assessment.get("questions", []) if (q.get("text") or "").strip()][:15]
+        units = list(enumerate(questions, start=1)) if len(questions) > 1 else [(None, " ".join(questions) or assessment.get("description") or title)]
+        where = {"artifact_type": {"$in": ["slides", "transcript", "reading", "other"]}}
+        found = [(number, text, self._retrieve(text, course_id, top_k=8, where=where)) for number, text in units]
 
-        # Use assessment title + type as query
-        query = " ".join(q["text"] for q in assessment.get("questions", [])) or assessment.get("description") or title
-        chunks = self._retrieve(query, course_id, top_k=8, where={"artifact_type": {"$in": ["slides", "transcript", "reading", "other"]}})
-
-        if not chunks:
+        if not any(chunks for _, _, chunks in found):
             gap = AlignmentGap(
                 gap_id=str(uuid.uuid4()),
                 gap_type="assessment_no_content",
@@ -136,60 +138,71 @@ class ContentAssessmentAlignmentAgent(BaseAgent):
             )
             return 0.0, [gap], tokens
 
-        best_score = max(c.score for c in chunks)
+        scores = []
+        for number, text, chunks in found:
+            label = f"Assessment {title!r}" + (f", question {number}," if number else "")
+            quoted = f' Question: "{text[:120]}"' if number else ""
+            best_score = max((c.score for c in chunks), default=0.0)
+            scores.append(best_score)
 
-        if best_score < COVERAGE_THRESHOLD:
-            gaps.append(AlignmentGap(str(uuid.uuid4()),"assessment_weak_support","warning",
-                f"Assessment {title!r} has weak support in the supplied teaching materials. Confirm missing documents and independent-study expectations before changing it.",
-                "assessment",assessment.get("id"),round(best_score,4),
-                "Review the cited materials and the intended assessment scope.",[c.chunk_id for c in chunks[:3]]))
+            if best_score < COVERAGE_THRESHOLD:
+                gaps.append(AlignmentGap(str(uuid.uuid4()),"assessment_weak_support","warning",
+                    f"{label} has weak support in the supplied teaching materials. Confirm missing documents and independent-study expectations before changing it.{quoted}",
+                    "assessment",assessment.get("id"),round(best_score,4),
+                    "Review the cited materials and the intended assessment scope.",[c.chunk_id for c in chunks[:3]]))
 
-        # Bloom level check
-        q_level, _  = classify_text(query)
-        content_text = " ".join(c.text for c in chunks[:3])
-        c_level, _   = classify_text(content_text[:1500])
+            # Bloom level check. Lecture prose rarely uses the verbs of the level it prepares for, so a question whose
+            # level a stated objective on the same subject asks for is not reported.
+            q_level, _  = classify_text(text)
+            c_level, _  = classify_text(" ".join(c.text for c in chunks[:3])[:1500])
+            if q_level and c_level and level_to_int(q_level) - level_to_int(c_level) > 1:
+                intended = any(o.get("bloom_level") and level_to_int(o["bloom_level"]) >= level_to_int(q_level) - 1
+                               and lexical_score(o["text"], text) >= settings.assessment_objective_match for o in objectives)
+                if not intended:
+                    gaps.append(AlignmentGap(
+                        gap_id=str(uuid.uuid4()),
+                        gap_type="bloom_level_mismatch",
+                        severity="warning",
+                        description=(
+                            f"{label} targets '{q_level}' level but "
+                            f"content only reaches '{c_level}'. The verb heuristic suggests a possible mismatch "
+                            f"requiring lecturer review.{quoted}"
+                        ),
+                        affected_entity_type="assessment",
+                        affected_entity_id=assessment.get("id"),
+                        score=round(best_score, 4),
+                        recommendation=(
+                            f"Either raise content depth to '{q_level}' level or "
+                            f"adjust assessment to '{c_level}' level."
+                        ),
+                        evidence_chunk_ids=[c.chunk_id for c in chunks[:2]],
+                    ))
 
-        if q_level and c_level:
-            diff = level_to_int(q_level) - level_to_int(c_level)
-            if diff > 1:
-                gaps.append(AlignmentGap(
-                    gap_id=str(uuid.uuid4()),
-                    gap_type="bloom_level_mismatch",
-                    severity="warning",
-                    description=(
-                        f"Assessment '{title}' targets '{q_level}' level but "
-                        f"content only reaches '{c_level}'. The verb heuristic suggests a possible mismatch "
-                        "requiring lecturer review."
-                    ),
-                    affected_entity_type="assessment",
-                    affected_entity_id=assessment.get("id"),
-                    score=round(best_score, 4),
-                    recommendation=(
-                        f"Either raise content depth to '{q_level}' level or "
-                        f"adjust assessment to '{c_level}' level."
-                    ),
-                    evidence_chunk_ids=[c.chunk_id for c in chunks[:2]],
-                ))
-
-        return best_score, gaps, tokens
+        return sum(scores) / len(scores), gaps, tokens
 
     def _find_uncovered_topics(
         self, topics: List[str], assessments: List[dict], course_id: str
     ) -> List[str]:
         """Topics present in content but not in any assessment."""
+        from rag.lexical import terms
         uncovered = []
+        # What the assessments actually ask, not only their titles (a title is often just the file name).
         assessment_text = " ".join(
-            f"{a['title']} {a.get('type', '')}" for a in assessments
+            " ".join([a["title"], a.get("description") or "", *(q.get("text") or "" for q in a.get("questions", []))])
+            for a in assessments
         ).lower()
+        asked = {word[:4] for word in terms(assessment_text)}      # 4-letter stems: "sorting" matches "sort", "Hashtabellen" "Hashtabelle"
 
         for topic in topics[:20]:  # cap to avoid excessive API calls
-            if topic.lower() not in assessment_text:
-                # Double-check via retrieval
+            stems = {word[:4] for word in terms(topic)}
+            named = bool(stems) and len(stems & asked) / len(stems) >= 0.5
+            if topic.lower() not in assessment_text and not named:
+                # Double-check via retrieval, in every kind of assessment document
                 chunks = self._retrieve(
-                    query=f"assessment question about {topic}",
+                    query=topic,
                     course_id=course_id,
                     top_k=3,
-                    where={"artifact_type": "assignment"},
+                    where={"artifact_type": {"$in": ["assignment", "exam", "assessment"]}},
                 )
                 if not chunks or max(c.score for c in chunks) < 0.5:
                     uncovered.append(topic)

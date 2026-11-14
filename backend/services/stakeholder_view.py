@@ -33,6 +33,8 @@ MEANING = {
                              "Students may be tested on a skill they were not taught to practise."),
     "topic_not_delivered": ("A planned topic has no matching teaching material.",
                             "The plan and the delivered course may have drifted apart."),
+    "assessment_level_below_objective": ("A learning objective is tested, but at a lower thinking level than it states.",
+                                         "Students can pass without showing the skill the objective promises."),
     "assessment_weak_support": ("An assessment has only weak support in the teaching materials.",
                                 "The assessment may probe content the course barely covers."),
     "assessment_no_content": ("An assessment could not be matched to any course content.", "It may test material that was not uploaded or not taught."),
