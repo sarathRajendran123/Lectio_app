@@ -95,19 +95,26 @@ class Server:
                 self.close()
                 raise RuntimeError(f"The server did not start in {startup_seconds} s. Log: {self.folder / 'server.log'}")
             time.sleep(.3)
+        self.login()
+
+    def login(self):
         login = self.client.post("/auth/login", json={"email": "experiment@example.org", "password": self.password})
         login.raise_for_status()
         self.client.headers["Authorization"] = "Bearer " + login.json()["access_token"]
 
-    def get(self, path, **params):
-        response = self.client.get(path, params=params or None)
+    def _send(self, method, path, **kwargs):
+        response = self.client.request(method, path, **kwargs)
+        if response.status_code == 401:            # access tokens last ACCESS_TOKEN_EXPIRE_MINUTES; long runs log in again
+            self.login()
+            response = self.client.request(method, path, **kwargs)
         response.raise_for_status()
         return response.json()
 
+    def get(self, path, **params):
+        return self._send("GET", path, params=params or None)
+
     def post(self, path, **kwargs):
-        response = self.client.post(path, **kwargs)
-        response.raise_for_status()
-        return response.json()
+        return self._send("POST", path, **kwargs)
 
     def close(self):
         self.client.close()

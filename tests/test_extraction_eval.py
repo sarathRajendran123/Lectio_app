@@ -120,3 +120,71 @@ def test_lines_that_are_not_teaching_weeks_are_left_out(line):
 def test_first_entry_for_a_week_wins_and_a_real_topic_mentioning_exams_is_kept():
     assert schedule_entries("Week 1: Sorting\nWeek 1: Something else\nWeek 2: Exam-style problem solving for graph algorithms") == [
         (1, "Sorting"), (2, "Exam-style problem solving for graph algorithms")]
+
+
+# ── module manuals in real layout: outcome paragraphs and schedule tables ─────
+
+MANUAL_DE = """Lehr-/Lernmethoden | Vorlesung mit Übungen, Präsentationen der Studierenden
+Fachkompetenz: Wissen und
+Verstehen | Die Studierenden verstehen Graphalgorithmen als Grundlage
+vieler Anwendungen und können deren Bedeutung einordnen. Sie beherrschen
+die Laufzeitanalyse rekursiver Verfahren. Sie kennen gängige Datenstruk-
+turen und Suchverfahren.
+Fachkompetenz: Fertigkeit und
+Wissenserschließung | Die Studierenden implementieren Suchverfahren in Python-
+Programmen und vergleichen deren Laufzeit. Sie bilden in Woche 1 feste Teams.
+Personale Kompetenz:
+Sozialkompetenz | Sie präsentieren Ergebnisse verständlich vor der Gruppe.
+Literatur/Lernquellen | Cormen et al.: Introduction to Algorithms."""
+
+MANUAL_EN = """Teaching methods | Lectures with exercises
+Learning outcomes | Students understand the role of hashing in databases.
+They implement hash tables with chaining and evaluate their lookup cost.
+The lecture notes are published weekly.
+Subject-specific competences | They compare sorting algorithms by their running
+time."""
+
+
+def test_outcome_paragraphs_under_competence_headings_are_read_sentence_by_sentence():
+    from knowledge.outline_rules import prose_outcomes
+    german = prose_outcomes(MANUAL_DE)
+    assert german == [
+        "Die Studierenden verstehen Graphalgorithmen als Grundlage vieler Anwendungen und können deren Bedeutung einordnen.",
+        "Sie beherrschen die Laufzeitanalyse rekursiver Verfahren.",
+        "Sie kennen gängige Datenstrukturen und Suchverfahren.",                                   # line-end hyphen joined
+        "Die Studierenden implementieren Suchverfahren in Python-Programmen und vergleichen deren Laufzeit.",  # hyphen kept
+        "Sie präsentieren Ergebnisse verständlich vor der Gruppe.",
+    ]                                                                     # "Sie bilden in Woche 1 feste Teams" is organisation
+    english = prose_outcomes(MANUAL_EN)
+    assert english == ["Students understand the role of hashing in databases.",
+                       "They implement hash tables with chaining and evaluate their lookup cost.",
+                       "They compare sorting algorithms by their running time."]
+    assert prose_outcomes("Die Studierenden bilden feste Teams. Sie präsentieren in Woche 15.") == []   # no heading: not read
+    assert prose_outcomes("") == []
+
+
+def test_a_line_wise_copy_of_a_prose_outcome_is_recognised_as_a_duplicate():
+    from knowledge.outline_rules import is_fragment_of, prose_outcomes
+    sentences = prose_outcomes(MANUAL_DE)
+    assert is_fragment_of("Verstehen | Die Studierenden verstehen Graphalgorithmen als Grundlage", sentences)
+    assert is_fragment_of("Sie kennen gängige Datenstruk- turen und Suchverfahren.", sentences) is False   # different word split
+    assert is_fragment_of("Sie kennen gängige Datenstrukturen und Suchverfahren.", sentences)            # same sentence again
+    assert not is_fragment_of("Die Studierenden entwerfen eigene Algorithmen.", sentences)
+
+
+def test_a_schedule_table_is_read_and_ends_at_the_first_other_line():
+    from knowledge.outline_rules import table_schedule
+    text = """Grobe Struktur / Inhalte
+Woche | Thema
+1 | Organisation & Einführung
+2 | Sortieren: Insertion Sort, Merge Sort
+3 | Hashtabellen
+4 | Vorlesungsfrei
+5 | Graphen und Tiefensuche
+Prüfungsleistung – Übersicht
+6 | Not a schedule row any more"""
+    assert table_schedule(text) == [(1, "Organisation & Einführung"), (2, "Sortieren: Insertion Sort, Merge Sort"),
+                                    (3, "Hashtabellen"), (5, "Graphen und Tiefensuche")]      # holiday left out, table ended
+    english = "Week Topic\n1 Introduction\n2 Neural networks\n3 Training and optimisation\n12 Unrelated number later"
+    assert table_schedule(english) == [(1, "Introduction"), (2, "Neural networks"), (3, "Training and optimisation")]
+    assert table_schedule("1 | Introduction\n2 | Neural networks") == []                       # rows without a header are not a schedule

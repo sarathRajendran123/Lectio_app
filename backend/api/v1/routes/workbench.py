@@ -138,6 +138,8 @@ async def generate(course_id:UUID,body:GenerationRequest,user=Depends(get_curren
     guidance=lecturer_constraints.guidance(intent,rules)
     rejected=await lecturer_constraints.rejected_fingerprints(db,course_id)
     constraint_ids=[c['id'] for c in rules]
+    from knowledge import language
+    written_in=language.instruction(language.detect([body.purpose,body.constraints]) or language.detect([o.text for o in objectives]),'the language of the purpose text')
     reviews=[]
     records=[]
     async with _generation_lock:
@@ -158,7 +160,7 @@ async def generate(course_id:UUID,body:GenerationRequest,user=Depends(get_curren
                 level=body.granularity[variant%len(body.granularity)]
                 passages,depth=GRANULARITY[level]
                 variant_context=context[:passages]
-                prompt=f'Generate {body.content_type}. Purpose: {body.purpose}. Alternative {variant+1}. '+\
+                prompt=f'Generate {body.content_type}. Purpose: {body.purpose}. Alternative {variant+1}. {written_in} '+\
                     f'Use {style} style. Granularity: {level}. {depth} Expected format: {body.expected_format or DEFAULT_FORMAT.get(body.content_type,body.content_type)}. Constraints: {body.constraints}. Related finding: {gap.description if gap else "none selected"}. '+\
                     'Outcomes: '+'; '.join(o.text for o in objectives)
                 task_id=f'course:{course_id}:draft:{uuid4()}'

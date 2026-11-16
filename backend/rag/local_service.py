@@ -62,5 +62,5 @@ class LocalRAGService:
             if c.score >= .12: found.append(c)
         return sorted(found,key=lambda c:c.score,reverse=True)[:min(top_k,40)]
 
-    def generate(self, task_prompt, course_id, top_k=10, where=None, extra_instructions=None, model=None):
-        return GroundedGenerator(model=model).generate(task_prompt, self.retrieve(task_prompt,course_id,top_k,where),extra_instructions)
+    def generate(self, task_prompt, course_id, top_k=10, where=None, extra_instructions=None, model=None, query=None):
+        return GroundedGenerator(model=model).generate(task_prompt, self.retrieve(query or task_prompt,course_id,top_k,where),extra_instructions)

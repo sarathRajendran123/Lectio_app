@@ -239,13 +239,21 @@ class RAGService:
             logger.warning(f"No candidates retrieved for query: '{query[:80]}'")
             return []
 
-        # Cross-encoder reranking
+        # Cross-encoder reranking decides the order only. Every check compares chunk.score with similarity
+        # thresholds (0.5, 0.6), and the reranker's squashed logit is not on that scale: on a real course it gave
+        # 0.03-0.23 where the embedding similarity of the same passages was 0.59-0.81 (German objectives,
+        # English slides). The passage keeps its measured similarity; the reranker score is kept for inspection.
         if rerank and len(candidates) > top_k:
-            candidates = self._reranker.rerank(
+            measured = {c.chunk_id: c.score for c in candidates}
+            reranked = self._reranker.rerank(
                 query=query,
                 chunks=candidates,
                 top_k=top_k,
             )
+            for chunk in reranked:
+                chunk.metadata = {**(chunk.metadata or {}), "rerank_score": round(float(chunk.score), 4)}
+                chunk.score = measured.get(chunk.chunk_id, chunk.score)
+            candidates = reranked
         else:
             candidates = candidates[:top_k]
 
@@ -261,6 +269,7 @@ class RAGService:
         where:       Optional[dict] = None,
         extra_instructions: Optional[str] = None,
         model: Optional[str] = None,
+        query: Optional[str] = None,
     ) -> GeneratedItem:
         """
         Retrieve context then generate grounded content.
@@ -276,7 +285,7 @@ class RAGService:
             GeneratedItem with content and resolved citations
         """
         context = self.retrieve(
-            query=task_prompt,
+            query=query or task_prompt,      # a focused query (the objective, the topic) finds better sources than the whole prompt
             course_id=course_id,
             top_k=top_k,
             where=where,

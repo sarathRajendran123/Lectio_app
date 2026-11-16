@@ -4,7 +4,7 @@ Written 2026-11-13 at the end of the work plan in the master prompt (Phases 1 to
 
 Status words: **Done** = implemented and verified as described; **Partly** = implemented, with a named part not verified or not built; **Open** = not done; **Needs a decision** = cannot be finished by development alone.
 
-Suite: 319 passed, 2 skipped on SQLite (2026-11-14; two tests need PostgreSQL); 299 passed on PostgreSQL 15 (2026-11-13, before the 2026-11-14 additions). All of it runs in test mode: no language model is called and retrieval is word overlap, except 6 tests that load the real embedding and reranker models.
+Suite: 329 passed, 2 skipped on SQLite (2026-11-16; two tests need PostgreSQL); 299 passed on PostgreSQL 15 (2026-11-13, before the 2026-11-14 additions). All of it runs in test mode: no language model is called and retrieval is word overlap, except 6 tests that load the real embedding and reranker models.
 
 ## 1. Work plan items
 
@@ -52,9 +52,9 @@ Suite: 319 passed, 2 skipped on SQLite (2026-11-14; two tests need PostgreSQL); 
 **What can be studied now.** The tooling for the study in the exposé exists: a lecturer can list issues before seeing findings, judge exported findings, rate blind drafts, and get precision, recall, F1 per dimension, rater agreement and draft ratings. Configurations can be compared on the same course with isolated runs.
 
 **What blocks a study result.**
-1. Real MAAI course materials with permission to use them.
+1. Real MAAI course materials with permission to use them. *Update 2026-11-15:* one course received (MWI Deep Learning: module manual, organisation, 13 slide decks; no exam, no transcript). It runs through Lectio; see `docs/DEVELOPMENT_PROGRESS.md`. More courses, an exam or a portfolio task, and a transcript would allow all four dimensions.
 2. Lecturers who label: an issue list per course before seeing findings, and judgements of the exported findings and drafts.
-3. Live-model runs, which spend provider quota: `scripts/run_experiment.py --live` and `scripts/evaluate_bloom.py --llm`.
+3. Live-model runs. *Update 2026-11-16:* first runs done: three models compared on the Bloom set and on a live audit of the real course ($0.224). Bloom with a model: 91.7 % agreement for the two stronger models. Still to be done: `scripts/run_experiment.py --live` and `scripts/evaluate_bloom.py --llm`.
 4. A supervisor decision on Paperclip (`docs/PAPERCLIP.md`).
 
 **What must not be reported as a result.** Every figure measured so far is agreement with keys the developer wrote, on synthetic material, mostly in test mode. They show that the software computes what it should and where the rules fail; they say nothing about usefulness to lecturers.

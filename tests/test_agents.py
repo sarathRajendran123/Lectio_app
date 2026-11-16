@@ -114,3 +114,96 @@ def test_drafts_without_supporting_material_are_reported_as_such_not_as_a_provid
         time.sleep(.1)
     assert state["status"] == "needs_review", state
     assert "no supporting passage was found" in state["error_message"] and "API key" not in state["error_message"]
+
+
+# ── drafts aimed at the objective, in the course's language ──────────────────
+
+def test_the_course_language_is_read_from_the_stated_objectives():
+    from knowledge import language
+    assert language.detect(["Die Studierenden können die binäre Suche erklären.", "Sie beherrschen die Grundlagen neuronaler Netze."]) == "de"
+    assert language.detect(["Students will be able to explain binary search.", "They compare sorting algorithms."]) == "en"
+    assert language.detect(["Transformer, BERT, GPT"]) is None                                # too little to tell
+    assert "German" in language.instruction("de") and "English" in language.instruction("en")
+    assert language.instruction(None, "the language of the purpose text") == "Write the draft in the language of the purpose text."
+
+
+def _generation_state(objective_text, code="EXT-7", bloom="evaluate"):
+    from agents.graph.state import AlignmentGap
+    gap = AlignmentGap("gap-1", "clo_not_covered", "warning", f"{code} coverage score 0.36 is below threshold. Keyword coverage: 0%. Best semantic match: 0.61.",
+                       "clo", "objective-1", 0.36, "Add teaching material.")
+    state = {"course_id": "course-1", "run_id": "run-1", "course_metadata": {"title": "Deep Learning", "level": "graduate"},
+             "modules": [{"clos": [{"id": "objective-1", "code": code, "text": objective_text, "bloom_level": bloom}]}]}
+    return gap, state
+
+
+def test_a_draft_for_an_uncovered_objective_is_built_and_searched_from_the_objective_in_its_language():
+    """Found in the live runs: the prompt and the search held only "EXT-7 coverage score ...", so different findings got
+    near-identical drafts; drafts for a German course came out in English."""
+    from types import SimpleNamespace
+    from agents.content_generation_agent import ContentGenerationAgent
+    from knowledge import language
+    objective = "Die Studierenden können Deep-Learning-Ansätze aus technischer, ethischer und betriebswirtschaftlicher Perspektive bewerten."
+    gap, state = _generation_state(objective)
+    calls = []
+    agent = ContentGenerationAgent()
+    agent._get_rag = lambda: SimpleNamespace(generate=lambda **kwargs: calls.append(kwargs) or SimpleNamespace(content="Entwurf [SOURCE_1]", citations=[{"marker": "[SOURCE_1]"}], tokens_used=0))
+    agent._language = language.instruction(language.detect([objective]))
+    item, _ = agent._gen_clo(gap, "course-1", state, "")
+    assert calls[0]["query"] == objective                                                      # searched for the objective itself
+    assert objective in calls[0]["task_prompt"] and "EXT-7" in calls[0]["task_prompt"]
+    assert "German" in calls[0]["extra_instructions"]
+    assert "Upon completion" in calls[0]["task_prompt"]                                        # no language set on this agent yet: English frame
+    agent._language_code = "de"
+    agent._gen_clo(gap, "course-1", state, "")
+    assert "Nach Abschluss des Moduls können die Studierenden" in calls[-1]["task_prompt"] and "Upon completion" not in calls[-1]["task_prompt"]
+    calls[:] = calls[:1]
+    assert item.title.startswith("Suggested CLO — EXT-7: Die Studierenden")
+    question, _ = agent._gen_assessment_question(gap, "course-1", state, "")
+    assert calls[1]["query"] == objective and "'EVALUATE' level" in calls[1]["task_prompt"]   # the objective's own level
+    assert question.title.endswith("— EXT-7")
+
+
+def test_topic_drafts_search_for_the_topic_and_unknown_objectives_fall_back_to_the_finding():
+    from types import SimpleNamespace
+    from agents.content_generation_agent import ContentGenerationAgent
+    from agents.graph.state import AlignmentGap
+    calls = []
+    agent = ContentGenerationAgent()
+    agent._get_rag = lambda: SimpleNamespace(generate=lambda **kwargs: calls.append(kwargs) or SimpleNamespace(content="Draft [SOURCE_1]", citations=[], tokens_used=0))
+    week = AlignmentGap("g2", "topic_not_delivered", "warning", "Week 5 topic 'Dynamic programming' has no corresponding slides or transcript content.",
+                        "topic", None, 0.0, "Add material.")
+    agent._gen_exercise(week, "course-1", {"modules": []}, "")
+    assert calls[-1]["query"] == "Dynamic programming" and calls[-1]["where"]["artifact_type"]["$in"] == ["slides", "transcript", "reading", "other"]
+    gap, state = _generation_state("Students can explain backpropagation.")
+    gap.affected_entity_id = "not-in-this-course"
+    agent._gen_clo(gap, "course-1", state, "")
+    assert calls[-1]["query"] == gap.description and "extra_instructions" in calls[-1]      # no objective found: the finding, as before
+
+
+def test_workbench_drafts_follow_the_language_of_the_request(client, headers, monkeypatch):
+    from rag.generation.grounded_generator import GroundedGenerator
+    seen = []
+    original = GroundedGenerator.generate
+    monkeypatch.setattr(GroundedGenerator, "generate", lambda self, task_prompt, context_chunks, extra_instructions=None:
+                        seen.append(task_prompt) or original(self, task_prompt, context_chunks, extra_instructions))
+    course = client.post("/api/v1/courses", headers=headers, json={"code": "LANG-DRAFT", "title": "Algorithmen"}).json()["id"]
+    base = f"/api/v1/courses/{course}"
+    assert client.post(base + "/artifacts", headers=headers, data={"artifact_type": "slides"},
+                       files={"file": ("vorlesung.txt", "Die binäre Suche halbiert den Suchraum eines sortierten Arrays.".encode(), "text/plain")}).status_code == 201
+    r = client.post(base + "/generate", headers=headers, json={"content_type": "exercise", "alternatives": 1,
+                                                               "purpose": "Übung zur binären Suche für die Studierenden mit einer Aufgabe und der Lösung"})
+    assert r.status_code == 201, r.text
+    assert "Write the whole draft in German" in seen[-1]
+
+
+def test_objective_drafts_rest_on_teaching_material_not_on_the_module_manual():
+    from types import SimpleNamespace
+    from agents.content_generation_agent import ContentGenerationAgent, TEACHING_ONLY
+    calls = []
+    agent = ContentGenerationAgent()
+    agent._get_rag = lambda: SimpleNamespace(generate=lambda **kwargs: calls.append(kwargs) or SimpleNamespace(content="Draft [SOURCE_1]", citations=[], tokens_used=0))
+    gap, state = _generation_state("Students can explain backpropagation.")
+    agent._gen_clo(gap, "course-1", state, "")
+    agent._gen_assessment_question(gap, "course-1", state, "")
+    assert calls[0]["where"] == TEACHING_ONLY == calls[1]["where"]
+    assert "syllabus" not in str(TEACHING_ONLY) and "module_manual" not in str(TEACHING_ONLY)

@@ -12,8 +12,12 @@ It is not taken when it is about organisation (attendance, registration, grades,
 Plan documents (syllabus, module manual) are read with all rules. Delivery documents (slides, papers,
 transcripts) only with the first two, because such text uses "able to" in many other senses.
 
-Measured on datasets/extraction (see docs/EVALUATION.md). Known limits: outcomes written as running prose
-without any of these signals are missed; a table layout is not read; the organisation word list is finite.
+Two more rules read a whole plan document rather than single lines (`prose_outcomes`, `table_schedule`):
+module manuals often state outcomes as paragraphs under competence headings ("Fachkompetenz: Wissen und
+Verstehen | Die Studierenden verstehen ... Sie beherrschen ..."), and schedules as a "Woche | Thema" table.
+
+Measured on datasets/extraction (see docs/EVALUATION.md). Known limits: prose outcomes are only read under a
+competence or outcomes heading, sentence by sentence; the organisation word list is finite.
 """
 import re
 
@@ -108,6 +112,94 @@ def outcome_lines(text: str, plan: bool) -> list:
             elif (in_outcomes and marker and level) or _START_VERB.match(unit):
                 found.append(cleaned)
     return list(dict.fromkeys(found))
+
+
+_COMPETENCE = re.compile(
+    r"(?i)\b(?:fach|methoden|sozial|selbst|personale|digitale)?kompetenz(?:en)?\b|\bwissen\s+und\s+verstehen\b|"
+    r"\b(?:kenntnisse|fertigkeiten|lernziele?|qualifikationsziele?|lernergebnisse)\b|"
+    r"\bknowledge\s+and\s+understanding\b|\b(?:learning\s+outcomes?|intended\s+outcomes?)\b|"
+    r"\b(?:subject-specific|personal|social|methodological)\s+(?:competences?|competencies|skills)\b")
+_PROSE_SUBJECT = re.compile(r"(?i:\b(?:(?:die|the)\s+)?(?:studierenden|students|lernenden|teilnehmenden|learners|participants)\b)|\b(?:Sie|They)\b")   # capital Sie/They only: the students, after a heading
+_SCHEDULED = re.compile(r"(?i)\b(?:in|ab|bis|by|from|until)\s+(?:woche|week|kw)\s*\d")   # "Sie bilden in Woche 1 Teams": organisation
+_TABLE_HEAD = re.compile(r"(?im)^[ \t]*(?:woche|week|wk\.?|kw|sitzung|session|termin|vorlesung|lecture)[ \t]*\|?[ \t]*"
+                         r"(?:thema|themen|topic|topics|inhalt|inhalte|content|title)[ \t]*$")
+_TABLE_ROW = re.compile(r"^[ \t]*(\d{1,2})[ \t]*(?:\||[.:)\-–])?[ \t]+(\S[^\n]{2,118}?)[ \t]*$")
+
+
+def _flowing(text: str) -> str:
+    """One line of running text: table bars and line breaks become spaces, a word split at the line end is joined."""
+    text = re.sub(r"[ \t]*\|[ \t]*", " ", text or "")
+    text = re.sub(r"(\w)-\n(?=[a-zäöüß])", r"\1", text)          # "Wissens-\nerschließung" -> "Wissenserschließung"
+    text = re.sub(r"(\w)-\n(?=[A-ZÄÖÜ])", r"\1-", text)          # "Deep-Learning-\nPipelines" keeps its hyphen
+    return " ".join(text.split())
+
+
+def prose_outcomes(text: str) -> list:
+    """Outcomes stated as sentences under a competence or outcomes heading of a plan document.
+
+    Each sentence whose subject is the students ("Die Studierenden ...", "Sie ...", "Students ...", "They ...") is one
+    outcome, kept as written. Text before the first heading is not read, so organisational slides without such a
+    heading give nothing."""
+    # A bullet list is not a paragraph: each item ends the sentence before it (the line rules read the items).
+    text = re.sub(r"\n[ \t]*(?:[-*•]|\d+[.)])[ \t]+", "\n¶ ", text or "")
+    flowing = _flowing(text)
+    first = _COMPETENCE.search(flowing)
+    if not first:
+        return []
+    found = []
+    for sentence in re.split(r"\s*¶\s*|(?<=[.!?])(?<!\d\.)\s+", flowing[first.start():]):
+        subject = _PROSE_SUBJECT.search(sentence)
+        if not subject:
+            continue
+        before = sentence[:subject.start()]
+        if before.strip() and not _COMPETENCE.search(before):
+            continue                                          # the students are not the subject of this sentence
+        candidate = sentence[subject.start():].strip().rstrip(",;")
+        if candidate.endswith(":"):
+            continue                                          # "Students will be able to:" opens a list
+        if not 25 <= len(candidate) <= 600 or len(candidate.split()) < 5:
+            continue
+        if _ORGANISATION.search(candidate) or _NEGATED.search(candidate) or _SCHEDULED.search(candidate):
+            continue
+        found.append(candidate)
+    # The same paragraph can reach us twice (as a table cell and as plain text) with different line breaks:
+    # one outcome per word sequence, preferring the copy without a stray "- " from a broken line.
+    unique = {}
+    for candidate in found:
+        key = " ".join(re.findall(r"\w+", candidate.lower()))
+        if key not in unique or unique[key].count("- ") > candidate.count("- "):
+            unique[key] = candidate
+    return list(unique.values())
+
+
+def table_schedule(text: str) -> list:
+    """(number, topic) from a schedule table: a "Woche | Thema" / "Week | Topic" header followed by rows "1 | Topic".
+    Rows must count up from where they start (a gap of one is allowed); the first other line ends the table."""
+    entries = {}
+    for head in _TABLE_HEAD.finditer(text or ""):
+        last = None
+        for line in text[head.end():].split("\n"):
+            if not line.strip():
+                continue
+            row = _TABLE_ROW.match(line)
+            if not row:
+                break
+            number, title = int(row.group(1)), row.group(2).strip(" .;:,|")
+            if last is not None and not 0 < number - last <= 2:
+                break
+            last = number
+            if number in entries or (_NO_TEACHING.search(title) and len(title.split()) <= 5):
+                continue
+            entries[number] = title
+    return sorted(entries.items())
+
+
+def is_fragment_of(line: str, sentences: list) -> bool:
+    """True when `line` is one of `sentences`, or a piece of one, as read line by line from a wrapped paragraph."""
+    def norm(value):
+        return " ".join(re.findall(r"\w+", value.lower()))
+    piece = norm(re.sub(r"^[^|]{0,40}\|", "", line))
+    return bool(piece) and any(piece in norm(s) for s in sentences)          # also the same sentence, read line by line
 
 
 def schedule_entries(text: str) -> list:

@@ -311,4 +311,86 @@ Result on `datasets/defects/` (test mode): aligned course 0 findings (was 5 at t
 - The new rules compare word stems, so they do not work across languages; the guard for rule 4 only catches the case where most sections fail.
 - Not run on PostgreSQL or with a live model.
 
+## First real course: MWI Deep Learning (2026-11-15)
+
+Material provided by the supervisor: module manual description, organisation slides and 13 lecture slide decks (15 PDFs, 43 MB). Stored in `data/courses/MWI_DL/`, which is git-ignored: the files are not committed and not pushed (the GitHub repository is public). Results of the runs are in `data/courses/results/` for the same reason. No exam and no lecture transcript are in the material; the course is assessed by a portfolio (research questions every two weeks, a capstone project), so the two assessment dimensions are reported as not assessable.
+
+All runs were free: test mode, and live mode with the model key blanked (real multilingual embeddings and reranker, no model call). Embedding the course takes about 9 minutes on this laptop's CPU.
+
+Defects found on the real material, and what was done:
+1. **Outcomes written as prose were not read.** The module manual states its outcomes as paragraphs under competence headings ("Fachkompetenz: Wissen und Verstehen | Die Studierenden verstehen ... Sie beherrschen ..."). Lectio found 3 objectives, one of them a fragment. New rule `outline_rules.prose_outcomes`: sentences whose subject is the students, under a competence or outcomes heading, read from the whole document (a paragraph can be split across passages). Sentences tied to a specific week are left out as organisation; bullet lists are left to the line rules. Now 17 objectives.
+2. **A schedule written as a table was not read.** New rule `outline_rules.table_schedule` for a "Woche | Thema" header followed by numbered rows. Now all 15 weeks.
+3. **The reranker's score replaced the similarity score.** After reranking, every passage carried the cross-encoder's squashed logit, which is not on the scale of the audit thresholds: for the same German objective and passages, 0.03–0.23 instead of the embedding similarity 0.59–0.81. Every objective was judged "not covered", and week 8 "The Transformer" looked untaught although a whole lecture covers it. The reranker now decides only the order; each passage keeps its measured similarity, and the reranker's score is kept in the passage metadata. This affected every live-mode audit since the reranker was introduced.
+4. **"Taught but not described" raised slide fragments** ("Hier:", a citation line, a sentence continuing from the previous slide). A section is now only reported when its title looks like a heading.
+5. **Duplicate objectives**: the parser delivers the outcome paragraph twice (table cell and plain text) with different line breaks. Duplicates are now removed by their word sequence.
+6. **Experiment scripts failed after 15 minutes**, when the access token expired. The throwaway-server helper now logs in again.
+
+Result on the real course (multilingual search, no model):
+
+| | Before | After |
+|---|---|---|
+| Objectives extracted | 3 (one fragment) | 17 |
+| Schedule weeks | 0 | 15 |
+| Best semantic match per objective | about 0.02 | 0.57–0.77 |
+| Objectives judged covered | 0 | 5 of 17 |
+| Objectives and content score | 0.26 | 0.47 |
+| "Taught but not in the manual" | 7 (4 of them fragments) | 3 (real slide sections) |
+| Delivery: weeks judged weakly covered | 5 | 0 |
+
+**Open, deliberately not changed:** the 12 objectives still judged "not covered" mostly fail on the word-overlap part of the coverage score (40 % semantic, 30 % shared words, 30 % Bloom level): German objectives share few words with English slides. Whether these 12 are real gaps is for the lecturer to judge; the score was not tuned to the course it is measured on. Slides are cut into very small passages (3,121 for 13 decks, many of one bullet point), which weakens both the search and the evidence shown; chunking per slide would change stored data and needs re-embedding.
+
+**Verified:** 10 new tests (prose outcomes in English and German, duplicate detection, schedule tables, reranker score, and the bullet-list regression the suite caught); full suite on SQLite **323 passed, 2 skipped**; extraction evaluation unchanged (24/24, 22/22); defect suite unchanged (0 findings on the aligned course, 8 of 8, 5 of 5).
+
+**Not verified:** any of this with a language model; PostgreSQL; a lecturer's judgement of the findings.
+
+## First live-model runs: three models compared (2026-11-15/16)
+
+Budget approved by the user: $2. Spent: **$0.224** (key usage read from OpenRouter before and after every step). Models: anthropic/claude-haiku-5.5, openai/gpt-6.1-terra, anthropic/claude-sonnet-5.5, each without a fallback model. Detailed results, which quote the course, are in `data/courses/results/model_comparison.json` (not in the repository).
+
+**Bloom classification** (`evaluate_bloom.py --llm`: rules, then the model for the items the rules leave open; 120 items, provisional key; rules alone 84.2 %):
+
+| Model | Agreement | Items given a level | Cost |
+|---|---|---|---|
+| claude-haiku-5.5 | 85.8 % | 92 % | under $0.001 |
+| gpt-6.1-terra | 91.7 % | 100 % | under $0.001 |
+| claude-sonnet-5.5 | 91.7 % | 100 % | $0.0025 |
+
+**Live audit of the MWI Deep Learning course** (one run per model; multilingual search; automatic drafts on):
+
+| | claude-haiku-5.5 | gpt-6.1-terra | claude-sonnet-5.5 |
+|---|---|---|---|
+| Cost | $0.020 | $0.033 | $0.151 |
+| Model calls (refused by the validator) | 16 (4) | 11 (0) | 12 (2) |
+| Tokens | 77,604 | 17,670 | 38,538 |
+| Model findings | 19 | 7 | 14 |
+| Drafts (all passed the gate) | 2 | 4 | 3 |
+| Audit time (of which model time) | 43 min (2.7 min) | 51 min (0.8 min) | 52 min (1.4 min) |
+
+Scores are the same for all three (objectives and content 0.50–0.51, delivery 0.69), because they come from the rule and search checks; the model adds findings, not scores. All three models agreed that the portfolio assessment has no documented components or criteria and that the ethics, business and responsible-AI objectives have no matching teaching material. Reading of the outputs (one run each, judged by the developer, not a lecturer): haiku is wordy and repeats findings across dimensions; gpt is cautious, wrote one finding in German and three near-identical drafts; sonnet is the most balanced and its drafts address the finding they were made for.
+
+Defects found by the live runs:
+1. **Model call inside a write transaction** (fixed): course-model extraction asked the model for Bloom levels while its own transaction held unsaved writes. On SQLite an audit started meanwhile failed with "database is locked" (HTTP 500), and the call's trace event was lost. The model is now asked before anything is written (`course_model._model_levels`). A test runs the old order and shows a second writer blocked for 16 s.
+2. **Drafts for "objective not covered" ignore the objective** (open): the draft prompt and its search query contain the finding's text ("EXT-13 coverage score 0.26 ...") but not the objective's wording, so different findings get near-identical drafts.
+3. **Drafts are written in English for a German course** (open): the draft prompt sets no language.
+4. **A live audit of this course takes 43–52 minutes** (open): each search takes about 9 s on this laptop, because all 3,121 passages and their vectors are loaded and parsed from the database for every search. The default audit time limit (10 minutes) had to be raised for the runs; at 10 minutes the first audit was stopped.
+5. **Remaining SQLite contention** (open, SQLite only): while one document is still being stored, another document's automatic extraction cannot write and fails (the audit extracts again, so nothing is lost); model-call trace events can be lost the same way. PostgreSQL does not have this file-level lock.
+6. **The model reviews see at most 12 passages per dimension**: on a 13-lecture course some model findings say content is missing that the slides do cover (for example "no slides on optimisation"). Such findings need the lecturer's check.
+7. **Test set-up artefact, not a defect**: "course metadata fields are empty" was raised by all three models because the script created the course with only a code and a title.
+
+**Verified:** 1 new and 1 rewritten test in `tests/test_bloom.py`; full suite on SQLite **324 passed, 2 skipped**.
+
+**Configured on 2026-11-16 (user's choice, local `.env` only):** claude-sonnet-5.5 as the main model, openai/gpt-6.1-terra as the fallback, `WORKFLOW_TIMEOUT_SECONDS=3600`. `scripts/verify_live.py` passed with this setup (one grounded draft, 3 citations validated, about $0.01). Total key usage after all live runs: $0.24 of the $50 limit. Reasoning for the choice: claude-sonnet-5.5 as the main model, openai/gpt-6.1-terra as the fallback (another provider; cheap and no refused answers here). Expected cost about $0.15 per audit, so the $50 credit covers about 300 audits. This rests on one run per model and the developer's reading; the lecturer's judgement of the findings (`scripts/study.py`) should confirm it.
+
+## Drafts aimed at the objective, in the course's language (2026-11-16)
+
+Baseline before this part: 324 passed, 2 skipped.
+
+- **Drafts use the objective's wording.** A draft for "objective not covered" or "objective not assessed" now puts the objective's text (and, for questions, its stated Bloom level) into the prompt and searches with that text instead of with the whole prompt. Topic drafts search for the topic. `RAGService.generate` and the offline service take a separate `query`.
+- **Drafts rest on teaching material.** With the focused search, objective, question and exercise drafts would otherwise find the objective's own sentence in the module manual, or the topic's line in the schedule, and cite it: circular evidence. Their search is now limited to slides, transcripts, readings and other teaching material; without such material the draft is refused as "insufficient evidence", as the rule "no invented evidence" requires.
+- **Drafts in the course's language.** `knowledge/language.py` decides German or English from the stated objectives (function words); every audit draft gets an explicit instruction, and the objective sentence frame is German for a German course ("Nach Abschluss des Moduls können die Studierenden ..."). Workbench drafts follow the language of the lecturer's request.
+- **Checked live on the MWI course** (claude-sonnet-5.5, fallback gpt-6.1-terra; $0.097): three objective drafts for three different objectives (presenting to stakeholders, choosing architectures, implementing pipelines) instead of three near-identical ones, each built from its own slides; text in German. The live run still showed the English sentence frame at the start of the German objectives; the frame was localised afterwards and is covered by a test, not by a second live run.
+- The same audit took 13 minutes instead of 43–52; each step ran about 2.3 times faster with the same number of searches and unchanged search code, so the difference was the machine's load, not Lectio.
+
+**Verified:** 5 new tests in `tests/test_agents.py` (language detection, objective-based prompt and search, topic search and fallback, teaching-material-only search, request language in the workbench); full suite on SQLite **329 passed, 2 skipped**; defect suite unchanged. Total provider spend for all live work so far: $0.376 of the $50 limit.
+
 **Next (per the master prompt, superseded by the readiness report):** evaluation pipeline; experiment runner; live alignment feedback; PostgreSQL/CI.

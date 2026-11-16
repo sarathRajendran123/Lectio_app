@@ -95,3 +95,32 @@ def test_reranking_enough_candidates_recovers_cross_language_matches(dense):
     hybrid = q.hybrid_ranker(dense, q.bm25_ranker(PASSAGES))
     result = q.retrieval_metrics(QUERIES, q.reranked(hybrid, PASSAGES, candidates=20))
     assert result["all"]["recall@5"] >= 0.9 and result["de-en"]["recall@1"] == 1.0 and result["en-de"]["recall@3"] >= 0.8
+
+
+def test_reranking_changes_the_order_but_passages_keep_their_similarity_score():
+    """Found on the real Deep Learning course: after reranking, passages carried the reranker's squashed logit
+    (0.03-0.23) instead of their embedding similarity (0.59-0.81), so every check judged every objective 'not covered'."""
+    from types import SimpleNamespace
+    from rag.chunking.chunk_models import RetrievedChunk
+    from rag.rag_service import RAGService
+
+    def chunk(cid, score, text):
+        return RetrievedChunk(cid, text, score, "a1", "slides", "course-1", 1, None, None, None)
+
+    found = [chunk("c1", 0.81, "Fully connected layers connect every neuron."), chunk("c2", 0.62, "Matching architecture to data."),
+             chunk("c3", 0.59, "Backpropagation computes gradients."), chunk("c4", 0.40, "Organisation of the course.")]
+    reranker_scores = {"c3": 0.23, "c1": 0.05, "c2": 0.03, "c4": 0.01}
+
+    def rerank(query, chunks, top_k):
+        ordered = sorted(chunks, key=lambda c: -reranker_scores[c.chunk_id])[:top_k]
+        return [chunk(c.chunk_id, reranker_scores[c.chunk_id], c.text) for c in ordered]
+
+    service = object.__new__(RAGService)
+    service._load_sparse_chunks = lambda course_id: [{"chunk_id": c.chunk_id} for c in found]
+    service._hybrid = SimpleNamespace(retrieve=lambda **kwargs: [chunk(c.chunk_id, c.score, c.text) for c in found])
+    service._reranker = SimpleNamespace(rerank=rerank)
+    result = service.retrieve("Sie beherrschen die Grundlagen neuronaler Netze", "course-1", top_k=3)
+    assert [c.chunk_id for c in result] == ["c3", "c1", "c2"]                                   # the reranker's order
+    assert [c.score for c in result] == [0.59, 0.81, 0.62]                                      # each passage's own similarity
+    assert [c.metadata["rerank_score"] for c in result] == [0.23, 0.05, 0.03]                   # the reranker's view, kept
+    assert [c.chunk_id for c in service.retrieve("query", "course-1", top_k=3, rerank=False)] == ["c1", "c2", "c3"]

@@ -93,6 +93,11 @@ def enrich(agent,state,dimension):
     if result.gaps and result.status=='pass':result.status='warning'
     return state
 
+# A slide section is only reported when its title looks like a heading: two or more content words, starting with a
+# capital or a digit (not a sentence continuing from the previous line), not a source line or a figure caption.
+_HEADING_LIKE=re.compile(r'^[^\W_a-zäöüß]')
+_NOT_A_HEADING=re.compile(r'(?i)^(?:quelle|quellen|source|sources|bildquelle|image|figure|fig\.|abb\.|abbildung\s*\d|hier|here|beispiel:|example:)\b')
+
 def _undescribed_sections(agent,state,result,objectives,topics,already):
     """Slide or reading sections whose subject appears nowhere in the module metadata (manual, syllabus, objectives,
     schedule). The check above only looks at scheduled topics, so an extra section went unnoticed.
@@ -112,7 +117,7 @@ def _undescribed_sections(agent,state,result,objectives,topics,already):
     outside=[]
     for section in sections:
         title,text=delivery_check.stems(section['title']),delivery_check.stems(section['text'])
-        if not title or len(text)<6:continue
+        if len(title)<2 or len(text)<6 or not _HEADING_LIKE.match(section['title']) or _NOT_A_HEADING.match(section['title']):continue
         if len(title&known)/len(title)<settings.outside_metadata_title_overlap and len(text&known)/len(text)<settings.outside_metadata_text_overlap:
             outside.append(section)
     if len(outside)*2>len(sections):

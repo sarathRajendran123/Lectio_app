@@ -1,5 +1,5 @@
 {
-  "started_at": "2026-11-14T11:24:03+00:00",
+  "started_at": "2026-11-16T03:16:22+00:00",
   "mode": "local_test",
   "files": {
     "cases": [
@@ -14,7 +14,7 @@
         "http": 422,
         "outcome": "refused with a reason",
         "detail": "File is empty.",
-        "seconds": 0.1,
+        "seconds": 0.0,
         "problem": null
       },
       {
@@ -54,8 +54,8 @@
           "refused with a reason"
         ],
         "http": 201,
-        "seconds": 0.9,
-        "stored_as": "50266bf870c4484281b5d44c17500af0_truncated.pdf",
+        "seconds": 0.4,
+        "stored_as": "817eb1e9a899432c9189ebc0c45051f5_truncated.pdf",
         "outcome": "refused with a reason",
         "detail": "The file could not be read as PDF. It may be damaged or incomplete; export or save it again and upload the new file.",
         "problem": null
@@ -69,8 +69,8 @@
           "refused with a reason"
         ],
         "http": 201,
-        "seconds": 0.8,
-        "stored_as": "47f9ef5ece7a478d9c8976f8c7d30097_scan.pdf",
+        "seconds": 0.4,
+        "stored_as": "e031c34d25f34900bf1f9e9c3984d19d_scan.pdf",
         "outcome": "refused with a reason",
         "detail": "No extractable text. For scanned PDFs, install Tesseract or upload a text/OCR version.",
         "problem": null
@@ -86,7 +86,7 @@
         "http": 422,
         "outcome": "refused with a reason",
         "detail": "Invalid Office document structure.",
-        "seconds": 0.1,
+        "seconds": 0.0,
         "problem": null
       },
       {
@@ -98,8 +98,8 @@
           "refused with a reason"
         ],
         "http": 201,
-        "seconds": 0.8,
-        "stored_as": "67982fc6df014379a32b55ed159e62c4_empty.docx",
+        "seconds": 0.4,
+        "stored_as": "8fc02ec188864aad983fd5bd8ea176fc_empty.docx",
         "outcome": "refused with a reason",
         "detail": "The document contains no text.",
         "problem": null
@@ -113,8 +113,8 @@
           "processed"
         ],
         "http": 201,
-        "seconds": 1.5,
-        "stored_as": "b8f61979ce2d493593a8008ea8271da0_Übung.docx",
+        "seconds": 0.7,
+        "stored_as": "e53b2b4a16ea4ed0a52467505656971c_Übung.docx",
         "chunks": 1,
         "outcome": "processed",
         "detail": "1 passage(s)",
@@ -131,7 +131,7 @@
         "http": 422,
         "outcome": "refused with a reason",
         "detail": "Text documents must be UTF-8 encoded.",
-        "seconds": 0.1,
+        "seconds": 0.0,
         "problem": null
       },
       {
@@ -146,7 +146,7 @@
         "http": 422,
         "outcome": "refused with a reason",
         "detail": "Text documents must be UTF-8 encoded.",
-        "seconds": 0.1,
+        "seconds": 0.0,
         "problem": null
       },
       {
@@ -158,8 +158,8 @@
           "processed"
         ],
         "http": 201,
-        "seconds": 1.1,
-        "stored_as": "b94d3ce76be342a48f71876bb030a817_bom.txt",
+        "seconds": 0.7,
+        "stored_as": "b0810b4b4d6a41fa8636a0b249d7de6f_bom.txt",
         "chunks": 1,
         "outcome": "processed",
         "detail": "1 passage(s)",
@@ -176,7 +176,7 @@
         "http": 422,
         "outcome": "refused with a reason",
         "detail": "Empty or binary text document.",
-        "seconds": 0.1,
+        "seconds": 0.0,
         "problem": null
       },
       {
@@ -190,7 +190,7 @@
         "http": 422,
         "outcome": "refused with a reason",
         "detail": "File type '.exe' is not allowed. Accepted: pdf, docx, pptx, txt, md, vtt",
-        "seconds": 0.1,
+        "seconds": 0.0,
         "problem": null
       },
       {
@@ -231,8 +231,8 @@
           "refused with a reason"
         ],
         "http": 201,
-        "seconds": 1.1,
-        "stored_as": "0f977c8578d748dfb2c5eba3972a7dee_outside.txt",
+        "seconds": 0.7,
+        "stored_as": "918bd59fc06b4695adac77ed5d960470_outside.txt",
         "chunks": 1,
         "outcome": "processed",
         "detail": "1 passage(s)",
@@ -247,8 +247,8 @@
           "processed"
         ],
         "http": 201,
-        "seconds": 1.2,
-        "stored_as": "caaa373d56594a299d7c093f46d23f81_Vorlesung_Übung___01.txt",
+        "seconds": 0.7,
+        "stored_as": "aca8440f085a4f34b21b78b93f5b7005_Vorlesung_Übung___01.txt",
         "chunks": 1,
         "outcome": "processed",
         "detail": "1 passage(s)",
@@ -264,8 +264,8 @@
           "refused with a reason"
         ],
         "http": 201,
-        "seconds": 1.2,
-        "stored_as": "4c786268aec5477aaf14e141cb441cb6_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt",
+        "seconds": 0.8,
+        "stored_as": "cab9dbc0ea0f4628b215e96d68689f8d_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt",
         "chunks": 1,
         "outcome": "processed",
         "detail": "1 passage(s)",
@@ -281,8 +281,8 @@
           "refused with a reason"
         ],
         "http": 201,
-        "seconds": 1.2,
-        "stored_as": "e7dd7d5ec8e447ea8902804a699c9839_oneline.txt",
+        "seconds": 0.8,
+        "stored_as": "d0c836243d554db8a7b35a7f5d26f3d7_oneline.txt",
         "outcome": "refused with a reason",
         "detail": "The document contains no readable text: fewer than 3 different words were found.",
         "problem": null
@@ -297,8 +297,8 @@
           "refused with a reason"
         ],
         "http": 201,
-        "seconds": 0.5,
-        "stored_as": "a0bef55a20d8464eb3d2e644e9f4b20a_plain.vtt",
+        "seconds": 0.4,
+        "stored_as": "66f6639749b240a0bb982731a202fe4f_plain.vtt",
         "outcome": "refused with a reason",
         "detail": "No spoken text was found. A transcript needs cue lines such as \"00:00:01.000 --> 00:00:05.000\", each followed by what was said.",
         "problem": null
@@ -313,8 +313,8 @@
           "refused with a reason"
         ],
         "http": 201,
-        "seconds": 0.5,
-        "stored_as": "ab35606e1878424280eb83bd37e3e7fd_broken.vtt",
+        "seconds": 0.4,
+        "stored_as": "090062a2eaff422bb2f854b8decc32b9_broken.vtt",
         "outcome": "refused with a reason",
         "detail": "No spoken text was found. A transcript needs cue lines such as \"00:00:01.000 --> 00:00:05.000\", each followed by what was said.",
         "problem": null
@@ -328,8 +328,8 @@
           "processed"
         ],
         "http": 201,
-        "seconds": 1.1,
-        "stored_as": "48e734e3d4ba48e4a252ce8b617a8f7f_good.vtt",
+        "seconds": 0.7,
+        "stored_as": "cd23302990ce4ad7b0e610f3cc3d81b1_good.vtt",
         "chunks": 1,
         "outcome": "processed",
         "detail": "1 passage(s)",
@@ -345,8 +345,8 @@
           "refused with a reason"
         ],
         "http": 201,
-        "seconds": 1.2,
-        "stored_as": "0c19f6aaf45e4a5991f83c4a0cac7bdd_headings.md",
+        "seconds": 0.8,
+        "stored_as": "935a6d1689164c25a7dd074bb6eb77d9_headings.md",
         "chunks": 3,
         "outcome": "processed",
         "detail": "3 passage(s)",
@@ -362,8 +362,8 @@
           "refused with a reason"
         ],
         "http": 201,
-        "seconds": 1.2,
-        "stored_as": "b6a0d81789414ce7b7682cc8fb4a4971_symbols.txt",
+        "seconds": 0.7,
+        "stored_as": "3429eb751d8e4c6f8a2fbd017a758b97_symbols.txt",
         "outcome": "refused with a reason",
         "detail": "The document contains no readable text: fewer than 3 different words were found.",
         "problem": null
@@ -379,7 +379,7 @@
         "http": 422,
         "outcome": "refused with a reason",
         "detail": "MIME type does not match the file extension.",
-        "seconds": 0.1,
+        "seconds": 0.0,
         "problem": null
       },
       {
@@ -393,7 +393,7 @@
         "http": 422,
         "outcome": "refused with a reason",
         "detail": "artifact_type must be one of: syllabus, slides, assignment, transcript, module_manual, other, exam, assessment, schedule, reading",
-        "seconds": 0.1,
+        "seconds": 0.0,
         "problem": null
       },
       {
@@ -405,8 +405,8 @@
           "processed"
         ],
         "http": 201,
-        "seconds": 1.2,
-        "stored_as": "7842c8ee23e14fa5afca365352709920_inject.txt",
+        "seconds": 0.7,
+        "stored_as": "1b4c78f4b0204e638767a8c641671820_inject.txt",
         "chunks": 1,
         "outcome": "processed",
         "detail": "1 passage(s)",
@@ -422,8 +422,8 @@
         ],
         "http": 409,
         "outcome": "refused with a reason",
-        "detail": "This file was already uploaded (artifact id: 5651ad40-2f73-474b-b975-4663dc61535e).",
-        "seconds": 0.1,
+        "detail": "This file was already uploaded (artifact id: 855b059d-cce1-43f1-af52-4f8f942f4849).",
+        "seconds": 0.0,
         "problem": null
       }
     ],
@@ -690,6 +690,11 @@
       "run_status": "waiting_for_human",
       "run_error": null,
       "dimensions": {
+        "content_delivery": {
+          "status": "warning",
+          "score": 0.6091,
+          "reason": null
+        },
         "metadata_content": {
           "status": "fail",
           "score": 0.521,
@@ -703,11 +708,6 @@
         "metadata_assessment": {
           "status": "fail",
           "score": 0.5,
-          "reason": null
-        },
-        "content_delivery": {
-          "status": "warning",
-          "score": 0.6091,
           "reason": null
         }
       },
@@ -821,6 +821,12 @@
       "found": 5,
       "findings_not_matching_a_planted_defect": [
         {
+          "dimension": "content_delivery",
+          "gap_type": "topic_not_delivered",
+          "severity": "warning",
+          "description": "Week 4 topic 'Dynamische Programmierung' has no corresponding slides or transcript content."
+        },
+        {
           "dimension": "content_assessment",
           "gap_type": "topic_not_assessed",
           "severity": "warning",
@@ -831,12 +837,6 @@
           "gap_type": "topic_not_assessed",
           "severity": "warning",
           "description": "Topic 'Dynamische Programmierung' has lecture content but no assessment questions."
-        },
-        {
-          "dimension": "content_delivery",
-          "gap_type": "topic_not_delivered",
-          "severity": "warning",
-          "description": "Week 4 topic 'Dynamische Programmierung' has no corresponding slides or transcript content."
         }
       ],
       "trace_valid": true

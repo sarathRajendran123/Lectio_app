@@ -46,7 +46,7 @@ Docker image build and `docker compose up`; PostgreSQL deployment (one test skip
 
 ## How to run
 ```bash
-python -m pytest -q                       # full suite (319 passed, 2 skipped on SQLite, 2026-11-14; 299 passed on PostgreSQL, 2026-11-13)
+python -m pytest -q                       # full suite (329 passed, 2 skipped on SQLite, 2026-11-16; 299 passed on PostgreSQL, 2026-11-13)
 LECTIO_SKIP_MODEL_TESTS=1 python -m pytest -q   # skip the real-model tests
 python scripts/verify_live.py             # needs OPENROUTER_API_KEY
 python scripts/run_dataset.py datasets/en_algorithms   # against a running local API
@@ -56,6 +56,50 @@ python scripts/run_dataset.py datasets/en_algorithms   # against a running local
 
 `python -m pytest -q`: **77 passed, 1 skipped** (about 85 s). New file `tests/test_phase1_governance.py` (17 tests): intent versioning and validation; intent on every audit event and hand-over; a changed intent reaching later runs while earlier runs keep theirs; intent and constraints in the model prompt; decisions becoming constraints, supersede, retire, general vs course scope; a rejected draft not passing again; gate scoring; gate retry with adjusted instructions, intent kept and model switched; retry limit and no false pass; failed generations recorded; per-model-call logging without prompt text or secrets; trace order, linkage and hash-chain verification; ORM, SQL and tamper detection; briefing in plain language; per-finding and per-draft trace.
 Failures found while writing them and fixed: gate relevance compared singular and plural words as different (now 5-letter stems); a test assumed one start event per director task.
+
+## Update 2026-11-16 (drafts aimed at the objective)
+
+Baseline 324 passed, 2 skipped. After: **329 passed, 2 skipped** on SQLite.
+
+| Test | What it shows |
+|---|---|
+| the course language is read from the stated objectives | German, English, too little text; the instruction sentence for each |
+| a draft for an uncovered objective is built and searched from the objective in its language | search query is the objective; prompt holds the objective and its code; German instruction; German sentence frame for a German course; questions use the objective's own level |
+| topic drafts search for the topic, unknown objectives fall back to the finding | exercise search for the week's topic; previous behaviour when the objective is not in the course |
+| objective drafts rest on teaching material, not on the module manual | the search filter excludes syllabus and module manual |
+| workbench drafts follow the language of the request | a German request gives the German instruction |
+
+Changed expectation: `test_drafts_without_supporting_material_are_reported_as_such_not_as_a_provider_error` failed during the work because the focused search found the objective in the module manual and cited it; this was the circular evidence fixed above, not a test to adjust. It passes unchanged.
+
+Live check: one audit of the MWI course, see `docs/DEVELOPMENT_PROGRESS.md`.
+
+## Update 2026-11-16 (first live-model runs)
+
+Baseline 323 passed, 2 skipped. After: **324 passed, 2 skipped** on SQLite.
+
+| Test | What it shows |
+|---|---|
+| `test_the_model_is_asked_before_the_extraction_writes_anything` (new) | during the model call another writer gets through at once; run against the previous call order, the second writer waited 16.5 s and failed with "database is locked" |
+| `test_extraction_uses_the_model_fallback_only_in_live_mode` (rewritten) | the same three cases for the new function `_model_levels`, which returns levels instead of changing objects |
+
+First runs against a real model (three models, $0.224 in total): see `docs/DEVELOPMENT_PROGRESS.md`. Still open from them: drafts that ignore the objective's wording, drafts in English for a German course, about 9 s per search on a large course, remaining SQLite write contention.
+
+## Update 2026-11-15 (first real course)
+
+Baseline 319 passed, 2 skipped. After: **323 passed, 2 skipped** on SQLite (some earlier files gained tests too; 10 tests added in total).
+
+| Test | What it shows |
+|---|---|
+| outcome paragraphs under competence headings are read sentence by sentence | German and English manuals in the real layout (written for the test, not the supervisor's text): line-end hyphens joined or kept correctly, a week-bound sentence and a document without a heading give nothing |
+| a line-wise copy of a prose outcome is recognised as a duplicate | the table-cell copy and the same sentence again are dropped, other outcomes are not |
+| a schedule table is read and ends at the first other line | German and English tables; a holiday row left out; numbered rows without a header are not a schedule |
+| reranking changes the order but passages keep their similarity score | the reranker's score is kept in metadata; without reranking the order is the search order |
+
+Found by the suite during the work: the first version of the prose rule glued a bullet list ("Students will be able to:" plus items) into one sentence and dropped the items, which broke three defect-suite tests; fixed before the final run.
+
+Real course (`data/courses/MWI_DL`, not in the repository): see `docs/DEVELOPMENT_PROGRESS.md` for the before and after figures.
+
+Not run: a language model; PostgreSQL.
 
 ## Update 2026-11-14 (four open defects from the defect suite)
 

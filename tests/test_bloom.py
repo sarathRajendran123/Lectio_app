@@ -152,14 +152,52 @@ def test_model_reply_is_validated_item_by_item():
 def test_extraction_uses_the_model_fallback_only_in_live_mode(monkeypatch):
     from services import course_model
     import knowledge.bloom_classifier as bloom
-    items = [NS(text="Sketch the heap.", bloom_level=None, bloom_verb=None), NS(text="Trace quicksort.", bloom_level=None)]
+    texts = ["Sketch the heap.", "Trace quicksort."]
     calls = []
     monkeypatch.setattr(bloom, "classify_many_with_llm", lambda texts, llm=None: calls.append(texts) or {0: ("apply", "sketch")})
-    assert asyncio.run(course_model._classify_rest("c", items)) == 0 and calls == []             # test mode: no model call
+    assert asyncio.run(course_model._model_levels("c", texts)) == {} and calls == []             # test mode: no model call
     monkeypatch.setattr(settings, "runtime_mode", "live")
     monkeypatch.setattr(settings, "openrouter_api_key", "sk-or-test-key-for-readiness-check")
-    assert asyncio.run(course_model._classify_rest("c", items)) == 1
-    assert calls == [["Sketch the heap.", "Trace quicksort."]] and (items[0].bloom_level, items[0].bloom_verb) == ("apply", "sketch")
-    assert items[1].bloom_level is None                                                         # not classified by the model: stays open
+    assert asyncio.run(course_model._model_levels("c", texts)) == {"Sketch the heap.": ("apply", "sketch")}   # the other stays open
+    assert calls == [texts]
     monkeypatch.setattr(settings, "bloom_llm_fallback", False)
-    assert asyncio.run(course_model._classify_rest("c", items)) == 0 and len(calls) == 1
+    assert asyncio.run(course_model._model_levels("c", texts)) == {} and len(calls) == 1
+
+
+def test_the_model_is_asked_before_the_extraction_writes_anything(client, headers, monkeypatch):
+    """Found in the first live run: the model call happened inside the extraction's write transaction. On SQLite an
+    audit started meanwhile failed with "database is locked", and the call's own trace event could not be written."""
+    import time
+    import uuid
+    from services import course_model, trace
+    import knowledge.bloom_classifier as bloom
+    from db.session import AsyncSessionLocal
+    from services import auto_build
+    monkeypatch.setattr(auto_build, "maybe_auto_extract", lambda course_id, db: asyncio.sleep(0))   # extract below, not at upload
+    course = client.post("/api/v1/courses", headers=headers, json={"code": "BLOOM-LOCK", "title": "Locks"}).json()["id"]
+    text = "Learning outcomes\nStudents will be able to sketch the heap property of binary heaps.\nStudents will be able to explain heaps.\n"
+    assert client.post(f"/api/v1/courses/{course}/artifacts", headers=headers, data={"artifact_type": "syllabus"},
+                       files={"file": ("syllabus.txt", text.encode(), "text/plain")}).status_code == 201
+    seen = {}
+
+    def model(texts, llm=None):
+        started = time.monotonic()                   # another writer during the model call, like an audit start or a trace event
+        seen["written"] = trace.emit("unit_test", {"during": "model call"}, run_id=f"lock-{uuid.uuid4()}")
+        seen["waited"] = time.monotonic() - started
+        return {i: ("apply", "sketch") for i, t in enumerate(texts) if "sketch" in t}
+
+    monkeypatch.setattr(bloom, "classify_many_with_llm", model)
+    monkeypatch.setattr(settings, "runtime_mode", "live")
+    monkeypatch.setattr(settings, "openrouter_api_key", "sk-or-test-key-for-readiness-check")
+
+    async def extract():
+        async with AsyncSessionLocal() as db:
+            result = await course_model.extract_course_model(uuid.UUID(course), db)
+            await db.commit()
+            return result
+
+    result = asyncio.run(extract())
+    assert seen["written"] is not None and seen["waited"] < 2, seen       # the second writer was not blocked
+    assert result["bloom_classified_by_model"] == 1 and result["objectives_added"] == 2
+    levels = {o["text"]: o["bloom_level"] for m in client.get(f"/api/v1/courses/{course}/structure", headers=headers).json()["modules"] for o in m["objectives"]}
+    assert levels["Students will be able to sketch the heap property of binary heaps."] == "apply"
