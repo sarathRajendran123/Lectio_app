@@ -242,3 +242,34 @@ def test_apply_requires_human_approval_and_preserves_sources(client,headers):
     assert client.get(base+'/modules/'+module+'/clos',headers=headers).json()[0]['text']==text.decode()
     assert client.post(path,headers=headers,json=body).status_code==409
     assert client.get(base+'/evidence',headers=headers).json()[0]['text']==text.decode()
+
+
+def test_inline_excerpt_references_are_resolved_and_not_exposed():
+    chunk = source()
+    data = json.loads(payload())
+    data['sections'][0]['text'] = 'Explain the sorted array requirement. [S1Q1]'
+    data['sections'][0]['supports'] = [{'source': 1, 'excerpt_id': 'S1Q1'}]
+    rendered, citations, _ = parse_draft(json.dumps(data), [chunk])
+    assert '[S1Q1]' not in rendered
+    assert '[SOURCE_1]' in rendered
+    assert citations[0]['quote'] in chunk.text
+
+
+def test_inline_reference_must_belong_to_section_support():
+    data = json.loads(payload())
+    data['sections'][0]['supports'] = [{'source': 1, 'excerpt_id': 'S1Q1'}]
+    for marker in ('[S1Q2]', '[S2Q1]', '[SOURCE_2]'):
+        data['sections'][0]['text'] = 'Explain the algorithm carefully. ' + marker
+        with pytest.raises(ValueError, match='not supported'):
+            parse_draft(json.dumps(data), [source()])
+
+
+def test_offered_excerpt_preserves_whole_short_passage_and_avoids_cutting_words():
+    from rag.generation.draft_schema import source_excerpts
+    passage = 'A question?\\nA full explanation follows with important context.'
+    assert source_excerpts(passage, 1)['S1Q1'] == passage
+    passage = ('A long sentence about gradient descent and model parameters. ' * 12).strip()
+    for quote in source_excerpts(passage, 1).values():
+        assert quote in passage
+        assert len(quote) <= 400
+        assert not quote.endswith('paramet')

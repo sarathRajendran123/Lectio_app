@@ -41,19 +41,46 @@ def _verbatim_source_quote(quote, source):
     return match.group(0) if match else None
 
 def source_excerpts(source, source_number):
-    """Return up to four exact, bounded source substrings for model selection."""
+    """Offer bounded, exact passages, preferring sentence and word boundaries.
+
+    A chunk may itself be incomplete; never imply that a selected passage
+    proves the claims the model makes about it.
+    """
     passages = []
-    for match in re.finditer(r'[^\n]{1,200}', source):
-        text = match.group(0).strip()
-        if len(text) >= 8 and text not in passages:
-            passages.append(text)
-        if len(passages) == 4:
-            break
-    if not passages:
-        text = source.strip()[:200]
-        if len(text) >= 8:
-            passages.append(text)
+    remaining = source.strip()
+    while len(remaining) >= 8 and len(passages) < 4:
+        if len(remaining) <= 400:
+            piece, remaining = remaining, ""
+        else:
+            # Prefer the last complete sentence near the limit, but do not
+            # reduce a substantial passage to a lone heading or short title.
+            window = remaining[:401]
+            boundaries = list(re.finditer(r'[.!?](?=\s|$)', window))
+            boundary = boundaries[-1].end() if boundaries and boundaries[-1].end() >= 150 else -1
+            if boundary < 0:
+                boundary = window.rfind(' ', 0, 401)
+            if boundary < 8:
+                boundary = 400
+            piece, remaining = remaining[:boundary].strip(), remaining[boundary:].strip()
+        if len(piece) >= 8 and piece not in passages:
+            passages.append(piece)
     return {f'S{source_number}Q{i}': text for i, text in enumerate(passages, 1)}
+
+
+def _resolve_inline_references(text, supports):
+    """Expose supported excerpt IDs as source markers; reject invented references."""
+    excerpts = {s.excerpt_id: s.source for s in supports if s.excerpt_id}
+    sources = {s.source for s in supports}
+    def excerpt_marker(match):
+        excerpt_id = match.group(1)
+        if excerpt_id not in excerpts:
+            raise ValueError('Inline excerpt ID is not supported by this section.')
+        return f'[SOURCE_{excerpts[excerpt_id]}]'
+    text = re.sub(r'\[(S[1-9][0-9]*Q[1-9][0-9]*)\]', excerpt_marker, text)
+    for match in re.finditer(r'\[SOURCE_(\d+)\]', text):
+        if int(match.group(1)) not in sources:
+            raise ValueError('Inline source marker is not supported by this section.')
+    return text
 
 def parse_draft(raw,chunks):
     cleaned=raw.strip()
@@ -85,7 +112,7 @@ def parse_draft(raw,chunks):
                 'quote':support.quote,'page_number':chunk.page_number,'slide_number':chunk.slide_number,'section_title':chunk.section_title,
                 'artifact_type':chunk.artifact_type,'verification':'Exact source excerpt resolved; relevance is unverified and the proposed interpretation requires lecturer approval.'}
         # Text is a proposal/inference, not a verified observation; avoid implying entailment.
-        rendered+=['### '+section.heading,section.text+' '+' '.join(dict.fromkeys(markers)),
+        rendered+=['### '+section.heading,_resolve_inline_references(section.text, section.supports)+' '+' '.join(dict.fromkeys(markers)),
             '_'+section.interpretation.replace('_',' ')+'; lecturer review required._']
     if draft.limitations:rendered+=['### Limitations']+['- '+l for l in draft.limitations]
     return '\n\n'.join(rendered),list(citations.values()),draft
