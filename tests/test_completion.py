@@ -17,6 +17,25 @@ def test_strict_generation_schema_and_quotes():
     with pytest.raises(ValueError,match='verbatim'):parse_draft(payload('This quote is fabricated.'),[source()])
     with pytest.raises(ValueError):parse_draft('{"title":"Missing sections"}',[source()])
 
+
+def test_quotation_whitespace_is_restored_from_actual_cited_source():
+    chunk=source()
+    chunk.text='Binary search\n  halves a sorted array. It has logarithmic complexity.'
+    _, citations, draft = parse_draft(payload('Binary search halves a sorted array.'), [chunk])
+    exact='Binary search\n  halves a sorted array.'
+    assert citations[0]['quote'] == exact
+    assert draft.sections[0].supports[0].quote == exact
+    assert citations[0]['quote'] in chunk.text
+
+
+def test_quotation_validation_still_rejects_changed_words_and_wrong_sources():
+    chunk=source()
+    with pytest.raises(ValueError, match='verbatim'):
+        parse_draft(payload('Binary search halves an unsorted array.'), [chunk])
+    other=RetrievedChunk('other','Quoted material only belongs to this second source.',.8,'doc2','slides','course',2,None,None,None)
+    with pytest.raises(ValueError, match='verbatim'):
+        parse_draft(payload('Quoted material only belongs to this second source.'), [chunk, other])
+
 def test_broker_duplicates_conflicts_and_evidence():
     gaps=[AlignmentGap(str(uuid.uuid4()),'coverage','warning','Missing topic','clo','x',.2,'Add lecture material',['real']),
         AlignmentGap(str(uuid.uuid4()),'coverage','critical','Missing topic','clo','x',.2,'Add lecture material',['real']),

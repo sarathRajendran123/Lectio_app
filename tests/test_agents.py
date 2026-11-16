@@ -64,6 +64,22 @@ def test_generation_marks_empty_action_list_attempted():
     assert result['generation_attempted'] is True
 
 
+def test_quote_failure_is_reported_as_validation_not_an_api_key_error(monkeypatch):
+    from agents.content_generation_agent import ContentGenerationAgent
+    agent = ContentGenerationAgent()
+    monkeypatch.setattr(agent, '_load_rejected', lambda course_id: set())
+    def reject_quote(*args):
+        agent._failure_reasons.append('Generated quotation does not occur verbatim in its cited source.')
+        return None, 0
+    monkeypatch.setattr(agent, '_generate_for_gap', reject_quote)
+    gap = AlignmentGap('g', 'clo_not_assessed', 'warning', 'An objective needs assessment',
+                       'clo', 'obj', .2, 'Review assessment')
+    result = agent.run({'course_id': 'c', 'course_metadata': {}, 'all_gaps': [gap], 'modules': []})
+    message = result['error_log'][0].message
+    assert 'quotations could not be verified' in message
+    assert 'API key' not in message
+
+
 def test_uncovered_existing_objective_does_not_generate_a_duplicate_clo(monkeypatch):
     from agents.content_generation_agent import ContentGenerationAgent
     agent = ContentGenerationAgent()

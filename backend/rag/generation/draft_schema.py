@@ -23,6 +23,16 @@ class EducationalDraft(BaseModel):
     limitations:list[str]=Field(default_factory=list,max_length=10)
     bloom_level:Literal['remember','understand','apply','analyse','evaluate','create']|None=None
 
+def _verbatim_source_quote(quote, source):
+    """Return the exact source substring, allowing whitespace-only copy differences."""
+    if quote in source:
+        return quote
+    words = re.split(r'\s+', quote.strip())
+    if len(words) < 2 or not all(words):
+        return None
+    match = re.search(r'\s+'.join(re.escape(word) for word in words), source)
+    return match.group(0) if match else None
+
 def parse_draft(raw,chunks):
     cleaned=raw.strip()
     if cleaned.startswith('```'):
@@ -34,8 +44,12 @@ def parse_draft(raw,chunks):
         for support in section.supports:
             if support.source>len(chunks):raise ValueError('Generated source number was not included in the prompt.')
             chunk=chunks[support.source-1]
-            if support.quote not in chunk.text:
+            quote = _verbatim_source_quote(support.quote, chunk.text)
+            if quote is None:
                 raise ValueError('Generated quotation does not occur verbatim in its cited source.')
+            # Store and display the actual original characters, never the model's
+            # whitespace-adjusted rendering. No wording changes are accepted.
+            support.quote = quote
             marker=f'[SOURCE_{support.source}]';markers.append(marker)
             key=(marker,support.quote)
             citations[key]={'marker':marker,'citation':chunk.to_citation(),'chunk_id':chunk.chunk_id,'artifact_id':chunk.artifact_id,
