@@ -87,7 +87,8 @@ class SemanticChunker:
                 raw_chunks.append(RawChunk(text=text, chunk_index=len(raw_chunks),
                     artifact_id=artifact_id, course_id=course_id, file_type=doc.file_type,
                     artifact_type=doc.artifact_type, page_number=block.page_number,
-                    slide_number=block.slide_number, section_title=block.section_title,
+                    slide_number=block.slide_number,
+                    section_title=block.section_title[:500] if block.section_title else block.section_title,
                     week_number=self._infer_week(block.section_title, block),
                     char_count=len(text), token_count=_naive_token_count(text),
                     extra_metadata=block.metadata))
