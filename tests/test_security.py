@@ -51,6 +51,8 @@ def test_course_and_child_isolation(client,headers):
     mod=client.post(f'/api/v1/courses/{aid}/modules',headers=a,json={'title':'Private module','sequence_number':1}).json()['id']
     for path in [f'courses/{aid}/reports',f'courses/{aid}/evidence',f'courses/{aid}/matrix',f'courses/{aid}/export']:
         assert client.get('/api/v1/'+path,headers=b).status_code==403,path
+    assert client.post(f'/api/v1/courses/{aid}/evidence/lookup', headers=b,
+                       json={'chunk_ids': [str(uuid.uuid4())]}).status_code == 403
     assert client.get(f'/api/v1/courses/{bid}/modules/{mod}/clos',headers=b).status_code==404
     r=client.post(f'/api/v1/courses/{bid}/modules/{mod}/weeks',headers=b,json={'week_number':1})
     assert r.status_code==404,r.text

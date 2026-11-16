@@ -2,6 +2,7 @@
 import json
 import streamlit as st
 from utils.session_utils import get_client, safe_api_call
+from utils.evidence_refs import cited_chunk_ids
 from components.ui_components import render_citations, render_draft_feedback
 
 def show_workbench():
@@ -139,6 +140,13 @@ def show_workbench():
                 with st.expander(meta['report_type'].replace('_',' ↔ ').title()+' · '+meta['status']):
                     report,err=safe_api_call(client.get_report,meta['id'])
                     if err:st.error(err);continue
+                    missing=sorted(cited_chunk_ids(report)-source_map.keys())
+                    for offset in range(0,len(missing),200):
+                        found,lookup_error=safe_api_call(client.workbench,base+'/evidence/lookup','POST',{'chunk_ids':missing[offset:offset+200]})
+                        if lookup_error:
+                            st.warning('Could not look up some cited sources: '+str(lookup_error))
+                            break
+                        source_map.update({item['id']:item for item in found or []})
                     findings=report.get('findings') or {}
                     details=findings.get('findings') or {}
                     if details.get('note') or details.get('error'):st.info(details.get('note') or details['error'])
@@ -211,7 +219,7 @@ def show_workbench():
                             if source:
                                 st.caption(f"{source['filename']} · page {source['page'] or '—'} · slide {source['slide'] or '—'}")
                                 st.text(source['text'])
-                            else:st.warning('Source no longer available. Rerun the audit after document changes.')
+                            else:st.warning('Cited source could not be found in this course. Check whether the source was deleted or rebuilt.')
                         if not gap.get('evidence_chunk_ids'):st.caption('No direct supporting excerpt. This is an evidence gap requiring lecturer review.')
                         saved=stored.get(gap['gap_id'])
                         if saved:

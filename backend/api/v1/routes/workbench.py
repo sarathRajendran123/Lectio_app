@@ -47,6 +47,19 @@ def chunk_dict(chunk, artifact):
         'text':chunk.text,'page':chunk.page_number,'slide':chunk.slide_number,'section':chunk.section_title,
         'artifact_type':artifact.artifact_type,'week':chunk.week_number}
 
+class EvidenceLookup(BaseModel):
+    chunk_ids: list[UUID] = Field(max_length=200)
+
+@router.post('/courses/{course_id}/evidence/lookup')
+async def lookup_evidence(course_id:UUID,request:EvidenceLookup,user=Depends(get_current_user),db=Depends(get_db, scope="function")):
+    """Resolve cited chunks directly, including those beyond the preview limit."""
+    await _assert_course_access(course_id,user,db)
+    if not request.chunk_ids:
+        return []
+    q=(select(Chunk,CourseArtifact).join(CourseArtifact,Chunk.artifact_id==CourseArtifact.id)
+       .where(Chunk.course_id==course_id, CourseArtifact.course_id==course_id, Chunk.id.in_(request.chunk_ids)))
+    return [chunk_dict(c,a) for c,a in (await db.execute(q)).all()]
+
 @router.get('/courses/{course_id}/evidence')
 async def evidence(course_id:UUID,artifact_id:UUID|None=None,user=Depends(get_current_user),db=Depends(get_db, scope="function")):
     await _assert_course_access(course_id,user,db)

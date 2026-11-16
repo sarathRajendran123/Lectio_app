@@ -106,7 +106,7 @@ RULES:
         import json
         full_prompt = self._build_prompt(task_prompt, context_text, extra_instructions)
         full_prompt += "\nReturn ONLY a JSON object matching this schema: " + json.dumps(EducationalDraft.model_json_schema())
-        full_prompt += "\nEach section must include supports containing a source number and an exact verbatim quote from that source. Mark newly proposed educational tasks as proposed_content; unsupported inference as unverified_inference. Include marking guidance for exercises/quizzes, measurable verbs for outcomes, and an honest limitations list."
+        full_prompt += "\nEach section must include supports containing a source number and an exact verbatim quote from that source. For each quote, copy one short continuous substring (at least 8 characters) directly from the text of the numbered source, preserving spelling, capitalization, punctuation and spacing exactly. Do not translate, paraphrase, add ellipses, combine passages, or quote a source label as if it were source text. Mark newly proposed educational tasks as proposed_content; unsupported inference as unverified_inference. Include marking guidance for exercises/quizzes, measurable verbs for outcomes, and an honest limitations list."
 
         llm          = self._get_llm()
         from langchain_core.messages import HumanMessage, SystemMessage
