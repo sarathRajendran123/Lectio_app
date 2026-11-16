@@ -79,8 +79,11 @@ class SemanticChunker:
         Main entry point. Returns ordered list of RawChunks.
         """
         raw_chunks = []
-        for block in self._attach_headings(doc.blocks):
-            sections=self._semantic_sections(block.text) if self.use_semantic_split else [block.text]
+        slide_pdf = doc.file_type.lower() == "pdf" and doc.artifact_type == "slides"
+        blocks = self._slide_pdf_blocks(doc.blocks) if slide_pdf else self._attach_headings(doc.blocks)
+        for block in blocks:
+            # A slide is one visual context; semantic splitting can isolate its answer from its question.
+            sections=self._semantic_sections(block.text) if self.use_semantic_split and not slide_pdf else [block.text]
             for text in [piece for section in sections for piece in self._split_section(section)]:
                 # Preserve even short outcomes, question prompts and headings.
                 if not text.strip(): continue
@@ -93,6 +96,35 @@ class SemanticChunker:
                     char_count=len(text), token_count=_naive_token_count(text),
                     extra_metadata=block.metadata))
         return raw_chunks
+
+    @staticmethod
+    def _slide_pdf_blocks(blocks):
+        """Combine consecutive PDF text blocks on a slide, never across pages.
+
+        Parser order is retained; joining parser blocks with newlines is a text
+        representation of the page, not a claim about visual reading order.
+        Oversized pages remain bounded by the normal size splitter.
+        """
+        from dataclasses import replace
+        groups = []
+        for block in blocks:
+            if not block.text.strip():
+                continue
+            if block.page_number is not None and groups and groups[-1][0].page_number == block.page_number:
+                groups[-1].append(block)
+            else:
+                groups.append([block])
+        combined = []
+        for group in groups:
+            first = group[0]
+            heading = next((b.text for b in group if b.block_type in ("heading", "title")), None)
+            title = heading or next((b.section_title for b in group if b.section_title), None)
+            metadata = dict(first.metadata)
+            if any(b.metadata.get("ocr") for b in group):
+                metadata["ocr"] = True
+            combined.append(replace(first, text="\n".join(b.text for b in group), block_type="paragraph",
+                                    section_title=title, metadata=metadata))
+        return combined
 
     @staticmethod
     def _attach_headings(blocks):
