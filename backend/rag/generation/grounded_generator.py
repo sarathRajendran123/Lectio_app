@@ -98,7 +98,8 @@ RULES:
             raise ValueError("Insufficient source evidence. Upload relevant materials before generating.")
         if settings.runtime_mode == "local_test":
             excerpt=context_chunks[0].text[:700]
-            raw = "DETERMINISTIC TEST DRAFT — no LLM inference.\n\n" + task_prompt + "\n\nSource excerpt for lecturer adaptation:\n" + excerpt + " [SOURCE_1]"
+            sample = "\n\nQuestion: How does the source explain this topic?\n\nSuggested answer: Review the source excerpt with the lecturer." if re.search(r"(?i)\b(exercise|quiz|assessment)\b", task_prompt) else ""
+            raw = "DETERMINISTIC TEST DRAFT — no LLM inference.\n\n" + task_prompt + sample + "\n\nSource excerpt for lecturer adaptation:\n" + excerpt + " [SOURCE_1]"
             resolved,citations=CitationBuilder.resolve(raw,context_chunks)
             return GeneratedItem(resolved,raw,citations,'local-test-template',0,len(context_chunks))
         context_text  = self._build_context(context_chunks)
@@ -106,7 +107,7 @@ RULES:
         import json
         full_prompt = self._build_prompt(task_prompt, context_text, extra_instructions)
         full_prompt += "\nReturn ONLY a JSON object matching this schema: " + json.dumps(EducationalDraft.model_json_schema())
-        full_prompt += "\nEach section must include supports with a source number and a matching excerpt_id selected from the offered excerpts for that source, for example {\"source\":1,\"excerpt_id\":\"S1Q1\"}. Do not include a quote field; the application inserts the original excerpt. Choose excerpts that support the section and do not invent IDs. If no offered excerpt supports your section, state the limitation instead of making an unsupported claim. Mark newly proposed educational tasks as proposed_content; unsupported inference as unverified_inference. Include marking guidance for exercises/quizzes, measurable verbs for outcomes, and an honest limitations list."
+        full_prompt += "\nEach section must include supports with a source number and a matching excerpt_id selected from the offered excerpts for that source, for example {\"source\":1,\"excerpt_id\":\"S1Q1\"}. Do not include a quote field; the application inserts the original excerpt. Choose excerpts that support the section and do not invent IDs. If no offered excerpt supports your section, state the limitation instead of making an unsupported claim. Mark newly proposed educational tasks as proposed_content; unsupported inference as unverified_inference. For an exercise or quiz include explicit student questions and, if requested, a separate clearly titled Suggested answers section with a suggested answer for each question. Stay focused on the stated topic; do not introduce unrelated topics just because they appear in the context. If the evidence is insufficient, say so rather than filling gaps. Include marking guidance for exercises/quizzes, measurable verbs for outcomes, and an honest limitations list."
 
         llm          = self._get_llm()
         from langchain_core.messages import HumanMessage, SystemMessage

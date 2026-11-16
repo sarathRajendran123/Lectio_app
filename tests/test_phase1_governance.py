@@ -418,3 +418,36 @@ def test_draft_trace_links_review_decision_and_events(audited, client, headers):
     kinds = [e["event_type"] for e in data["5_model_calls_and_checks"]]
     assert "quality_check" in kinds and data["7_lecturer"][0]["decision"] == "approved"
     assert data["2_evidence"] and data["integrity"]["valid"]
+
+
+def test_exercise_with_no_student_question_fails_structure():
+    result = stakeholder_gate.assess(
+        'Gradient descent uses the negative gradient to adjust parameters and reduce a loss function.',
+        CITED, content_type='exercise', target='Explain gradient descent', intent=None,
+    )
+    assert not result['passed']
+    assert any('No question' in issue for issue in result['issues'])
+
+
+def test_exercise_requested_answers_are_required_and_retryable():
+    question = 'Question: How does gradient descent update model parameters to reduce the loss function?'
+    target = 'Create a gradient descent exercise with suggested answers.'
+    missing = stakeholder_gate.assess(question, CITED, content_type='exercise', target=target, intent=None)
+    assert not missing['passed']
+    assert any('requested suggested answers' in issue for issue in missing['issues'])
+    complete = stakeholder_gate.assess(question + '\n\n### Suggested answers\nThe gradient guides the parameter update.',
+                                       CITED, content_type='exercise', target=target, intent=None)
+    assert complete['checks']['structure'] == 1.0
+    no_request = stakeholder_gate.assess(question, CITED, content_type='exercise',
+                                         target='Create a gradient descent exercise.', intent=None)
+    assert not any('requested suggested answers' in issue for issue in no_request['issues'])
+
+
+def test_requested_answers_in_constraints_are_checked():
+    result = stakeholder_gate.assess(
+        'Question: How does gradient descent update model parameters to reduce the loss function?',
+        CITED, content_type='exercise', target='Practice gradient descent', intent=None,
+        requirements='Include a model answer.',
+    )
+    assert not result['passed']
+    assert any('requested suggested answers' in issue for issue in result['issues'])

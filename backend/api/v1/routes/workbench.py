@@ -183,7 +183,8 @@ async def generate(course_id:UUID,body:GenerationRequest,user=Depends(get_curren
                             intent=course_intent.ref(intent),constraint_ids=constraint_ids):
                         return stakeholder_gate.produce(lambda extra,chosen:GroundedGenerator(model=chosen).generate(prompt,context,extra),
                             content_type=body.content_type,target=query,intent=intent,constraint_ids=constraint_ids,
-                            rejected_fingerprints=rejected,guidance=guidance,style=style,models=choices)
+                            rejected_fingerprints=rejected,guidance=guidance,style=style,models=choices,
+                            requirements=body.constraints+" "+body.expected_format)
                 result,review=await asyncio.to_thread(gated)
                 reviews.append({**review,'task_id':task_id,'granularity':level})
                 record=GeneratedContentRecord(course_id=course_id,content_type=body.content_type,
