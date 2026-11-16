@@ -207,3 +207,58 @@ def test_objective_drafts_rest_on_teaching_material_not_on_the_module_manual():
     agent._gen_assessment_question(gap, "course-1", state, "")
     assert calls[0]["where"] == TEACHING_ONLY == calls[1]["where"]
     assert "syllabus" not in str(TEACHING_ONLY) and "module_manual" not in str(TEACHING_ONLY)
+
+
+# ── more drafts: one per distinct gap, merged across checks, written in parallel ──
+
+def _gap(gid, gap_type, entity=None, description="d", severity="warning", score=0.3):
+    from agents.graph.state import AlignmentGap
+    return AlignmentGap(gid, gap_type, severity, description, "clo" if entity else "topic", entity, score, "r")
+
+
+def test_findings_about_the_same_objective_get_one_draft_per_kind():
+    from agents.content_generation_agent import plan_drafts
+    gaps = [_gap("a1", "clo_not_covered", "obj-1", score=0.4), _gap("a2", "live_missing_objective", "obj-1", score=0.2),   # same objective, same kind: one CLO draft
+            _gap("a3", "clo_not_assessed", "obj-1"),                                                                    # same objective, other kind: its own question draft
+            _gap("b1", "topic_not_assessed", description="Topic 'Hash tables' has lecture content but no assessment questions."),
+            _gap("b2", "topic_not_assessed", description="Topic 'hash tables' has lecture content but no assessment questions.", score=0.1),
+            _gap("c1", "clo_not_covered", "obj-2", severity="critical", score=0.9)]
+    planned = plan_drafts(gaps, 20)
+    leads = {g.gap_id: merged for g, merged in planned}
+    assert set(leads) == {"a2", "a3", "b2", "c1"}                                              # four drafts for six findings
+    assert leads["a2"] == ["a1"] and leads["b2"] == ["b1"] and leads["a3"] == [] and leads["c1"] == []   # the lower score leads
+    assert planned[0][0].gap_id == "c1"                                                         # critical first
+    assert [g.gap_id for g, _ in plan_drafts(gaps, 2)] == ["c1", "b2"]                         # the cap still applies: critical, then the lowest score of another kind
+
+
+def test_drafts_are_written_in_parallel_in_planned_order_each_with_its_own_model(monkeypatch):
+    import threading
+    import time
+    from types import SimpleNamespace
+    from config import settings
+    from agents.content_generation_agent import ContentGenerationAgent
+    monkeypatch.setattr(settings, "generation_concurrency", 4)
+    monkeypatch.setattr(settings, "generation_max_items_per_run", 20)
+    objectives = [{"id": f"obj-{i}", "code": f"EXT-{i}", "text": f"Students can explain topic number {i} in depth.", "bloom_level": "understand"} for i in range(8)]
+    gaps = [_gap(f"g{i}", "clo_not_covered", f"obj-{i}", score=i / 10) for i in range(8)]
+    seen, threads = [], set()
+
+    def generate(**kwargs):
+        threads.add(threading.get_ident())
+        time.sleep(0.3)                                                                        # a model call
+        seen.append(kwargs["model"])
+        return SimpleNamespace(content=f"Upon completion of this module, students will be able to explain {kwargs['query']} in detail with an example. [SOURCE_1]",
+                               citations=[{"marker": "[SOURCE_1]", "citation": "[Slides]"}], tokens_used=10)
+
+    agent = ContentGenerationAgent()
+    agent._get_rag = lambda: SimpleNamespace(generate=generate)
+    agent._load_rejected = lambda course_id: set()
+    state = {"course_id": "course-1", "run_id": "run-parallel", "course_metadata": {"title": "Algorithms"}, "all_gaps": gaps,
+             "modules": [{"clos": objectives}], "error_log": [], "total_tokens": 0}
+    started = time.monotonic()
+    result = agent.run(state)
+    elapsed = time.monotonic() - started
+    items = result["generated_items"]
+    assert len(items) == 8 and elapsed < 8 * 0.3 * 0.6 and len(threads) > 1                    # several at a time
+    assert [i.source_gap_id for i in items] == ["g0", "g1", "g2", "g3", "g4", "g5", "g6", "g7"]   # planned order (worst first)
+    assert set(seen) == {settings.openrouter_model} and result["total_tokens"] == 80

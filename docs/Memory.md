@@ -13,6 +13,7 @@ Facts a new contributor (or a new session) needs. Dates are when the decision wa
 | 2026-11-03 | Embeddings `BAAI/bge-m3` | German and English retrieval; weights cached once in a Docker volume |
 | 2026-11-03 | Keep token and API use minimal | caching of validated results, retrieval instead of whole documents, caps, no retry loops |
 | 2026-11-04 | Automatic drafts after an audit, capped | worst gaps first, one per gap type, default 4 per audit |
+| 2026-11-16 | Draft cap raised from 4 to 20, drafts written 4 at a time | user's request ("don't just give the limit of 4 drafts"); one draft per distinct objective or topic, findings of several checks about the same thing merged; free tier: set `GENERATION_MAX_ITEMS_PER_RUN=4` |
 | 2026-11-04 | Projected scores after approved drafts | labelled as projections, capped at 95% |
 | 2026-11-05 | UI stays simple with larger text | a dark "Console" redesign with a light/dark switch was built and judged to look dated and over-designed; the simple UI was restored |
 | 2026-11-05 | Code shared in the team repository under its own folder | `test umang/` in `sarathRajendran123/Lectio_app` |

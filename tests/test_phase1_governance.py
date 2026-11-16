@@ -309,7 +309,9 @@ def test_run_trace_is_ordered_linked_and_verifies(audited, client, headers):
     tools = [e for e in events if e["event_type"] == "tool_call"]
     assert all(e["task_id"] and e["agent"] for e in tools)                  # every tool call belongs to a task and an agent
     assert all("query_fingerprint" in e["payload"] and "query" not in e["payload"] for e in tools if e["payload"]["tool"] == "retrieve")
-    assert {e["payload"]["tool"] for e in tools} == {"retrieve", "delivery_verification"}
+    assert {e["payload"]["tool"] for e in tools} == {"retrieve", "delivery_verification", "draft_plan"}   # draft_plan added 2026-11-16
+    plan = next(e["payload"] for e in tools if e["payload"]["tool"] == "draft_plan")
+    assert plan["drafts_planned"] <= plan["cap"] and plan["drafts_planned"] <= plan["findings_considered"]
 
 
 def test_trace_refuses_update_and_delete_and_detects_tampering(client, headers):

@@ -1,6 +1,6 @@
 # Defect suite report
 
-Run 2026-11-16T03:16:22+00:00, mode local_test. Synthetic input made to provoke errors; a result here is a place to look.
+Run 2026-11-16T03:40:55+00:00, mode local_test. Synthetic input made to provoke errors; a result here is a place to look.
 
 ## Part 1: broken files
 
@@ -8,34 +8,34 @@ Run 2026-11-16T03:16:22+00:00, mode local_test. Synthetic input made to provoke 
 
 | Case | File | Outcome | Detail | Problem |
 |---|---|---|---|---|
-| F01 empty file | `empty.txt` | refused with a reason (422, 0.0 s) | File is empty. |  |
+| F01 empty file | `empty.txt` | refused with a reason (422, 0.1 s) | File is empty. |  |
 | F02 only spaces and line breaks | `blank.txt` | refused with a reason (422, 0.0 s) | Empty or binary text document. |  |
 | F03 random bytes named .pdf | `random.pdf` | refused with a reason (422, 0.0 s) | File content does not match declared type '.pdf'. Upload was rejected for security reasons. |  |
-| F04 PDF header followed by garbage | `truncated.pdf` | refused with a reason (201, 0.4 s) | The file could not be read as PDF. It may be damaged or incomplete; export or save it again and upload the new |  |
-| F05 valid PDF with one blank page (like a scan) | `scan.pdf` | refused with a reason (201, 0.4 s) | No extractable text. For scanned PDFs, install Tesseract or upload a text/OCR version. |  |
-| F06 zip archive named .docx | `notes.docx` | refused with a reason (422, 0.0 s) | Invalid Office document structure. |  |
-| F07 Word document with no text | `empty.docx` | refused with a reason (201, 0.4 s) | The document contains no text. |  |
-| F08 valid Word document with German text | `Übung.docx` | processed (201, 0.7 s) | 1 passage(s) |  |
-| F09 text saved as Latin-1 with umlauts | `latin1.txt` | refused with a reason (422, 0.0 s) | Text documents must be UTF-8 encoded. |  |
-| F10 text saved as UTF-16 | `utf16.txt` | refused with a reason (422, 0.0 s) | Text documents must be UTF-8 encoded. |  |
-| F11 text with a byte-order mark (as Notepad saves it) | `bom.txt` | processed (201, 0.7 s) | 1 passage(s) |  |
-| F12 text containing zero bytes | `nul.txt` | refused with a reason (422, 0.0 s) | Empty or binary text document. |  |
+| F04 PDF header followed by garbage | `truncated.pdf` | refused with a reason (201, 0.9 s) | The file could not be read as PDF. It may be damaged or incomplete; export or save it again and upload the new |  |
+| F05 valid PDF with one blank page (like a scan) | `scan.pdf` | refused with a reason (201, 0.9 s) | No extractable text. For scanned PDFs, install Tesseract or upload a text/OCR version. |  |
+| F06 zip archive named .docx | `notes.docx` | refused with a reason (422, 0.1 s) | Invalid Office document structure. |  |
+| F07 Word document with no text | `empty.docx` | refused with a reason (201, 0.8 s) | The document contains no text. |  |
+| F08 valid Word document with German text | `Übung.docx` | processed (201, 1.5 s) | 1 passage(s) |  |
+| F09 text saved as Latin-1 with umlauts | `latin1.txt` | refused with a reason (422, 0.1 s) | Text documents must be UTF-8 encoded. |  |
+| F10 text saved as UTF-16 | `utf16.txt` | refused with a reason (422, 0.1 s) | Text documents must be UTF-8 encoded. |  |
+| F11 text with a byte-order mark (as Notepad saves it) | `bom.txt` | processed (201, 1.1 s) | 1 passage(s) |  |
+| F12 text containing zero bytes | `nul.txt` | refused with a reason (422, 0.1 s) | Empty or binary text document. |  |
 | F13 program file | `tool.exe` | refused with a reason (422, 0.0 s) | File type '.exe' is not allowed. Accepted: pdf, docx, pptx, txt, md, vtt |  |
 | F14 double extension | `lecture.pdf.exe` | refused with a reason (422, 0.0 s) | File type '.exe' is not allowed. Accepted: pdf, docx, pptx, txt, md, vtt |  |
-| F15 no extension | `lecture` | refused with a reason (422, 0.0 s) | File has no extension. |  |
-| F16 file name that tries to leave the upload folder | `../../outside.txt` | processed (201, 0.7 s) | 1 passage(s) |  |
-| F17 file name with umlauts, spaces and a dash | `Vorlesung Übung – 01.txt` | processed (201, 0.7 s) | 1 passage(s) |  |
-| F18 file name of 300 characters | `aaaaaaaaaaaaaaaaaaaa…aaaa.txt` | processed (201, 0.8 s) | 1 passage(s) |  |
-| F19 one 2 MB line without any space | `oneline.txt` | refused with a reason (201, 0.8 s) | The document contains no readable text: fewer than 3 different words were found. |  |
-| F20 transcript without timestamps | `plain.vtt` | refused with a reason (201, 0.4 s) | No spoken text was found. A transcript needs cue lines such as "00:00:01.000 --> 00:00:05.000", each followed  |  |
-| F21 transcript with a broken timestamp line | `broken.vtt` | refused with a reason (201, 0.4 s) | No spoken text was found. A transcript needs cue lines such as "00:00:01.000 --> 00:00:05.000", each followed  |  |
-| F22 valid transcript | `good.vtt` | processed (201, 0.7 s) | 1 passage(s) |  |
-| F23 Markdown with headings only | `headings.md` | processed (201, 0.8 s) | 3 passage(s) |  |
-| F24 only digits and symbols | `symbols.txt` | refused with a reason (201, 0.7 s) | The document contains no readable text: fewer than 3 different words were found. |  |
-| F25 text file declared as PDF by the browser | `declared.txt` | refused with a reason (422, 0.0 s) | MIME type does not match the file extension. |  |
-| F26 unknown document type chosen | `kind.txt` | refused with a reason (422, 0.0 s) | artifact_type must be one of: syllabus, slides, assignment, transcript, module_manual, other, exam, assessment |  |
-| F27 script tags and SQL in the text | `inject.txt` | processed (201, 0.7 s) | 1 passage(s) |  |
-| F28 the same file a second time | `bom.txt` | refused with a reason (409, 0.0 s) | This file was already uploaded (artifact id: 855b059d-cce1-43f1-af52-4f8f942f4849). |  |
+| F15 no extension | `lecture` | refused with a reason (422, 0.1 s) | File has no extension. |  |
+| F16 file name that tries to leave the upload folder | `../../outside.txt` | processed (201, 1.1 s) | 1 passage(s) |  |
+| F17 file name with umlauts, spaces and a dash | `Vorlesung Übung – 01.txt` | processed (201, 1.2 s) | 1 passage(s) |  |
+| F18 file name of 300 characters | `aaaaaaaaaaaaaaaaaaaa…aaaa.txt` | processed (201, 1.1 s) | 1 passage(s) |  |
+| F19 one 2 MB line without any space | `oneline.txt` | refused with a reason (201, 1.2 s) | The document contains no readable text: fewer than 3 different words were found. |  |
+| F20 transcript without timestamps | `plain.vtt` | refused with a reason (201, 0.5 s) | No spoken text was found. A transcript needs cue lines such as "00:00:01.000 --> 00:00:05.000", each followed  |  |
+| F21 transcript with a broken timestamp line | `broken.vtt` | refused with a reason (201, 0.5 s) | No spoken text was found. A transcript needs cue lines such as "00:00:01.000 --> 00:00:05.000", each followed  |  |
+| F22 valid transcript | `good.vtt` | processed (201, 1.1 s) | 1 passage(s) |  |
+| F23 Markdown with headings only | `headings.md` | processed (201, 1.2 s) | 3 passage(s) |  |
+| F24 only digits and symbols | `symbols.txt` | refused with a reason (201, 1.2 s) | The document contains no readable text: fewer than 3 different words were found. |  |
+| F25 text file declared as PDF by the browser | `declared.txt` | refused with a reason (422, 0.1 s) | MIME type does not match the file extension. |  |
+| F26 unknown document type chosen | `kind.txt` | refused with a reason (422, 0.1 s) | artifact_type must be one of: syllabus, slides, assignment, transcript, module_manual, other, exam, assessment |  |
+| F27 script tags and SQL in the text | `inject.txt` | processed (201, 1.1 s) | 1 passage(s) |  |
+| F28 the same file a second time | `bom.txt` | refused with a reason (409, 0.1 s) | This file was already uploaded (artifact id: 785b1052-d39f-47e1-b4b9-1f87a5ec2bbd). |  |
 
 ## Part 2: planted misalignments
 
@@ -88,8 +88,8 @@ Scores: content assessment 44%, content delivery 61%, metadata assessment 50%, m
 
 Findings that match no planted defect (3):
 
-- content delivery / topic_not_delivered (warning): Week 4 topic 'Dynamische Programmierung' has no corresponding slides or transcript content.
 - content assessment / topic_not_assessed (warning): Topic 'Graphen und Tiefensuche' has lecture content but no assessment questions.
 - content assessment / topic_not_assessed (warning): Topic 'Dynamische Programmierung' has lecture content but no assessment questions.
+- content delivery / topic_not_delivered (warning): Week 4 topic 'Dynamische Programmierung' has no corresponding slides or transcript content.
 
 Objectives the system extracted: EXT-1 [understand] Die Studierenden können die binäre Suche in einem sortierten Array erk; EXT-2 [understand] Die Studierenden können Verkettung und offene Adressierung bei Kollisi; EXT-3 [apply] Die Studierenden können die Tiefensuche auf einen Graphen anwenden.; EXT-4 [create] Die Studierenden können Lösungen mit dynamischer Programmierung für da.

@@ -303,10 +303,9 @@ class RAGService:
         )
 
     def _load_sparse_chunks(self, course_id):
-        from agents.base_agent import BaseAgent
-        from rag.local_service import LocalRAGService
+        from rag import course_cache
         return [{"chunk_id": c.chunk_id, "text": c.text, "metadata": dict(c.metadata,
             artifact_id=c.artifact_id, course_id=c.course_id, artifact_type=c.artifact_type,
             page_number=c.page_number or -1, slide_number=c.slide_number or -1,
             section_title=c.section_title or "", week_number=c.week_number or -1)}
-            for c in BaseAgent._run_async(LocalRAGService().load(course_id))]
+            for c in course_cache.get(course_id).passages]

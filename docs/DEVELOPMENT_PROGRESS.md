@@ -394,3 +394,19 @@ Baseline before this part: 324 passed, 2 skipped.
 **Verified:** 5 new tests in `tests/test_agents.py` (language detection, objective-based prompt and search, topic search and fallback, teaching-material-only search, request language in the workbench); full suite on SQLite **329 passed, 2 skipped**; defect suite unchanged. Total provider spend for all live work so far: $0.376 of the $50 limit.
 
 **Next (per the master prompt, superseded by the readiness report):** evaluation pipeline; experiment runner; live alignment feedback; PostgreSQL/CI.
+
+## Faster audits and more drafts (2026-11-16)
+
+Baseline before this part: 329 passed, 2 skipped.
+
+Why audits were slow: on the MWI course (3,407 passages, 13 slide decks) each search took about 3.5 s. Profiling showed that about 3.3 s of it was reading every passage of the course from the database, twice, and decoding every stored 1,024-number vector from JSON, then computing cosine similarity in pure Python. An audit runs several hundred searches. Model inference (query embedding about 0.1 s, cross-encoder reranking about 0.7 s) was the smaller part.
+
+- **Per-course cache** (`rag/course_cache.py`). A course's passages and a normalised numpy matrix of its vectors are read once and reused. Before each use, one small query (count, newest creation and embedding time, embedding models of the processed passages) checks whether the course changed; if so it is read again. Removing a document also drops the course from the cache. At most 8 courses are kept. The vector store, the keyword index and the offline service read from it. Dense search went from 1.78 s to 0.019 s; on 7 queries, each with and without the teaching-material filter, the old and new search returned the same passages with the same scores (one tie in a different order, score difference 0.0).
+- **Reranker scores reused** within a process for the same query and passage.
+- **Measured on the MWI course without a model** (neural retrieval, key blanked, drafts off): the audit took **142 s instead of 516 s**, scores unchanged (0.47 and 0.69). The 12 "objective not covered" findings are identical; the "taught but not in the manual" findings differ (6 instead of 3) because the earlier run predates the title rules committed earlier the same day, not because of the cache. Upload and embedding time is unchanged by this work and varied with machine load (559 s and 1,339 s).
+- **More drafts.** The automatic draft cap is now 20 per audit (was 4; `GENERATION_MAX_ITEMS_PER_RUN`), on the user's request. `plan_drafts` groups findings by draft type and subject (objective id, topic name, or the finding's wording), so findings from several checks about the same objective get one draft, not several; the most severe finding leads and the others are recorded in a `draft_plan` trace event with the counts. Selection is still worst first and one per gap type before a second of any type.
+- **Drafts written in parallel**, 4 at a time (`GENERATION_CONCURRENCY`). Each draft keeps its own model choice for the quality-gate retry (thread-local), and every thread carries the trace context. Results keep the planned order.
+
+**Verified:** 3 new tests (course cache reloads after a change; findings about the same objective are merged and the cap holds; drafts run concurrently and keep their order); two existing tests changed (draft cap 4 to 20; the stale-vector test now feeds the cache) and one extended (`draft_plan` is a known trace tool); defect suite unchanged (no false finding on the clean course, all planted ones found).
+
+**Not verified:** a live audit with 20 drafts (cost and time with the paid model); the free tier allows about 50 requests a day, so free-tier users should set the cap back to 4. Parallel drafts on SQLite were only run with the deterministic test drafts.

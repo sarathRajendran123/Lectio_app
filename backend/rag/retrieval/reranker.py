@@ -31,6 +31,12 @@ RERANK_MODEL  = "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1"
 MIN_SCORE     = -5.0   # raw logit threshold (very permissive; tune upwards if noise)
 
 
+class _Scores(list):
+    """A plain list with the `.tolist()` the code below expects from the model's array."""
+    def tolist(self):
+        return list(self)
+
+
 class CrossEncoderReranker:
     """
     Reranks a list of RetrievedChunks using a cross-encoder model.
@@ -42,6 +48,7 @@ class CrossEncoderReranker:
     def __init__(self, model_name: str = RERANK_MODEL):
         self.model_name = model_name
         self._model     = None
+        self._scores    = {}      # (query, passage text) -> raw score; an audit asks the same question in several checks
 
     @classmethod
     def get_instance(cls) -> "CrossEncoderReranker":
@@ -88,8 +95,13 @@ class CrossEncoderReranker:
 
         self._load()
 
-        pairs  = [(query, c.text) for c in chunks]
-        scores = self._model.predict(pairs)
+        pairs   = [(query, c.text) for c in chunks]
+        missing = list(dict.fromkeys(pair for pair in pairs if pair not in self._scores))
+        if missing:
+            if len(self._scores) > 50_000:
+                self._scores.clear()
+            self._scores.update(zip(missing, (float(x) for x in self._model.predict(missing))))
+        scores = _Scores([self._scores[pair] for pair in pairs])
 
         scored = sorted(
             zip(chunks, scores.tolist()),

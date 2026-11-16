@@ -28,6 +28,26 @@ logger = logging.getLogger(__name__)
 _SEVERITY = {'critical': 0, 'warning': 1}
 
 
+def plan_drafts(gaps, limit):
+    """One draft per thing that needs one: findings of several checks about the same objective or topic that call for
+    the same kind of draft are merged, keeping the most severe. Returns [(gap, merged_gap_ids)], worst first, one per
+    gap type before a second of any type, at most `limit`."""
+    import re
+    def subject(g):
+        if g.affected_entity_id:
+            return f"{g.affected_entity_type}:{g.affected_entity_id}"
+        topic = re.search(r"[Tt]opic '([^']+)'", g.description or "")
+        if topic:
+            return "topic:" + topic.group(1).strip().lower()
+        return "finding:" + " ".join(re.findall(r"\w+", (g.description or "").lower()))[:160]
+    groups = {}
+    for g in sorted(gaps, key=lambda g: (_SEVERITY.get(g.severity, 2), g.score)):
+        groups.setdefault((DRAFT_TYPE.get(g.gap_type, "clo"), subject(g)), []).append(g)
+    lead = {group[0].gap_id: [g.gap_id for g in group[1:]] for group in groups.values()}
+    picked = pick_gaps([group[0] for group in groups.values()], limit)
+    return [(g, lead[g.gap_id]) for g in picked]
+
+
 def pick_gaps(gaps, limit):
     """Worst gaps first, one per gap type before a second of any type, so the cap spreads across problems."""
     ordered = sorted(gaps, key=lambda g: (_SEVERITY.get(g.severity, 2), g.score))
@@ -64,7 +84,9 @@ class ContentGenerationAgent(BaseAgent):
             )
         ]
         from config import settings
-        actionable = pick_gaps(actionable, settings.generation_max_items_per_run)
+        considered = len(actionable)
+        planned    = plan_drafts(actionable, settings.generation_max_items_per_run)
+        actionable = [g for g, _ in planned]
 
         if not actionable:
             logger.info("[Generation] No actionable gaps — skipping generation")
@@ -84,11 +106,18 @@ class ContentGenerationAgent(BaseAgent):
         errors       = list(state.get("error_log", []))
         failures     = 0
         self._failure_reasons = []
-
-        for gap in actionable:
-            item, tokens = self._generate_for_gap(
-                gap, course_id, state, preferences
-            )
+        import threading
+        from concurrent.futures import ThreadPoolExecutor
+        from services import trace
+        self._local = threading.local()          # each draft thread keeps its own model choice
+        trace.emit("tool_call", {"tool": "draft_plan", "findings_considered": considered, "drafts_planned": len(planned),
+                                 "merged": {g.gap_id: merged for g, merged in planned if merged}, "cap": settings.generation_max_items_per_run,
+                                 "concurrency": settings.generation_concurrency})
+        # Drafts are independent model calls: write several at a time; results keep the planned order.
+        work = [trace.bind(lambda gap=gap: self._generate_for_gap(gap, course_id, state, preferences)) for gap in actionable]
+        with ThreadPoolExecutor(max_workers=max(1, settings.generation_concurrency)) as pool:
+            outcomes = list(pool.map(lambda job: job(), work))
+        for item, tokens in outcomes:
             if item:
                 generated.append(item)
             else:
@@ -158,7 +187,9 @@ class ContentGenerationAgent(BaseAgent):
         from services.intent import ref as intent_ref
         spent = [0]
         def generate(extra, model):
-            self._model = model                     # a retry may be reassigned to another model
+            import threading
+            # a retry may be reassigned to another model (per draft thread); run() creates _local, a direct call may not
+            self.__dict__.setdefault("_local", threading.local()).model = model
             item, tokens = handler(gap, course_id, state, extra)
             spent[0] += tokens
             return SimpleNamespace(content=item.content, citations=item.citations, model=model or settings.openrouter_model, tokens_used=tokens, item=item)
@@ -185,7 +216,7 @@ class ContentGenerationAgent(BaseAgent):
         rule = getattr(self, "_language", None)
         if rule:
             kwargs["extra_instructions"] = "\n".join(p for p in (kwargs.get("extra_instructions"), rule) if p)
-        return self._get_rag().generate(model=getattr(self, "_model", None), **kwargs)
+        return self._get_rag().generate(model=getattr(getattr(self, "_local", None), "model", None), **kwargs)
 
     def _objective_template(self):
         """The sentence frame for an objective, in the course's language (an English frame made German drafts mixed)."""

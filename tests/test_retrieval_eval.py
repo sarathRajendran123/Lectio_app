@@ -124,3 +124,29 @@ def test_reranking_changes_the_order_but_passages_keep_their_similarity_score():
     assert [c.score for c in result] == [0.59, 0.81, 0.62]                                      # each passage's own similarity
     assert [c.metadata["rerank_score"] for c in result] == [0.23, 0.05, 0.03]                   # the reranker's view, kept
     assert [c.chunk_id for c in service.retrieve("query", "course-1", top_k=3, rerank=False)] == ["c1", "c2", "c3"]
+
+
+def test_the_course_cache_reloads_only_when_the_course_changes(client, headers):
+    """Each search used to read all passages twice and decode every vector; now they are read once per course change."""
+    import asyncio
+    from rag import course_cache
+    course = client.post("/api/v1/courses", headers=headers, json={"code": "CACHE-1", "title": "Cache"}).json()["id"]
+    base = f"/api/v1/courses/{course}"
+
+    def upload(name, text):
+        r = client.post(base + "/artifacts", headers=headers, data={"artifact_type": "slides"}, files={"file": (name, text.encode(), "text/plain")})
+        assert r.status_code == 201, r.text
+        return r.json()["id"]
+
+    upload("one.txt", "Binary search halves the search space of a sorted array in every step.")
+    first = asyncio.run(course_cache.aget(course))
+    assert asyncio.run(course_cache.aget(course)) is first                                   # unchanged course: no reload
+    copies = first.copies()
+    copies[0].score = 0.9
+    assert first.passages[0].score == 0.0                                                    # callers get copies they may change
+    second_id = upload("two.txt", "Hash tables map keys to slots with a hash function and handle collisions.")
+    second = asyncio.run(course_cache.aget(course))
+    assert second is not first and len(second.passages) == len(first.passages) + 1            # a new document is seen at once
+    assert client.delete(base + f"/artifacts/{second_id}", headers=headers).status_code == 204
+    third = asyncio.run(course_cache.aget(course))
+    assert len(third.passages) == len(first.passages)                                         # and a deleted one disappears

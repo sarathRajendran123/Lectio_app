@@ -46,11 +46,8 @@ class LocalRAGService:
         return len(chunks)
 
     async def load(self, course_id):
-        async with AsyncSessionLocal() as db:
-            rows = (await db.execute(select(Chunk, CourseArtifact).join(CourseArtifact, Chunk.artifact_id == CourseArtifact.id)
-                .where(Chunk.course_id == UUID(str(course_id)), CourseArtifact.processing_status == 'done'))).all()
-            return [RetrievedChunk(str(c.id),c.text,0.,str(c.artifact_id),a.artifact_type,str(c.course_id),
-                c.page_number,c.slide_number,c.section_title,c.week_number,dict(c.metadata_ or {},filename=a.original_filename)) for c,a in rows]
+        from rag import course_cache
+        return (await course_cache.aget(course_id)).copies()      # read once per course change, not per search
 
     def retrieve(self, query, course_id, top_k=10, where=None, **kwargs):
         from agents.base_agent import BaseAgent

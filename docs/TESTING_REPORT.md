@@ -46,7 +46,7 @@ Docker image build and `docker compose up`; PostgreSQL deployment (one test skip
 
 ## How to run
 ```bash
-python -m pytest -q                       # full suite (329 passed, 2 skipped on SQLite, 2026-11-16; 299 passed on PostgreSQL, 2026-11-13)
+python -m pytest -q                       # full suite (332 passed, 2 skipped on SQLite, 2026-11-16; 299 passed on PostgreSQL, 2026-11-13)
 LECTIO_SKIP_MODEL_TESTS=1 python -m pytest -q   # skip the real-model tests
 python scripts/verify_live.py             # needs OPENROUTER_API_KEY
 python scripts/run_dataset.py datasets/en_algorithms   # against a running local API
@@ -56,6 +56,25 @@ python scripts/run_dataset.py datasets/en_algorithms   # against a running local
 
 `python -m pytest -q`: **77 passed, 1 skipped** (about 85 s). New file `tests/test_phase1_governance.py` (17 tests): intent versioning and validation; intent on every audit event and hand-over; a changed intent reaching later runs while earlier runs keep theirs; intent and constraints in the model prompt; decisions becoming constraints, supersede, retire, general vs course scope; a rejected draft not passing again; gate scoring; gate retry with adjusted instructions, intent kept and model switched; retry limit and no false pass; failed generations recorded; per-model-call logging without prompt text or secrets; trace order, linkage and hash-chain verification; ORM, SQL and tamper detection; briefing in plain language; per-finding and per-draft trace.
 Failures found while writing them and fixed: gate relevance compared singular and plural words as different (now 5-letter stems); a test assumed one start event per director task.
+
+## Update 2026-11-16 (faster search, more drafts)
+
+Baseline 329 passed, 2 skipped. After: **332 passed, 2 skipped** on SQLite (593 s; the suite took about 10 minutes both before and after the change on this machine, and the same two files took 67 s with the draft cap at 4 and at 20, so the cap is not the cause).
+
+| Test | What it shows |
+|---|---|
+| the course cache reloads after the course changes | a second read is served from the cache; a new passage changes the fingerprint and is found |
+| findings about the same objective get one draft | two checks about one objective give one planned draft, the merged id is recorded, the cap holds |
+| drafts are written concurrently and keep their order | several drafts in flight at once; results in planned order |
+
+Changed tests (assumptions outdated by the requested change, not to turn a failure green):
+- `test_auto_generation_is_capped_and_spread_over_gap_types`: the default cap is now 20 (was 4), as the user asked; the spread rule is checked unchanged with a limit of 4.
+- `test_vectors_from_another_embedding_model_are_ignored`: passages now come from the course cache, so the test supplies the cache instead of the database rows; the expectation (stale vectors ignored) is unchanged.
+- `test_run_trace_is_ordered_linked_and_verifies`: `draft_plan` added to the known tool events, with a check that the planned drafts stay within the cap.
+
+Found during the run and fixed: a direct call of the draft writer (without `run`) failed because the per-thread model holder did not exist yet (`test_a_weak_automatic_draft_is_reassigned_to_another_model`).
+
+Defect suite: unchanged (no problems reported; clean course without findings; English and German planted defects found as before, 8 and 5). Real course without a model: audit 142 s instead of 516 s (`docs/DEVELOPMENT_PROGRESS.md`). Not run: a live audit with 20 drafts.
 
 ## Update 2026-11-16 (drafts aimed at the objective)
 

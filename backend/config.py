@@ -25,7 +25,8 @@ class Settings(BaseSettings):
     runtime_mode: Literal["live", "local_test"] = "live"
     retrieval_backend: Literal["neural", "lexical"] = "neural"
     generation_auto_enabled: bool = True   # draft fixes for the worst gaps after an audit (capped; the lecturer can also request more)
-    generation_max_items_per_run: int = 4  # free-tier friendly: most severe gaps, one per gap type first
+    generation_max_items_per_run: int = 20  # one draft per distinct gap up to this cap (free tier, about 50 requests a day: use 4)
+    generation_concurrency: int = 4         # drafts written at the same time; each is one model call plus at most one retry
     paperclip_api_url: str = ""
     paperclip_api_key: str = ""
     paperclip_company_id: str = ""

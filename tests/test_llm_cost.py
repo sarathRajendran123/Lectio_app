@@ -103,7 +103,7 @@ def test_secrets_never_in_health_or_status(monkeypatch):
 def test_auto_generation_is_capped_and_spread_over_gap_types():
     from agents.content_generation_agent import pick_gaps
     from agents.graph.state import AlignmentGap
-    assert settings.generation_auto_enabled and settings.generation_max_items_per_run == 4
+    assert settings.generation_auto_enabled and settings.generation_max_items_per_run == 20      # raised from 4 on request (2026-11-16)
     mk = lambda t, sev, score: AlignmentGap(f'{t}{score}', t, sev, 'd', 'clo', None, score, 'r')
     gaps = [mk('topic_not_assessed', 'warning', .1), mk('topic_not_assessed', 'warning', .2), mk('topic_not_assessed', 'warning', .3),
             mk('bloom_level_mismatch', 'warning', .5), mk('clo_not_covered', 'critical', .9)]
@@ -138,21 +138,18 @@ def test_embedding_cache_reuses_vectors_and_prefixes(monkeypatch, tmp_path):
 
 
 def test_vectors_from_another_embedding_model_are_ignored(monkeypatch):
-    from types import SimpleNamespace as NS
+    import numpy as np
+    from rag import course_cache
+    from rag.chunking.chunk_models import RetrievedChunk
     from vector_db.sql_vector_store import SQLVectorStore
     monkeypatch.setattr(settings, "runtime_mode", "live")
     monkeypatch.setattr(settings, "retrieval_backend", "neural")
     monkeypatch.setattr(settings, "embedding_model", "BAAI/bge-m3")
-    mk = lambda cid, model: NS(id=cid, text="t", course_id="c", page_number=1, slide_number=None, section_title=None,
-                               week_number=None, embedding_model=model, metadata_={"vector": [1.0, 0.0]})
-    art = NS(id="a", artifact_type="slides", original_filename="f.txt")
-    rows = [(mk("new", "BAAI/bge-m3"), art), (mk("old", "BAAI/bge-large-en-v1.5"), art)]
-
-    async def fake_rows(course_id):
-        return rows
-    store = SQLVectorStore()
-    monkeypatch.setattr(store, "_rows", fake_rows)
-    assert [c.chunk_id for c in store.query("c", [1.0, 0.0])] == ["new"]
+    passages = [RetrievedChunk(cid, "t", 0., "a", "slides", "c", 1, None, None, None, {"vector": [1.0, 0.0], "filename": "f.txt"}) for cid in ("new", "old")]
+    corpus = course_cache.Corpus(("fingerprint",), passages, ["BAAI/bge-m3", "BAAI/bge-large-en-v1.5"],
+                                 np.array([[1.0, 0.0], [1.0, 0.0]], dtype=np.float32), np.array([0, 1]), 2)
+    monkeypatch.setattr(course_cache, "get", lambda course_id: corpus)     # the passages now come from the per-course cache
+    assert [c.chunk_id for c in SQLVectorStore().query("c", [1.0, 0.0])] == ["new"]
 
 
 def test_truncated_output_is_an_error_and_not_cached(llm, monkeypatch):

@@ -9,7 +9,7 @@
 
 ## Where calls are avoided
 - **LLM result cache** (`$ARTIFACT_STORAGE_PATH/.llm_cache`): key = model, temperature, token cap and full prompt. Only output that passed schema/citation validation is stored, so a bad answer is retried, never replayed. Cached hits report 0 tokens. `LLM_CACHE_ENABLED=false` disables.
-- **Capped automatic drafts**: after an audit, `GENERATION_AUTO_ENABLED=true` (default) drafts fixes for the worst gaps only, at most `GENERATION_MAX_ITEMS_PER_RUN=4`, one per gap type first, critical before warning. Re-running an unchanged audit reuses cached text and adds no duplicate drafts. Lecturers can request more via Create drafts (up to 3 alternatives).
+- **Capped automatic drafts**: after an audit, `GENERATION_AUTO_ENABLED=true` (default) drafts one fix per distinct objective or topic with a gap (findings of several checks about the same thing share one draft), at most `GENERATION_MAX_ITEMS_PER_RUN` (20 since 2026-11-16; set 4 on the free tier), one per gap type first, critical before warning, `GENERATION_CONCURRENCY` (4) at a time. Each draft is one model call, plus one retry if the quality check rejects it. Re-running an unchanged audit reuses cached text and adds no duplicate drafts. Lecturers can request more via Create drafts (up to 3 alternatives).
 - **Embedding cache** (`.embed_cache`): content-addressed by model + text; re-uploads, ingestion retries and unchanged slides are not re-embedded. Query vectors are memoised in-process.
 - **Stored vectors reused** for topic clustering (previously every chunk was re-embedded one by one).
 - **Retrieval only**: prompts contain at most ~12k characters of retrieved chunks; output capped by `LLM_MAX_TOKENS_AUDIT` / `LLM_MAX_TOKENS_GENERATION` (2000).
