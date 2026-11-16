@@ -72,6 +72,8 @@ class MetadataContentAlignmentAgent(BaseAgent):
         total_tokens = 0
         translation_failures = False
         translations = {}
+        from config import settings
+        lexical_live = settings.runtime_mode == 'live' and getattr(settings, 'retrieval_backend', 'neural') == 'lexical'
 
         for clo in all_clos:
             from config import settings
@@ -92,7 +94,7 @@ class MetadataContentAlignmentAgent(BaseAgent):
                 "evidence_chunk_ids": getattr(self,"last_evidence",[]),
                 "search_translation": translated,
                 "translation_status": translation_status,
-                "status":  "needs_review" if translation_status == 'failed' else "pass" if score >= PASS_THRESHOLD else
+                "status":  "needs_review" if translation_status == 'failed' or (lexical_live and score < WARNING_THRESHOLD) else "pass" if score >= PASS_THRESHOLD else
                            "warning" if score >= WARNING_THRESHOLD else "fail",
             })
             if gap:
@@ -107,6 +109,11 @@ class MetadataContentAlignmentAgent(BaseAgent):
         if translation_failures:
             status = 'needs_review'
             findings['translation_notice'] = 'Search translation failed for at least one objective; cross-language coverage is uncertain.'
+        if lexical_live:
+            findings['retrieval_notice'] = ('Lexical retrieval may miss relevant material, especially across languages. '
+                                             'Low scores indicate evidence needing review, not proven missing coverage.')
+            if overall < WARNING_THRESHOLD:
+                status = 'needs_review'
 
         result = AlignmentResult(
             agent_name=self.name,
@@ -163,6 +170,7 @@ class MetadataContentAlignmentAgent(BaseAgent):
                 candidates.extend(self._retrieve(query=query, course_id=course_id, top_k=40,
                     where={"artifact_type": {"$in": ["slides", "transcript", "reading", "other"]}}))
         from agents.evidence_selection import useful_evidence
+        from config import settings
         chunks = useful_evidence(candidates, limit=10)
 
         self.last_evidence = [c.chunk_id for c in chunks[:3]]
@@ -198,7 +206,7 @@ class MetadataContentAlignmentAgent(BaseAgent):
 
         gap = None
         if final < WARNING_THRESHOLD:
-            sev = "critical" if final < 0.4 else "warning"
+            sev = "warning" if settings.runtime_mode == 'live' and getattr(settings, 'retrieval_backend', 'neural') == 'lexical' else ("critical" if final < 0.4 else "warning")
             gap = AlignmentGap(
                 gap_id=str(uuid.uuid4()),
                 gap_type="clo_not_covered",

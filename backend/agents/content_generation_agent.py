@@ -57,7 +57,7 @@ class ContentGenerationAgent(BaseAgent):
             if isinstance(g, AlignmentGap)
             and g.severity in ("critical", "warning")
             and g.gap_type in (
-                "clo_not_covered", "clo_not_assessed",
+                "clo_not_assessed",
                 "topic_not_assessed", "bloom_level_mismatch",
                 "topic_not_delivered",
                 "live_missing_objective", "live_missing_assessment",
@@ -169,7 +169,8 @@ class ContentGenerationAgent(BaseAgent):
             # The Stakeholder gate checks every draft before the lecturer sees it and retries weak ones (bounded).
             with trace.context(task_id=task_id, agent=self.name):
                 best, review = stakeholder_gate.produce(
-                    generate, content_type=DRAFT_TYPE.get(gap.gap_type, "clo"), target=gap.description,
+                    generate, content_type=DRAFT_TYPE.get(gap.gap_type, "clo"),
+                    target=(self._objective(gap, state) or {}).get("text") or self._topic(gap) or gap.description,
                     intent=state.get("course_intent"), constraint_ids=constraint_ids,
                     rejected_fingerprints=getattr(self, "_rejected", set()), guidance=preferences, subject=("gap", gap.gap_id),
                     models=models)

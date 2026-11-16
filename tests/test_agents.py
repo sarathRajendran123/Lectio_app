@@ -64,6 +64,33 @@ def test_generation_marks_empty_action_list_attempted():
     assert result['generation_attempted'] is True
 
 
+def test_uncovered_existing_objective_does_not_generate_a_duplicate_clo(monkeypatch):
+    from agents.content_generation_agent import ContentGenerationAgent
+    agent = ContentGenerationAgent()
+    gap = AlignmentGap('g', 'clo_not_covered', 'warning', 'Existing objective is weakly supported',
+                       'clo', 'existing', .2, 'Review evidence')
+    result = agent.run({'course_id': 'c', 'all_gaps': [gap], 'modules': []})
+    assert result['generation_attempted'] is True
+    assert not result.get('generated_items')
+
+
+def test_draft_quality_check_uses_the_actual_objective_not_a_score_message(monkeypatch):
+    from types import SimpleNamespace
+    from agents.content_generation_agent import ContentGenerationAgent
+    from services import stakeholder_gate
+    captured = {}
+    def fake_produce(generate, **kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(item=SimpleNamespace(review=None)), {'passed': True}
+    monkeypatch.setattr(stakeholder_gate, 'produce', fake_produce)
+    gap = AlignmentGap('g', 'clo_not_assessed', 'warning', 'EXT-2 score 0.24 is below threshold',
+                       'clo', 'obj-1', .24, 'Review assessment')
+    state = {'run_id': 'r', 'modules': [{'clos': [{'id': 'obj-1', 'text': 'Die Studierenden erklären neuronale Netze.'}]}]}
+    item, _ = ContentGenerationAgent()._generate_for_gap(gap, 'c', state, '')
+    assert item is not None
+    assert captured['target'] == 'Die Studierenden erklären neuronale Netze.'
+
+
 def test_live_reviews_are_prefetched_concurrently_and_called_once_each():
     import json, threading
     from agents.live_review import DIMENSIONS, augment, prefetch

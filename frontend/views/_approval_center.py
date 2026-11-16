@@ -77,8 +77,13 @@ def _render_approval_card(client, item: dict, status_filter: str):
         if quality and not quality["passed"]:
             st.warning(f"This draft did not pass the internal quality check ({quality['score']:.0%}, needs {quality['threshold']:.0%}) "
                        f"after {quality['attempts']} attempt(s). " + " ".join(quality.get("issues") or []))
+        elif quality and quality.get("issues"):
+            st.warning("This draft received a passing internal score but the check also recorded concerns: "
+                       + " ".join(quality["issues"]) + " Lecturer review is required.")
         elif quality:
             st.caption(f"Internal quality check passed ({quality['score']:.0%}, {quality['attempts']} attempt(s)). This is a consistency check, not a judgement of teaching quality.")
+        if quality:
+            st.caption("A validated quote confirms source text, not that it supports the whole draft. The novelty check only compares previously rejected drafts, not existing learning objectives.")
         if item.get("rationale"):
             st.caption("Why this draft: " + item["rationale"])
         if st.checkbox("How was this draft produced?", key=f"trace_{content_id}"):

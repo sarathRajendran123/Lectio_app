@@ -152,6 +152,8 @@ def show_workbench():
                     if details.get('note') or details.get('error'):st.info(details.get('note') or details['error'])
                     if details.get('live_review_failure'):st.warning(details['live_review_failure'])
                     if meta['report_type'] == 'metadata_content':
+                        if details.get('retrieval_notice'):
+                            st.info(details['retrieval_notice'])
                         if details.get('translation_notice'):
                             st.warning(details['translation_notice'])
                         for objective in details.get('clo_scores', []):
@@ -202,7 +204,8 @@ def show_workbench():
                     stored={g['id']:g for g in report.get('gaps',[])}
                     for gap in findings.get('gaps',[]):
                         if gap['severity'] not in severity:continue
-                        st.markdown('**'+gap['gap_type'].replace('_',' ').title()+'**')
+                        gap_label = 'Learning objective: evidence needs review' if gap['gap_type'] == 'clo_not_covered' else gap['gap_type'].replace('_',' ').title()
+                        st.markdown('**'+gap_label+'**')
                         st.write(gap['description']);st.write('Suggested action: '+gap['recommendation'])
                         if gap.get('dismissed_by'):st.caption('You dismissed this finding in an earlier review. It is listed for completeness.')
                         if st.checkbox('How was this finding produced?',key='trace'+gap['gap_id']):

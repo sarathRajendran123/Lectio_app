@@ -52,7 +52,12 @@ def assess(text: str, citations: list, *, content_type: str, target: str, intent
     overlap = len(wanted & found) / len(wanted) if wanted else 1.0
     relevance = min(1.0, overlap / 0.3)
     if relevance < 0.5:
-        issues.append("The draft barely mentions the topic it was asked to address.")
+        from knowledge.language import detect
+        target_language, draft_language = detect([target or ""]), detect([text])
+        if target_language and draft_language and target_language != draft_language:
+            issues.append("Relevance could not be reliably checked across languages; lecturer review required.")
+        else:
+            issues.append("The draft has low word overlap with its target; lecturer review is needed to check relevance.")
     checks["relevance"] = round(relevance, 3)
 
     # intent: stay within the cognitive levels the lecturer intends (neutral when none are stated)
@@ -71,7 +76,7 @@ def assess(text: str, citations: list, *, content_type: str, target: str, intent
         issues.append("This is the same draft the lecturer already rejected.")
 
     score = round(sum(WEIGHTS[k] * checks[k] for k in WEIGHTS), 3)
-    hard_fail = repeated or grounding == 0.0 or structure == 0.0
+    hard_fail = repeated or grounding == 0.0 or structure == 0.0 or relevance < 0.5
     return {"score": score, "threshold": threshold, "passed": score >= threshold and not hard_fail,
             "issues": issues, "checks": checks, "bloom_level": level}
 

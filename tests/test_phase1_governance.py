@@ -197,10 +197,20 @@ def test_gate_scores_good_and_weak_drafts():
     assert not short["passed"]
     off_topic = stakeholder_gate.assess("Question: Describe photosynthesis in green plants and the role of chlorophyll in capturing sunlight for energy?",
                                         CITED, content_type="quiz", target=TARGET, intent=None)
-    assert off_topic["checks"]["relevance"] < .5 and any("barely mentions" in i for i in off_topic["issues"])
+    assert off_topic["checks"]["relevance"] < .5 and not off_topic["passed"]
+    assert any("low word overlap" in i for i in off_topic["issues"])
     wrong_level = stakeholder_gate.assess("Students will be able to design a new hash table collision handling scheme for large tables and justify it.",
                                           CITED, content_type="clo", target=TARGET, intent={"cognitive_levels": ["remember", "understand"]})
     assert wrong_level["checks"]["intent"] < 1 and any("course intent asks for" in i for i in wrong_level["issues"])
+
+
+def test_low_cross_language_overlap_requires_review_instead_of_false_pass():
+    target = "Students can identify privacy challenges and explain societal risks."
+    draft = "Die Studierenden können gesellschaftliche Auswirkungen kritisch erläutern und Verantwortung bewerten."
+    result = stakeholder_gate.assess(draft, CITED, content_type="clo", target=target, intent=None)
+    assert result["checks"]["relevance"] < .5
+    assert result["passed"] is False
+    assert any("across languages" in issue for issue in result["issues"])
 
 
 def _capture(monkeypatch):

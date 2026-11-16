@@ -52,3 +52,17 @@ def test_failed_translation_marks_result_needs_review():
     assert report.status == 'needs_review'
     assert report.findings['clo_scores'][0]['status'] == 'needs_review'
     assert result['total_tokens'] == 4
+
+
+def test_live_lexical_low_score_is_uncertain_not_a_confirmed_failure(monkeypatch):
+    from config import settings
+    monkeypatch.setattr(settings, 'runtime_mode', 'live')
+    monkeypatch.setattr(settings, 'retrieval_backend', 'lexical')
+    agent = MetadataContentAlignmentAgent()
+    monkeypatch.setattr(agent, '_audit_clo', lambda clo, course_id: (.24, None, 0))
+    state = {'course_id': 'course', 'modules': [{'title': 'module', 'clos': [
+        {'id': 'objective', 'text': 'Students can explain neural networks.'}]}], 'total_tokens': 0}
+    report = agent.run(state)['alignment_results']['metadata_content']
+    assert report.status == 'needs_review'
+    assert report.findings['clo_scores'][0]['status'] == 'needs_review'
+    assert 'not proven missing coverage' in report.findings['retrieval_notice']
