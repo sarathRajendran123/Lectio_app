@@ -52,7 +52,7 @@ def show_analytics():
 def _show_alignment_analytics(client, courses):
     st.markdown("#### Alignment Scores Across Courses")
 
-    all_scores = []
+    all_scores, unassessed = [], []
     for course in courses[:10]:  # cap to avoid too many API calls
         reports, _ = safe_api_call(client.list_reports, course["id"])
         if not reports:
@@ -63,6 +63,11 @@ def _show_alignment_analytics(client, courses):
             if rt not in latest or r["generated_at"] > latest[rt]["generated_at"]:
                 latest[rt] = r
         for rt, r in latest.items():
+            label = rt.replace("_", " ↔ ").title()
+            if r["status"] in ("needs_review", "failed"):
+                unassessed.append({"Course": course["code"], "Check": label,
+                                   "Why": r.get("reason") or "Not enough source data."})
+                continue
             all_scores.append({
                 "Course":      course["code"],
                 "Check":       rt.replace("_", " ↔ ").replace("metadata", "Metadata")
@@ -72,8 +77,13 @@ def _show_alignment_analytics(client, courses):
                 "Status":      r["status"],
             })
 
+    if unassessed:
+        st.markdown("##### Not assessable yet")
+        st.caption("These checks had too little source data to score; they are excluded from the averages, not counted as 0%.")
+        st.dataframe(pd.DataFrame(unassessed), width="stretch", hide_index=True)
     if not all_scores:
-        empty_state("No Report Data", "Run audits to see alignment analytics.")
+        if not unassessed:
+            empty_state("No Report Data", "Run audits to see alignment analytics.")
         return
 
     df = pd.DataFrame(all_scores)

@@ -1,0 +1,3081 @@
+{
+  "spec": {
+    "dataset": "datasets/en_algorithms",
+    "repeats": 2,
+    "conditions": [
+      {
+        "name": "baseline",
+        "description": "all four course files, default settings, no course intent, no lecturer rules"
+      },
+      {
+        "name": "no_transcript",
+        "description": "lecture transcript left out (no check of delivered against planned)",
+        "exclude": [
+          ".vtt"
+        ]
+      },
+      {
+        "name": "no_exam",
+        "description": "exam left out",
+        "exclude": [
+          "exam"
+        ]
+      },
+      {
+        "name": "with_intent",
+        "description": "course intent stated: analyse and evaluate levels expected",
+        "intent": {
+          "goals": "Students should be able to analyse and evaluate algorithms, not only describe them.",
+          "cognitive_levels": [
+            "analyse",
+            "evaluate"
+          ]
+        }
+      },
+      {
+        "name": "with_rule",
+        "description": "one lecturer rule recorded before the audit",
+        "constraints": [
+          "Keep exercises short and tied to one lecture."
+        ]
+      },
+      {
+        "name": "no_auto_drafts",
+        "description": "automatic drafts after the audit switched off",
+        "env": {
+          "GENERATION_AUTO_ENABLED": "false"
+        }
+      },
+      {
+        "name": "no_gate_retries",
+        "description": "Stakeholder gate may not ask for a second attempt",
+        "env": {
+          "QUALITY_MAX_RETRIES": "0"
+        }
+      }
+    ]
+  },
+  "mode": "local_test",
+  "started_at": "2026-11-13T09:44:39+00:00",
+  "files": [
+    "exam.txt",
+    "lecture_slides.txt",
+    "lecture_transcript.vtt",
+    "syllabus.md"
+  ],
+  "comparison": {
+    "baseline": "baseline",
+    "conditions": [
+      {
+        "condition": "baseline",
+        "runs": 2,
+        "finished": 2,
+        "statuses": {
+          "waiting_for_human": 2
+        },
+        "scores": {
+          "content_assessment": 0.2771,
+          "content_delivery": 0.6,
+          "metadata_assessment": 0.0,
+          "metadata_content": 0.7116
+        },
+        "not_assessed": {
+          "content_assessment": 0,
+          "content_delivery": 0,
+          "metadata_assessment": 0,
+          "metadata_content": 0
+        },
+        "findings_mean": 18.0,
+        "findings_in_every_run": 18,
+        "findings_in_any_run": 18,
+        "stable": true,
+        "drafts_mean": 2.0,
+        "gate_pass_share": 1.0,
+        "mean_attempts": 1.0,
+        "model_calls_mean": 0.0,
+        "tokens_mean": 0.0,
+        "seconds_mean": 13.1,
+        "trace_valid": true,
+        "against_baseline": null
+      },
+      {
+        "condition": "no_transcript",
+        "runs": 2,
+        "finished": 2,
+        "statuses": {
+          "waiting_for_human": 2
+        },
+        "scores": {
+          "content_assessment": 0.2771,
+          "content_delivery": 0.3767,
+          "metadata_assessment": 0.0,
+          "metadata_content": 0.5606
+        },
+        "not_assessed": {
+          "content_assessment": 0,
+          "content_delivery": 0,
+          "metadata_assessment": 0,
+          "metadata_content": 0
+        },
+        "findings_mean": 17.0,
+        "findings_in_every_run": 17,
+        "findings_in_any_run": 17,
+        "stable": true,
+        "drafts_mean": 2.0,
+        "gate_pass_share": 1.0,
+        "mean_attempts": 1.0,
+        "model_calls_mean": 0.0,
+        "tokens_mean": 0.0,
+        "seconds_mean": 12.2,
+        "trace_valid": true,
+        "against_baseline": {
+          "same_findings": 14,
+          "only_in_baseline": [
+            "content_assessment: bloom_level_mismatch",
+            "content_delivery: delivery_not_covered",
+            "content_delivery: delivery_not_covered",
+            "metadata_assessment: clo_not_assessed"
+          ],
+          "only_here": [
+            "content_assessment: bloom_level_mismatch",
+            "metadata_content: clo_not_covered",
+            "metadata_content: clo_not_covered"
+          ],
+          "overlap": 0.6667,
+          "score_change": {
+            "content_assessment": 0.0,
+            "content_delivery": -0.2233,
+            "metadata_assessment": 0.0,
+            "metadata_content": -0.151
+          }
+        }
+      },
+      {
+        "condition": "no_exam",
+        "runs": 2,
+        "finished": 2,
+        "statuses": {
+          "waiting_for_human": 2
+        },
+        "scores": {
+          "content_assessment": null,
+          "content_delivery": 0.6,
+          "metadata_assessment": null,
+          "metadata_content": 0.7116
+        },
+        "not_assessed": {
+          "content_assessment": 2,
+          "content_delivery": 0,
+          "metadata_assessment": 2,
+          "metadata_content": 0
+        },
+        "findings_mean": 5.0,
+        "findings_in_every_run": 5,
+        "findings_in_any_run": 5,
+        "stable": true,
+        "drafts_mean": 1.0,
+        "gate_pass_share": 1.0,
+        "mean_attempts": 1.0,
+        "model_calls_mean": 0.0,
+        "tokens_mean": 0.0,
+        "seconds_mean": 11.7,
+        "trace_valid": true,
+        "against_baseline": {
+          "same_findings": 5,
+          "only_in_baseline": [
+            "content_assessment: assessment_weak_support",
+            "content_assessment: bloom_level_mismatch",
+            "content_assessment: topic_not_assessed",
+            "content_assessment: topic_not_assessed",
+            "content_assessment: topic_not_assessed",
+            "content_assessment: topic_not_assessed",
+            "content_assessment: topic_not_assessed",
+            "metadata_assessment: clo_not_assessed",
+            "metadata_assessment: clo_not_assessed",
+            "metadata_assessment: clo_not_assessed",
+            "metadata_assessment: clo_not_assessed",
+            "metadata_assessment: clo_not_assessed",
+            "metadata_assessment: clo_not_assessed"
+          ],
+          "only_here": [],
+          "overlap": 0.2778,
+          "score_change": {
+            "content_assessment": null,
+            "content_delivery": 0.0,
+            "metadata_assessment": null,
+            "metadata_content": 0.0
+          }
+        }
+      },
+      {
+        "condition": "with_intent",
+        "runs": 2,
+        "finished": 2,
+        "statuses": {
+          "waiting_for_human": 2
+        },
+        "scores": {
+          "content_assessment": 0.2771,
+          "content_delivery": 0.6,
+          "metadata_assessment": 0.0,
+          "metadata_content": 0.7116
+        },
+        "not_assessed": {
+          "content_assessment": 0,
+          "content_delivery": 0,
+          "metadata_assessment": 0,
+          "metadata_content": 0
+        },
+        "findings_mean": 22.0,
+        "findings_in_every_run": 22,
+        "findings_in_any_run": 22,
+        "stable": true,
+        "drafts_mean": 2.0,
+        "gate_pass_share": 1.0,
+        "mean_attempts": 1.0,
+        "model_calls_mean": 0.0,
+        "tokens_mean": 0.0,
+        "seconds_mean": 13.3,
+        "trace_valid": true,
+        "against_baseline": {
+          "same_findings": 18,
+          "only_in_baseline": [],
+          "only_here": [
+            "metadata_assessment: intent_level_not_assessed",
+            "metadata_assessment: intent_level_not_assessed",
+            "metadata_content: intent_level_without_objective",
+            "metadata_content: intent_level_without_objective"
+          ],
+          "overlap": 0.8182,
+          "score_change": {
+            "content_assessment": 0.0,
+            "content_delivery": 0.0,
+            "metadata_assessment": 0.0,
+            "metadata_content": 0.0
+          }
+        }
+      },
+      {
+        "condition": "with_rule",
+        "runs": 2,
+        "finished": 2,
+        "statuses": {
+          "waiting_for_human": 2
+        },
+        "scores": {
+          "content_assessment": 0.2771,
+          "content_delivery": 0.6,
+          "metadata_assessment": 0.0,
+          "metadata_content": 0.7116
+        },
+        "not_assessed": {
+          "content_assessment": 0,
+          "content_delivery": 0,
+          "metadata_assessment": 0,
+          "metadata_content": 0
+        },
+        "findings_mean": 18.0,
+        "findings_in_every_run": 18,
+        "findings_in_any_run": 18,
+        "stable": true,
+        "drafts_mean": 2.0,
+        "gate_pass_share": 1.0,
+        "mean_attempts": 1.0,
+        "model_calls_mean": 0.0,
+        "tokens_mean": 0.0,
+        "seconds_mean": 13.4,
+        "trace_valid": true,
+        "against_baseline": {
+          "same_findings": 18,
+          "only_in_baseline": [],
+          "only_here": [],
+          "overlap": 1.0,
+          "score_change": {
+            "content_assessment": 0.0,
+            "content_delivery": 0.0,
+            "metadata_assessment": 0.0,
+            "metadata_content": 0.0
+          }
+        }
+      },
+      {
+        "condition": "no_auto_drafts",
+        "runs": 2,
+        "finished": 2,
+        "statuses": {
+          "completed": 2
+        },
+        "scores": {
+          "content_assessment": 0.2771,
+          "content_delivery": 0.6,
+          "metadata_assessment": 0.0,
+          "metadata_content": 0.7116
+        },
+        "not_assessed": {
+          "content_assessment": 0,
+          "content_delivery": 0,
+          "metadata_assessment": 0,
+          "metadata_content": 0
+        },
+        "findings_mean": 18.0,
+        "findings_in_every_run": 18,
+        "findings_in_any_run": 18,
+        "stable": true,
+        "drafts_mean": 0.0,
+        "gate_pass_share": null,
+        "mean_attempts": null,
+        "model_calls_mean": 0.0,
+        "tokens_mean": 0.0,
+        "seconds_mean": 12.9,
+        "trace_valid": true,
+        "against_baseline": {
+          "same_findings": 18,
+          "only_in_baseline": [],
+          "only_here": [],
+          "overlap": 1.0,
+          "score_change": {
+            "content_assessment": 0.0,
+            "content_delivery": 0.0,
+            "metadata_assessment": 0.0,
+            "metadata_content": 0.0
+          }
+        }
+      },
+      {
+        "condition": "no_gate_retries",
+        "runs": 2,
+        "finished": 2,
+        "statuses": {
+          "waiting_for_human": 2
+        },
+        "scores": {
+          "content_assessment": 0.2771,
+          "content_delivery": 0.6,
+          "metadata_assessment": 0.0,
+          "metadata_content": 0.7116
+        },
+        "not_assessed": {
+          "content_assessment": 0,
+          "content_delivery": 0,
+          "metadata_assessment": 0,
+          "metadata_content": 0
+        },
+        "findings_mean": 18.0,
+        "findings_in_every_run": 18,
+        "findings_in_any_run": 18,
+        "stable": true,
+        "drafts_mean": 2.0,
+        "gate_pass_share": 1.0,
+        "mean_attempts": 1.0,
+        "model_calls_mean": 0.0,
+        "tokens_mean": 0.0,
+        "seconds_mean": 13.3,
+        "trace_valid": true,
+        "against_baseline": {
+          "same_findings": 18,
+          "only_in_baseline": [],
+          "only_here": [],
+          "overlap": 1.0,
+          "score_change": {
+            "content_assessment": 0.0,
+            "content_delivery": 0.0,
+            "metadata_assessment": 0.0,
+            "metadata_content": 0.0
+          }
+        }
+      }
+    ]
+  },
+  "runs": {
+    "baseline": [
+      {
+        "run_id": "33f0544a-45e2-432f-bf25-d1668a9fadf4",
+        "status": "waiting_for_human",
+        "tokens": 0,
+        "error": null,
+        "dimensions": {
+          "metadata_content": {
+            "status": "warning",
+            "score": 0.7116,
+            "findings": 0,
+            "reason": null
+          },
+          "content_assessment": {
+            "status": "fail",
+            "score": 0.2771,
+            "findings": 7,
+            "reason": null
+          },
+          "metadata_assessment": {
+            "status": "fail",
+            "score": 0.0,
+            "findings": 6,
+            "reason": null
+          },
+          "content_delivery": {
+            "status": "warning",
+            "score": 0.6,
+            "findings": 5,
+            "reason": null
+          }
+        },
+        "findings": [
+          {
+            "key": "0237f791c6f23ed2",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "0bb93acd8e85cd65",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "2b70d2ac737685cd",
+            "dimension": "content_delivery",
+            "gap_type": "delivery_not_covered",
+            "severity": "warning"
+          },
+          {
+            "key": "2bf38ab4b43fc7cb",
+            "dimension": "content_delivery",
+            "gap_type": "topic_shallow_coverage",
+            "severity": "warning"
+          },
+          {
+            "key": "40fdb6f7938cb8a8",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "4ddbb6435ba8919a",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "61e0a2fb1e2ec8fe",
+            "dimension": "content_assessment",
+            "gap_type": "assessment_weak_support",
+            "severity": "warning"
+          },
+          {
+            "key": "6b3ce852fcce7488",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "6b8c1c35c67d6b11",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "6dc0dc48d852237d",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "76d6193650e8b895",
+            "dimension": "content_assessment",
+            "gap_type": "bloom_level_mismatch",
+            "severity": "warning"
+          },
+          {
+            "key": "9fad1656e6740516",
+            "dimension": "content_delivery",
+            "gap_type": "topic_shallow_coverage",
+            "severity": "warning"
+          },
+          {
+            "key": "a35815d00570bf56",
+            "dimension": "content_delivery",
+            "gap_type": "delivery_not_covered",
+            "severity": "warning"
+          },
+          {
+            "key": "a5798bb58ac513ae",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "aaf53d72c4df67b5",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "ae8428c282ae4bfd",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "c59aca79b2090463",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "cdc00cd5f0e96a93",
+            "dimension": "content_delivery",
+            "gap_type": "topic_not_delivered",
+            "severity": "warning"
+          }
+        ],
+        "finding_types": {
+          "assessment_weak_support": 1,
+          "bloom_level_mismatch": 1,
+          "topic_not_assessed": 5,
+          "clo_not_assessed": 6,
+          "topic_shallow_coverage": 2,
+          "topic_not_delivered": 1,
+          "delivery_not_covered": 2
+        },
+        "severities": {
+          "warning": 18
+        },
+        "objectives": {
+          "count": 6,
+          "derived": 6,
+          "bloom": {
+            "apply": 6
+          }
+        },
+        "drafts": {
+          "count": 2,
+          "reviewed_by_gate": 2,
+          "gate_passed": 2,
+          "mean_quality": 1.0,
+          "mean_attempts": 1.0,
+          "models": {
+            "local-test-template": 2
+          }
+        },
+        "trace": {
+          "valid": true,
+          "events": {
+            "audit_created": 1,
+            "agent_start": 12,
+            "agent_message": 6,
+            "agent_complete": 12,
+            "tool_call": 45,
+            "agent_decision": 22,
+            "quality_check": 6,
+            "retry": 2,
+            "finding_recorded": 18,
+            "draft_queued": 2,
+            "run_finished": 1
+          },
+          "model_calls": 0,
+          "model_calls_cached": 0,
+          "model_calls_failed": 0,
+          "tokens_in_trace": 0
+        },
+        "seconds": 13.3,
+        "documents": {
+          "exam.txt": "done",
+          "lecture_slides.txt": "done",
+          "lecture_transcript.vtt": "done",
+          "syllabus.md": "done"
+        },
+        "mode": "local_test",
+        "model": "deterministic test templates",
+        "retrieval": "local lexical hash vectors"
+      },
+      {
+        "run_id": "bb229cad-f484-49e2-ac0e-06d95fb0708c",
+        "status": "waiting_for_human",
+        "tokens": 0,
+        "error": null,
+        "dimensions": {
+          "metadata_content": {
+            "status": "warning",
+            "score": 0.7116,
+            "findings": 0,
+            "reason": null
+          },
+          "content_assessment": {
+            "status": "fail",
+            "score": 0.2771,
+            "findings": 7,
+            "reason": null
+          },
+          "metadata_assessment": {
+            "status": "fail",
+            "score": 0.0,
+            "findings": 6,
+            "reason": null
+          },
+          "content_delivery": {
+            "status": "warning",
+            "score": 0.6,
+            "findings": 5,
+            "reason": null
+          }
+        },
+        "findings": [
+          {
+            "key": "0237f791c6f23ed2",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "0bb93acd8e85cd65",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "2b70d2ac737685cd",
+            "dimension": "content_delivery",
+            "gap_type": "delivery_not_covered",
+            "severity": "warning"
+          },
+          {
+            "key": "2bf38ab4b43fc7cb",
+            "dimension": "content_delivery",
+            "gap_type": "topic_shallow_coverage",
+            "severity": "warning"
+          },
+          {
+            "key": "40fdb6f7938cb8a8",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "4ddbb6435ba8919a",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "61e0a2fb1e2ec8fe",
+            "dimension": "content_assessment",
+            "gap_type": "assessment_weak_support",
+            "severity": "warning"
+          },
+          {
+            "key": "6b3ce852fcce7488",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "6b8c1c35c67d6b11",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "6dc0dc48d852237d",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "76d6193650e8b895",
+            "dimension": "content_assessment",
+            "gap_type": "bloom_level_mismatch",
+            "severity": "warning"
+          },
+          {
+            "key": "9fad1656e6740516",
+            "dimension": "content_delivery",
+            "gap_type": "topic_shallow_coverage",
+            "severity": "warning"
+          },
+          {
+            "key": "a35815d00570bf56",
+            "dimension": "content_delivery",
+            "gap_type": "delivery_not_covered",
+            "severity": "warning"
+          },
+          {
+            "key": "a5798bb58ac513ae",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "aaf53d72c4df67b5",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "ae8428c282ae4bfd",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "c59aca79b2090463",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "cdc00cd5f0e96a93",
+            "dimension": "content_delivery",
+            "gap_type": "topic_not_delivered",
+            "severity": "warning"
+          }
+        ],
+        "finding_types": {
+          "assessment_weak_support": 1,
+          "bloom_level_mismatch": 1,
+          "topic_not_assessed": 5,
+          "clo_not_assessed": 6,
+          "topic_shallow_coverage": 2,
+          "topic_not_delivered": 1,
+          "delivery_not_covered": 2
+        },
+        "severities": {
+          "warning": 18
+        },
+        "objectives": {
+          "count": 6,
+          "derived": 6,
+          "bloom": {
+            "apply": 6
+          }
+        },
+        "drafts": {
+          "count": 2,
+          "reviewed_by_gate": 2,
+          "gate_passed": 2,
+          "mean_quality": 1.0,
+          "mean_attempts": 1.0,
+          "models": {
+            "local-test-template": 2
+          }
+        },
+        "trace": {
+          "valid": true,
+          "events": {
+            "audit_created": 1,
+            "agent_start": 12,
+            "agent_message": 6,
+            "agent_complete": 12,
+            "tool_call": 45,
+            "agent_decision": 22,
+            "quality_check": 6,
+            "retry": 2,
+            "finding_recorded": 18,
+            "draft_queued": 2,
+            "run_finished": 1
+          },
+          "model_calls": 0,
+          "model_calls_cached": 0,
+          "model_calls_failed": 0,
+          "tokens_in_trace": 0
+        },
+        "seconds": 12.8,
+        "documents": {
+          "exam.txt": "done",
+          "lecture_slides.txt": "done",
+          "lecture_transcript.vtt": "done",
+          "syllabus.md": "done"
+        },
+        "mode": "local_test",
+        "model": "deterministic test templates",
+        "retrieval": "local lexical hash vectors"
+      }
+    ],
+    "no_transcript": [
+      {
+        "run_id": "4c5be846-64ae-4cff-8fb6-28d9ff949f7b",
+        "status": "waiting_for_human",
+        "tokens": 0,
+        "error": null,
+        "dimensions": {
+          "metadata_content": {
+            "status": "warning",
+            "score": 0.5606,
+            "findings": 2,
+            "reason": null
+          },
+          "content_assessment": {
+            "status": "fail",
+            "score": 0.2771,
+            "findings": 7,
+            "reason": null
+          },
+          "metadata_assessment": {
+            "status": "fail",
+            "score": 0.0,
+            "findings": 5,
+            "reason": null
+          },
+          "content_delivery": {
+            "status": "fail",
+            "score": 0.3767,
+            "findings": 3,
+            "reason": null
+          }
+        },
+        "findings": [
+          {
+            "key": "0237f791c6f23ed2",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "0bb93acd8e85cd65",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "2bf38ab4b43fc7cb",
+            "dimension": "content_delivery",
+            "gap_type": "topic_shallow_coverage",
+            "severity": "warning"
+          },
+          {
+            "key": "2d214f1628a0d178",
+            "dimension": "content_assessment",
+            "gap_type": "bloom_level_mismatch",
+            "severity": "warning"
+          },
+          {
+            "key": "40fdb6f7938cb8a8",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "4ddbb6435ba8919a",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "61e0a2fb1e2ec8fe",
+            "dimension": "content_assessment",
+            "gap_type": "assessment_weak_support",
+            "severity": "warning"
+          },
+          {
+            "key": "6b8c1c35c67d6b11",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "6dc0dc48d852237d",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "8f44a7dc84f516e5",
+            "dimension": "metadata_content",
+            "gap_type": "clo_not_covered",
+            "severity": "warning"
+          },
+          {
+            "key": "9fad1656e6740516",
+            "dimension": "content_delivery",
+            "gap_type": "topic_shallow_coverage",
+            "severity": "warning"
+          },
+          {
+            "key": "a5798bb58ac513ae",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "aaf53d72c4df67b5",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "ae8428c282ae4bfd",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "c59aca79b2090463",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "cdc00cd5f0e96a93",
+            "dimension": "content_delivery",
+            "gap_type": "topic_not_delivered",
+            "severity": "warning"
+          },
+          {
+            "key": "ce7228b8e103f82c",
+            "dimension": "metadata_content",
+            "gap_type": "clo_not_covered",
+            "severity": "warning"
+          }
+        ],
+        "finding_types": {
+          "clo_not_covered": 2,
+          "assessment_weak_support": 1,
+          "bloom_level_mismatch": 1,
+          "topic_not_assessed": 5,
+          "clo_not_assessed": 5,
+          "topic_shallow_coverage": 2,
+          "topic_not_delivered": 1
+        },
+        "severities": {
+          "warning": 17
+        },
+        "objectives": {
+          "count": 5,
+          "derived": 5,
+          "bloom": {
+            "apply": 5
+          }
+        },
+        "drafts": {
+          "count": 2,
+          "reviewed_by_gate": 2,
+          "gate_passed": 2,
+          "mean_quality": 1.0,
+          "mean_attempts": 1.0,
+          "models": {
+            "local-test-template": 2
+          }
+        },
+        "trace": {
+          "valid": true,
+          "events": {
+            "audit_created": 1,
+            "agent_start": 12,
+            "agent_message": 6,
+            "agent_complete": 12,
+            "tool_call": 42,
+            "agent_decision": 21,
+            "quality_check": 6,
+            "retry": 2,
+            "finding_recorded": 17,
+            "draft_queued": 2,
+            "run_finished": 1
+          },
+          "model_calls": 0,
+          "model_calls_cached": 0,
+          "model_calls_failed": 0,
+          "tokens_in_trace": 0
+        },
+        "seconds": 12.2,
+        "documents": {
+          "exam.txt": "done",
+          "lecture_slides.txt": "done",
+          "lecture_transcript.vtt": "left out",
+          "syllabus.md": "done"
+        },
+        "mode": "local_test",
+        "model": "deterministic test templates",
+        "retrieval": "local lexical hash vectors"
+      },
+      {
+        "run_id": "aef1ebca-9104-4419-8c99-4f183757d9b8",
+        "status": "waiting_for_human",
+        "tokens": 0,
+        "error": null,
+        "dimensions": {
+          "metadata_content": {
+            "status": "warning",
+            "score": 0.5606,
+            "findings": 2,
+            "reason": null
+          },
+          "content_assessment": {
+            "status": "fail",
+            "score": 0.2771,
+            "findings": 7,
+            "reason": null
+          },
+          "metadata_assessment": {
+            "status": "fail",
+            "score": 0.0,
+            "findings": 5,
+            "reason": null
+          },
+          "content_delivery": {
+            "status": "fail",
+            "score": 0.3767,
+            "findings": 3,
+            "reason": null
+          }
+        },
+        "findings": [
+          {
+            "key": "0237f791c6f23ed2",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "0bb93acd8e85cd65",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "2bf38ab4b43fc7cb",
+            "dimension": "content_delivery",
+            "gap_type": "topic_shallow_coverage",
+            "severity": "warning"
+          },
+          {
+            "key": "2d214f1628a0d178",
+            "dimension": "content_assessment",
+            "gap_type": "bloom_level_mismatch",
+            "severity": "warning"
+          },
+          {
+            "key": "40fdb6f7938cb8a8",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "4ddbb6435ba8919a",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "61e0a2fb1e2ec8fe",
+            "dimension": "content_assessment",
+            "gap_type": "assessment_weak_support",
+            "severity": "warning"
+          },
+          {
+            "key": "6b8c1c35c67d6b11",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "6dc0dc48d852237d",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "8f44a7dc84f516e5",
+            "dimension": "metadata_content",
+            "gap_type": "clo_not_covered",
+            "severity": "warning"
+          },
+          {
+            "key": "9fad1656e6740516",
+            "dimension": "content_delivery",
+            "gap_type": "topic_shallow_coverage",
+            "severity": "warning"
+          },
+          {
+            "key": "a5798bb58ac513ae",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "aaf53d72c4df67b5",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "ae8428c282ae4bfd",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "c59aca79b2090463",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "cdc00cd5f0e96a93",
+            "dimension": "content_delivery",
+            "gap_type": "topic_not_delivered",
+            "severity": "warning"
+          },
+          {
+            "key": "ce7228b8e103f82c",
+            "dimension": "metadata_content",
+            "gap_type": "clo_not_covered",
+            "severity": "warning"
+          }
+        ],
+        "finding_types": {
+          "clo_not_covered": 2,
+          "assessment_weak_support": 1,
+          "bloom_level_mismatch": 1,
+          "topic_not_assessed": 5,
+          "clo_not_assessed": 5,
+          "topic_shallow_coverage": 2,
+          "topic_not_delivered": 1
+        },
+        "severities": {
+          "warning": 17
+        },
+        "objectives": {
+          "count": 5,
+          "derived": 5,
+          "bloom": {
+            "apply": 5
+          }
+        },
+        "drafts": {
+          "count": 2,
+          "reviewed_by_gate": 2,
+          "gate_passed": 2,
+          "mean_quality": 1.0,
+          "mean_attempts": 1.0,
+          "models": {
+            "local-test-template": 2
+          }
+        },
+        "trace": {
+          "valid": true,
+          "events": {
+            "audit_created": 1,
+            "agent_start": 12,
+            "agent_message": 6,
+            "agent_complete": 12,
+            "tool_call": 42,
+            "agent_decision": 21,
+            "quality_check": 6,
+            "retry": 2,
+            "finding_recorded": 17,
+            "draft_queued": 2,
+            "run_finished": 1
+          },
+          "model_calls": 0,
+          "model_calls_cached": 0,
+          "model_calls_failed": 0,
+          "tokens_in_trace": 0
+        },
+        "seconds": 12.2,
+        "documents": {
+          "exam.txt": "done",
+          "lecture_slides.txt": "done",
+          "lecture_transcript.vtt": "left out",
+          "syllabus.md": "done"
+        },
+        "mode": "local_test",
+        "model": "deterministic test templates",
+        "retrieval": "local lexical hash vectors"
+      }
+    ],
+    "no_exam": [
+      {
+        "run_id": "b132079f-db7f-4acb-9d41-1c675ee8cbab",
+        "status": "waiting_for_human",
+        "tokens": 0,
+        "error": null,
+        "dimensions": {
+          "metadata_content": {
+            "status": "warning",
+            "score": 0.7116,
+            "findings": 0,
+            "reason": null
+          },
+          "content_assessment": {
+            "status": "needs_review",
+            "score": null,
+            "findings": 0,
+            "reason": "Not enough source data to score this check."
+          },
+          "metadata_assessment": {
+            "status": "needs_review",
+            "score": null,
+            "findings": 0,
+            "reason": "Not enough source data to score this check."
+          },
+          "content_delivery": {
+            "status": "warning",
+            "score": 0.6,
+            "findings": 5,
+            "reason": null
+          }
+        },
+        "findings": [
+          {
+            "key": "2b70d2ac737685cd",
+            "dimension": "content_delivery",
+            "gap_type": "delivery_not_covered",
+            "severity": "warning"
+          },
+          {
+            "key": "2bf38ab4b43fc7cb",
+            "dimension": "content_delivery",
+            "gap_type": "topic_shallow_coverage",
+            "severity": "warning"
+          },
+          {
+            "key": "9fad1656e6740516",
+            "dimension": "content_delivery",
+            "gap_type": "topic_shallow_coverage",
+            "severity": "warning"
+          },
+          {
+            "key": "a35815d00570bf56",
+            "dimension": "content_delivery",
+            "gap_type": "delivery_not_covered",
+            "severity": "warning"
+          },
+          {
+            "key": "cdc00cd5f0e96a93",
+            "dimension": "content_delivery",
+            "gap_type": "topic_not_delivered",
+            "severity": "warning"
+          }
+        ],
+        "finding_types": {
+          "topic_shallow_coverage": 2,
+          "topic_not_delivered": 1,
+          "delivery_not_covered": 2
+        },
+        "severities": {
+          "warning": 5
+        },
+        "objectives": {
+          "count": 6,
+          "derived": 6,
+          "bloom": {
+            "apply": 6
+          }
+        },
+        "drafts": {
+          "count": 1,
+          "reviewed_by_gate": 1,
+          "gate_passed": 1,
+          "mean_quality": 1.0,
+          "mean_attempts": 1.0,
+          "models": {
+            "local-test-template": 1
+          }
+        },
+        "trace": {
+          "valid": true,
+          "events": {
+            "audit_created": 1,
+            "agent_start": 12,
+            "agent_message": 6,
+            "agent_complete": 12,
+            "tool_call": 33,
+            "agent_decision": 9,
+            "quality_check": 1,
+            "finding_recorded": 5,
+            "draft_queued": 1,
+            "run_finished": 1
+          },
+          "model_calls": 0,
+          "model_calls_cached": 0,
+          "model_calls_failed": 0,
+          "tokens_in_trace": 0
+        },
+        "seconds": 11.7,
+        "documents": {
+          "exam.txt": "left out",
+          "lecture_slides.txt": "done",
+          "lecture_transcript.vtt": "done",
+          "syllabus.md": "done"
+        },
+        "mode": "local_test",
+        "model": "deterministic test templates",
+        "retrieval": "local lexical hash vectors"
+      },
+      {
+        "run_id": "72036aac-b40a-4d7f-8f35-1af5c76f52bb",
+        "status": "waiting_for_human",
+        "tokens": 0,
+        "error": null,
+        "dimensions": {
+          "metadata_content": {
+            "status": "warning",
+            "score": 0.7116,
+            "findings": 0,
+            "reason": null
+          },
+          "content_assessment": {
+            "status": "needs_review",
+            "score": null,
+            "findings": 0,
+            "reason": "Not enough source data to score this check."
+          },
+          "metadata_assessment": {
+            "status": "needs_review",
+            "score": null,
+            "findings": 0,
+            "reason": "Not enough source data to score this check."
+          },
+          "content_delivery": {
+            "status": "warning",
+            "score": 0.6,
+            "findings": 5,
+            "reason": null
+          }
+        },
+        "findings": [
+          {
+            "key": "2b70d2ac737685cd",
+            "dimension": "content_delivery",
+            "gap_type": "delivery_not_covered",
+            "severity": "warning"
+          },
+          {
+            "key": "2bf38ab4b43fc7cb",
+            "dimension": "content_delivery",
+            "gap_type": "topic_shallow_coverage",
+            "severity": "warning"
+          },
+          {
+            "key": "9fad1656e6740516",
+            "dimension": "content_delivery",
+            "gap_type": "topic_shallow_coverage",
+            "severity": "warning"
+          },
+          {
+            "key": "a35815d00570bf56",
+            "dimension": "content_delivery",
+            "gap_type": "delivery_not_covered",
+            "severity": "warning"
+          },
+          {
+            "key": "cdc00cd5f0e96a93",
+            "dimension": "content_delivery",
+            "gap_type": "topic_not_delivered",
+            "severity": "warning"
+          }
+        ],
+        "finding_types": {
+          "topic_shallow_coverage": 2,
+          "topic_not_delivered": 1,
+          "delivery_not_covered": 2
+        },
+        "severities": {
+          "warning": 5
+        },
+        "objectives": {
+          "count": 6,
+          "derived": 6,
+          "bloom": {
+            "apply": 6
+          }
+        },
+        "drafts": {
+          "count": 1,
+          "reviewed_by_gate": 1,
+          "gate_passed": 1,
+          "mean_quality": 1.0,
+          "mean_attempts": 1.0,
+          "models": {
+            "local-test-template": 1
+          }
+        },
+        "trace": {
+          "valid": true,
+          "events": {
+            "audit_created": 1,
+            "agent_start": 12,
+            "agent_message": 6,
+            "agent_complete": 12,
+            "tool_call": 33,
+            "agent_decision": 9,
+            "quality_check": 1,
+            "finding_recorded": 5,
+            "draft_queued": 1,
+            "run_finished": 1
+          },
+          "model_calls": 0,
+          "model_calls_cached": 0,
+          "model_calls_failed": 0,
+          "tokens_in_trace": 0
+        },
+        "seconds": 11.7,
+        "documents": {
+          "exam.txt": "left out",
+          "lecture_slides.txt": "done",
+          "lecture_transcript.vtt": "done",
+          "syllabus.md": "done"
+        },
+        "mode": "local_test",
+        "model": "deterministic test templates",
+        "retrieval": "local lexical hash vectors"
+      }
+    ],
+    "with_intent": [
+      {
+        "run_id": "1e36d7e7-b095-4cab-8253-4e60124aced1",
+        "status": "waiting_for_human",
+        "tokens": 0,
+        "error": null,
+        "dimensions": {
+          "metadata_content": {
+            "status": "warning",
+            "score": 0.7116,
+            "findings": 2,
+            "reason": null
+          },
+          "content_assessment": {
+            "status": "fail",
+            "score": 0.2771,
+            "findings": 7,
+            "reason": null
+          },
+          "metadata_assessment": {
+            "status": "fail",
+            "score": 0.0,
+            "findings": 8,
+            "reason": null
+          },
+          "content_delivery": {
+            "status": "warning",
+            "score": 0.6,
+            "findings": 5,
+            "reason": null
+          }
+        },
+        "findings": [
+          {
+            "key": "0237f791c6f23ed2",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "05fa843c569b782d",
+            "dimension": "metadata_content",
+            "gap_type": "intent_level_without_objective",
+            "severity": "warning"
+          },
+          {
+            "key": "0bb93acd8e85cd65",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "2b70d2ac737685cd",
+            "dimension": "content_delivery",
+            "gap_type": "delivery_not_covered",
+            "severity": "warning"
+          },
+          {
+            "key": "2bf38ab4b43fc7cb",
+            "dimension": "content_delivery",
+            "gap_type": "topic_shallow_coverage",
+            "severity": "warning"
+          },
+          {
+            "key": "2f42813f450da293",
+            "dimension": "metadata_content",
+            "gap_type": "intent_level_without_objective",
+            "severity": "warning"
+          },
+          {
+            "key": "40fdb6f7938cb8a8",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "4ddbb6435ba8919a",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "61e0a2fb1e2ec8fe",
+            "dimension": "content_assessment",
+            "gap_type": "assessment_weak_support",
+            "severity": "warning"
+          },
+          {
+            "key": "63ccd0117cab7039",
+            "dimension": "metadata_assessment",
+            "gap_type": "intent_level_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "6b3ce852fcce7488",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "6b8c1c35c67d6b11",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "6dc0dc48d852237d",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "76d6193650e8b895",
+            "dimension": "content_assessment",
+            "gap_type": "bloom_level_mismatch",
+            "severity": "warning"
+          },
+          {
+            "key": "9cfaddcf1d3910b9",
+            "dimension": "metadata_assessment",
+            "gap_type": "intent_level_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "9fad1656e6740516",
+            "dimension": "content_delivery",
+            "gap_type": "topic_shallow_coverage",
+            "severity": "warning"
+          },
+          {
+            "key": "a35815d00570bf56",
+            "dimension": "content_delivery",
+            "gap_type": "delivery_not_covered",
+            "severity": "warning"
+          },
+          {
+            "key": "a5798bb58ac513ae",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "aaf53d72c4df67b5",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "ae8428c282ae4bfd",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "c59aca79b2090463",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "cdc00cd5f0e96a93",
+            "dimension": "content_delivery",
+            "gap_type": "topic_not_delivered",
+            "severity": "warning"
+          }
+        ],
+        "finding_types": {
+          "intent_level_without_objective": 2,
+          "assessment_weak_support": 1,
+          "bloom_level_mismatch": 1,
+          "topic_not_assessed": 5,
+          "clo_not_assessed": 6,
+          "intent_level_not_assessed": 2,
+          "topic_shallow_coverage": 2,
+          "topic_not_delivered": 1,
+          "delivery_not_covered": 2
+        },
+        "severities": {
+          "warning": 22
+        },
+        "objectives": {
+          "count": 6,
+          "derived": 6,
+          "bloom": {
+            "apply": 6
+          }
+        },
+        "drafts": {
+          "count": 2,
+          "reviewed_by_gate": 2,
+          "gate_passed": 2,
+          "mean_quality": 0.93,
+          "mean_attempts": 1.0,
+          "models": {
+            "local-test-template": 2
+          }
+        },
+        "trace": {
+          "valid": true,
+          "events": {
+            "audit_created": 1,
+            "agent_start": 12,
+            "agent_message": 6,
+            "agent_complete": 12,
+            "tool_call": 45,
+            "agent_decision": 26,
+            "quality_check": 6,
+            "retry": 2,
+            "finding_recorded": 22,
+            "draft_queued": 2,
+            "run_finished": 1
+          },
+          "model_calls": 0,
+          "model_calls_cached": 0,
+          "model_calls_failed": 0,
+          "tokens_in_trace": 0
+        },
+        "seconds": 13.3,
+        "documents": {
+          "exam.txt": "done",
+          "lecture_slides.txt": "done",
+          "lecture_transcript.vtt": "done",
+          "syllabus.md": "done"
+        },
+        "mode": "local_test",
+        "model": "deterministic test templates",
+        "retrieval": "local lexical hash vectors"
+      },
+      {
+        "run_id": "e17fb7ae-5b5b-4dd8-bb03-02a7a62e5611",
+        "status": "waiting_for_human",
+        "tokens": 0,
+        "error": null,
+        "dimensions": {
+          "metadata_assessment": {
+            "status": "fail",
+            "score": 0.0,
+            "findings": 8,
+            "reason": null
+          },
+          "content_delivery": {
+            "status": "warning",
+            "score": 0.6,
+            "findings": 5,
+            "reason": null
+          },
+          "metadata_content": {
+            "status": "warning",
+            "score": 0.7116,
+            "findings": 2,
+            "reason": null
+          },
+          "content_assessment": {
+            "status": "fail",
+            "score": 0.2771,
+            "findings": 7,
+            "reason": null
+          }
+        },
+        "findings": [
+          {
+            "key": "0237f791c6f23ed2",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "05fa843c569b782d",
+            "dimension": "metadata_content",
+            "gap_type": "intent_level_without_objective",
+            "severity": "warning"
+          },
+          {
+            "key": "0bb93acd8e85cd65",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "2b70d2ac737685cd",
+            "dimension": "content_delivery",
+            "gap_type": "delivery_not_covered",
+            "severity": "warning"
+          },
+          {
+            "key": "2bf38ab4b43fc7cb",
+            "dimension": "content_delivery",
+            "gap_type": "topic_shallow_coverage",
+            "severity": "warning"
+          },
+          {
+            "key": "2f42813f450da293",
+            "dimension": "metadata_content",
+            "gap_type": "intent_level_without_objective",
+            "severity": "warning"
+          },
+          {
+            "key": "40fdb6f7938cb8a8",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "4ddbb6435ba8919a",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "61e0a2fb1e2ec8fe",
+            "dimension": "content_assessment",
+            "gap_type": "assessment_weak_support",
+            "severity": "warning"
+          },
+          {
+            "key": "63ccd0117cab7039",
+            "dimension": "metadata_assessment",
+            "gap_type": "intent_level_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "6b3ce852fcce7488",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "6b8c1c35c67d6b11",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "6dc0dc48d852237d",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "76d6193650e8b895",
+            "dimension": "content_assessment",
+            "gap_type": "bloom_level_mismatch",
+            "severity": "warning"
+          },
+          {
+            "key": "9cfaddcf1d3910b9",
+            "dimension": "metadata_assessment",
+            "gap_type": "intent_level_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "9fad1656e6740516",
+            "dimension": "content_delivery",
+            "gap_type": "topic_shallow_coverage",
+            "severity": "warning"
+          },
+          {
+            "key": "a35815d00570bf56",
+            "dimension": "content_delivery",
+            "gap_type": "delivery_not_covered",
+            "severity": "warning"
+          },
+          {
+            "key": "a5798bb58ac513ae",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "aaf53d72c4df67b5",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "ae8428c282ae4bfd",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "c59aca79b2090463",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "cdc00cd5f0e96a93",
+            "dimension": "content_delivery",
+            "gap_type": "topic_not_delivered",
+            "severity": "warning"
+          }
+        ],
+        "finding_types": {
+          "clo_not_assessed": 6,
+          "intent_level_not_assessed": 2,
+          "topic_shallow_coverage": 2,
+          "topic_not_delivered": 1,
+          "delivery_not_covered": 2,
+          "intent_level_without_objective": 2,
+          "assessment_weak_support": 1,
+          "bloom_level_mismatch": 1,
+          "topic_not_assessed": 5
+        },
+        "severities": {
+          "warning": 22
+        },
+        "objectives": {
+          "count": 6,
+          "derived": 6,
+          "bloom": {
+            "apply": 6
+          }
+        },
+        "drafts": {
+          "count": 2,
+          "reviewed_by_gate": 2,
+          "gate_passed": 2,
+          "mean_quality": 0.93,
+          "mean_attempts": 1.0,
+          "models": {
+            "local-test-template": 2
+          }
+        },
+        "trace": {
+          "valid": true,
+          "events": {
+            "audit_created": 1,
+            "agent_start": 12,
+            "agent_message": 6,
+            "agent_complete": 12,
+            "tool_call": 45,
+            "agent_decision": 26,
+            "quality_check": 6,
+            "retry": 2,
+            "finding_recorded": 22,
+            "draft_queued": 2,
+            "run_finished": 1
+          },
+          "model_calls": 0,
+          "model_calls_cached": 0,
+          "model_calls_failed": 0,
+          "tokens_in_trace": 0
+        },
+        "seconds": 13.3,
+        "documents": {
+          "exam.txt": "done",
+          "lecture_slides.txt": "done",
+          "lecture_transcript.vtt": "done",
+          "syllabus.md": "done"
+        },
+        "mode": "local_test",
+        "model": "deterministic test templates",
+        "retrieval": "local lexical hash vectors"
+      }
+    ],
+    "with_rule": [
+      {
+        "run_id": "bfde5f3e-08a2-4bdc-a64e-564fdf308adb",
+        "status": "waiting_for_human",
+        "tokens": 0,
+        "error": null,
+        "dimensions": {
+          "metadata_content": {
+            "status": "warning",
+            "score": 0.7116,
+            "findings": 0,
+            "reason": null
+          },
+          "content_assessment": {
+            "status": "fail",
+            "score": 0.2771,
+            "findings": 7,
+            "reason": null
+          },
+          "metadata_assessment": {
+            "status": "fail",
+            "score": 0.0,
+            "findings": 6,
+            "reason": null
+          },
+          "content_delivery": {
+            "status": "warning",
+            "score": 0.6,
+            "findings": 5,
+            "reason": null
+          }
+        },
+        "findings": [
+          {
+            "key": "0237f791c6f23ed2",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "0bb93acd8e85cd65",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "2b70d2ac737685cd",
+            "dimension": "content_delivery",
+            "gap_type": "delivery_not_covered",
+            "severity": "warning"
+          },
+          {
+            "key": "2bf38ab4b43fc7cb",
+            "dimension": "content_delivery",
+            "gap_type": "topic_shallow_coverage",
+            "severity": "warning"
+          },
+          {
+            "key": "40fdb6f7938cb8a8",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "4ddbb6435ba8919a",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "61e0a2fb1e2ec8fe",
+            "dimension": "content_assessment",
+            "gap_type": "assessment_weak_support",
+            "severity": "warning"
+          },
+          {
+            "key": "6b3ce852fcce7488",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "6b8c1c35c67d6b11",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "6dc0dc48d852237d",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "76d6193650e8b895",
+            "dimension": "content_assessment",
+            "gap_type": "bloom_level_mismatch",
+            "severity": "warning"
+          },
+          {
+            "key": "9fad1656e6740516",
+            "dimension": "content_delivery",
+            "gap_type": "topic_shallow_coverage",
+            "severity": "warning"
+          },
+          {
+            "key": "a35815d00570bf56",
+            "dimension": "content_delivery",
+            "gap_type": "delivery_not_covered",
+            "severity": "warning"
+          },
+          {
+            "key": "a5798bb58ac513ae",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "aaf53d72c4df67b5",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "ae8428c282ae4bfd",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "c59aca79b2090463",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "cdc00cd5f0e96a93",
+            "dimension": "content_delivery",
+            "gap_type": "topic_not_delivered",
+            "severity": "warning"
+          }
+        ],
+        "finding_types": {
+          "assessment_weak_support": 1,
+          "bloom_level_mismatch": 1,
+          "topic_not_assessed": 5,
+          "clo_not_assessed": 6,
+          "topic_shallow_coverage": 2,
+          "topic_not_delivered": 1,
+          "delivery_not_covered": 2
+        },
+        "severities": {
+          "warning": 18
+        },
+        "objectives": {
+          "count": 6,
+          "derived": 6,
+          "bloom": {
+            "apply": 6
+          }
+        },
+        "drafts": {
+          "count": 2,
+          "reviewed_by_gate": 2,
+          "gate_passed": 2,
+          "mean_quality": 1.0,
+          "mean_attempts": 1.0,
+          "models": {
+            "local-test-template": 2
+          }
+        },
+        "trace": {
+          "valid": true,
+          "events": {
+            "audit_created": 1,
+            "agent_start": 12,
+            "agent_message": 6,
+            "agent_complete": 12,
+            "tool_call": 45,
+            "agent_decision": 22,
+            "quality_check": 6,
+            "retry": 2,
+            "finding_recorded": 18,
+            "draft_queued": 2,
+            "run_finished": 1
+          },
+          "model_calls": 0,
+          "model_calls_cached": 0,
+          "model_calls_failed": 0,
+          "tokens_in_trace": 0
+        },
+        "seconds": 13.4,
+        "documents": {
+          "exam.txt": "done",
+          "lecture_slides.txt": "done",
+          "lecture_transcript.vtt": "done",
+          "syllabus.md": "done"
+        },
+        "mode": "local_test",
+        "model": "deterministic test templates",
+        "retrieval": "local lexical hash vectors"
+      },
+      {
+        "run_id": "e81ece95-2bd6-44cb-b5b3-c2b2d0845667",
+        "status": "waiting_for_human",
+        "tokens": 0,
+        "error": null,
+        "dimensions": {
+          "metadata_content": {
+            "status": "warning",
+            "score": 0.7116,
+            "findings": 0,
+            "reason": null
+          },
+          "content_assessment": {
+            "status": "fail",
+            "score": 0.2771,
+            "findings": 7,
+            "reason": null
+          },
+          "metadata_assessment": {
+            "status": "fail",
+            "score": 0.0,
+            "findings": 6,
+            "reason": null
+          },
+          "content_delivery": {
+            "status": "warning",
+            "score": 0.6,
+            "findings": 5,
+            "reason": null
+          }
+        },
+        "findings": [
+          {
+            "key": "0237f791c6f23ed2",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "0bb93acd8e85cd65",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "2b70d2ac737685cd",
+            "dimension": "content_delivery",
+            "gap_type": "delivery_not_covered",
+            "severity": "warning"
+          },
+          {
+            "key": "2bf38ab4b43fc7cb",
+            "dimension": "content_delivery",
+            "gap_type": "topic_shallow_coverage",
+            "severity": "warning"
+          },
+          {
+            "key": "40fdb6f7938cb8a8",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "4ddbb6435ba8919a",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "61e0a2fb1e2ec8fe",
+            "dimension": "content_assessment",
+            "gap_type": "assessment_weak_support",
+            "severity": "warning"
+          },
+          {
+            "key": "6b3ce852fcce7488",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "6b8c1c35c67d6b11",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "6dc0dc48d852237d",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "76d6193650e8b895",
+            "dimension": "content_assessment",
+            "gap_type": "bloom_level_mismatch",
+            "severity": "warning"
+          },
+          {
+            "key": "9fad1656e6740516",
+            "dimension": "content_delivery",
+            "gap_type": "topic_shallow_coverage",
+            "severity": "warning"
+          },
+          {
+            "key": "a35815d00570bf56",
+            "dimension": "content_delivery",
+            "gap_type": "delivery_not_covered",
+            "severity": "warning"
+          },
+          {
+            "key": "a5798bb58ac513ae",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "aaf53d72c4df67b5",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "ae8428c282ae4bfd",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "c59aca79b2090463",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "cdc00cd5f0e96a93",
+            "dimension": "content_delivery",
+            "gap_type": "topic_not_delivered",
+            "severity": "warning"
+          }
+        ],
+        "finding_types": {
+          "assessment_weak_support": 1,
+          "bloom_level_mismatch": 1,
+          "topic_not_assessed": 5,
+          "clo_not_assessed": 6,
+          "topic_shallow_coverage": 2,
+          "topic_not_delivered": 1,
+          "delivery_not_covered": 2
+        },
+        "severities": {
+          "warning": 18
+        },
+        "objectives": {
+          "count": 6,
+          "derived": 6,
+          "bloom": {
+            "apply": 6
+          }
+        },
+        "drafts": {
+          "count": 2,
+          "reviewed_by_gate": 2,
+          "gate_passed": 2,
+          "mean_quality": 1.0,
+          "mean_attempts": 1.0,
+          "models": {
+            "local-test-template": 2
+          }
+        },
+        "trace": {
+          "valid": true,
+          "events": {
+            "audit_created": 1,
+            "agent_start": 12,
+            "agent_message": 6,
+            "agent_complete": 12,
+            "tool_call": 45,
+            "agent_decision": 22,
+            "quality_check": 6,
+            "retry": 2,
+            "finding_recorded": 18,
+            "draft_queued": 2,
+            "run_finished": 1
+          },
+          "model_calls": 0,
+          "model_calls_cached": 0,
+          "model_calls_failed": 0,
+          "tokens_in_trace": 0
+        },
+        "seconds": 13.5,
+        "documents": {
+          "exam.txt": "done",
+          "lecture_slides.txt": "done",
+          "lecture_transcript.vtt": "done",
+          "syllabus.md": "done"
+        },
+        "mode": "local_test",
+        "model": "deterministic test templates",
+        "retrieval": "local lexical hash vectors"
+      }
+    ],
+    "no_auto_drafts": [
+      {
+        "run_id": "91cd0780-132a-4972-a9bd-4bb26e93b216",
+        "status": "completed",
+        "tokens": 0,
+        "error": null,
+        "dimensions": {
+          "metadata_content": {
+            "status": "warning",
+            "score": 0.7116,
+            "findings": 0,
+            "reason": null
+          },
+          "content_assessment": {
+            "status": "fail",
+            "score": 0.2771,
+            "findings": 7,
+            "reason": null
+          },
+          "metadata_assessment": {
+            "status": "fail",
+            "score": 0.0,
+            "findings": 6,
+            "reason": null
+          },
+          "content_delivery": {
+            "status": "warning",
+            "score": 0.6,
+            "findings": 5,
+            "reason": null
+          }
+        },
+        "findings": [
+          {
+            "key": "0237f791c6f23ed2",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "0bb93acd8e85cd65",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "2b70d2ac737685cd",
+            "dimension": "content_delivery",
+            "gap_type": "delivery_not_covered",
+            "severity": "warning"
+          },
+          {
+            "key": "2bf38ab4b43fc7cb",
+            "dimension": "content_delivery",
+            "gap_type": "topic_shallow_coverage",
+            "severity": "warning"
+          },
+          {
+            "key": "40fdb6f7938cb8a8",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "4ddbb6435ba8919a",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "61e0a2fb1e2ec8fe",
+            "dimension": "content_assessment",
+            "gap_type": "assessment_weak_support",
+            "severity": "warning"
+          },
+          {
+            "key": "6b3ce852fcce7488",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "6b8c1c35c67d6b11",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "6dc0dc48d852237d",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "76d6193650e8b895",
+            "dimension": "content_assessment",
+            "gap_type": "bloom_level_mismatch",
+            "severity": "warning"
+          },
+          {
+            "key": "9fad1656e6740516",
+            "dimension": "content_delivery",
+            "gap_type": "topic_shallow_coverage",
+            "severity": "warning"
+          },
+          {
+            "key": "a35815d00570bf56",
+            "dimension": "content_delivery",
+            "gap_type": "delivery_not_covered",
+            "severity": "warning"
+          },
+          {
+            "key": "a5798bb58ac513ae",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "aaf53d72c4df67b5",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "ae8428c282ae4bfd",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "c59aca79b2090463",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "cdc00cd5f0e96a93",
+            "dimension": "content_delivery",
+            "gap_type": "topic_not_delivered",
+            "severity": "warning"
+          }
+        ],
+        "finding_types": {
+          "assessment_weak_support": 1,
+          "bloom_level_mismatch": 1,
+          "topic_not_assessed": 5,
+          "clo_not_assessed": 6,
+          "topic_shallow_coverage": 2,
+          "topic_not_delivered": 1,
+          "delivery_not_covered": 2
+        },
+        "severities": {
+          "warning": 18
+        },
+        "objectives": {
+          "count": 6,
+          "derived": 6,
+          "bloom": {
+            "apply": 6
+          }
+        },
+        "drafts": {
+          "count": 0,
+          "reviewed_by_gate": 0,
+          "gate_passed": 0,
+          "mean_quality": null,
+          "mean_attempts": null,
+          "models": {}
+        },
+        "trace": {
+          "valid": true,
+          "events": {
+            "audit_created": 1,
+            "agent_start": 10,
+            "agent_message": 5,
+            "agent_complete": 10,
+            "tool_call": 45,
+            "agent_decision": 22,
+            "finding_recorded": 18,
+            "run_finished": 1
+          },
+          "model_calls": 0,
+          "model_calls_cached": 0,
+          "model_calls_failed": 0,
+          "tokens_in_trace": 0
+        },
+        "seconds": 12.9,
+        "documents": {
+          "exam.txt": "done",
+          "lecture_slides.txt": "done",
+          "lecture_transcript.vtt": "done",
+          "syllabus.md": "done"
+        },
+        "mode": "local_test",
+        "model": "deterministic test templates",
+        "retrieval": "local lexical hash vectors"
+      },
+      {
+        "run_id": "1df2b950-5ff0-4939-8d7b-412597336a51",
+        "status": "completed",
+        "tokens": 0,
+        "error": null,
+        "dimensions": {
+          "metadata_content": {
+            "status": "warning",
+            "score": 0.7116,
+            "findings": 0,
+            "reason": null
+          },
+          "content_assessment": {
+            "status": "fail",
+            "score": 0.2771,
+            "findings": 7,
+            "reason": null
+          },
+          "metadata_assessment": {
+            "status": "fail",
+            "score": 0.0,
+            "findings": 6,
+            "reason": null
+          },
+          "content_delivery": {
+            "status": "warning",
+            "score": 0.6,
+            "findings": 5,
+            "reason": null
+          }
+        },
+        "findings": [
+          {
+            "key": "0237f791c6f23ed2",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "0bb93acd8e85cd65",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "2b70d2ac737685cd",
+            "dimension": "content_delivery",
+            "gap_type": "delivery_not_covered",
+            "severity": "warning"
+          },
+          {
+            "key": "2bf38ab4b43fc7cb",
+            "dimension": "content_delivery",
+            "gap_type": "topic_shallow_coverage",
+            "severity": "warning"
+          },
+          {
+            "key": "40fdb6f7938cb8a8",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "4ddbb6435ba8919a",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "61e0a2fb1e2ec8fe",
+            "dimension": "content_assessment",
+            "gap_type": "assessment_weak_support",
+            "severity": "warning"
+          },
+          {
+            "key": "6b3ce852fcce7488",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "6b8c1c35c67d6b11",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "6dc0dc48d852237d",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "76d6193650e8b895",
+            "dimension": "content_assessment",
+            "gap_type": "bloom_level_mismatch",
+            "severity": "warning"
+          },
+          {
+            "key": "9fad1656e6740516",
+            "dimension": "content_delivery",
+            "gap_type": "topic_shallow_coverage",
+            "severity": "warning"
+          },
+          {
+            "key": "a35815d00570bf56",
+            "dimension": "content_delivery",
+            "gap_type": "delivery_not_covered",
+            "severity": "warning"
+          },
+          {
+            "key": "a5798bb58ac513ae",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "aaf53d72c4df67b5",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "ae8428c282ae4bfd",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "c59aca79b2090463",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "cdc00cd5f0e96a93",
+            "dimension": "content_delivery",
+            "gap_type": "topic_not_delivered",
+            "severity": "warning"
+          }
+        ],
+        "finding_types": {
+          "assessment_weak_support": 1,
+          "bloom_level_mismatch": 1,
+          "topic_not_assessed": 5,
+          "clo_not_assessed": 6,
+          "topic_shallow_coverage": 2,
+          "topic_not_delivered": 1,
+          "delivery_not_covered": 2
+        },
+        "severities": {
+          "warning": 18
+        },
+        "objectives": {
+          "count": 6,
+          "derived": 6,
+          "bloom": {
+            "apply": 6
+          }
+        },
+        "drafts": {
+          "count": 0,
+          "reviewed_by_gate": 0,
+          "gate_passed": 0,
+          "mean_quality": null,
+          "mean_attempts": null,
+          "models": {}
+        },
+        "trace": {
+          "valid": true,
+          "events": {
+            "audit_created": 1,
+            "agent_start": 10,
+            "agent_message": 5,
+            "agent_complete": 10,
+            "tool_call": 45,
+            "agent_decision": 22,
+            "finding_recorded": 18,
+            "run_finished": 1
+          },
+          "model_calls": 0,
+          "model_calls_cached": 0,
+          "model_calls_failed": 0,
+          "tokens_in_trace": 0
+        },
+        "seconds": 12.8,
+        "documents": {
+          "exam.txt": "done",
+          "lecture_slides.txt": "done",
+          "lecture_transcript.vtt": "done",
+          "syllabus.md": "done"
+        },
+        "mode": "local_test",
+        "model": "deterministic test templates",
+        "retrieval": "local lexical hash vectors"
+      }
+    ],
+    "no_gate_retries": [
+      {
+        "run_id": "fc9f95d2-a8ff-40c7-8b60-36a781ff53a3",
+        "status": "waiting_for_human",
+        "tokens": 0,
+        "error": null,
+        "dimensions": {
+          "metadata_content": {
+            "status": "warning",
+            "score": 0.7116,
+            "findings": 0,
+            "reason": null
+          },
+          "content_assessment": {
+            "status": "fail",
+            "score": 0.2771,
+            "findings": 7,
+            "reason": null
+          },
+          "metadata_assessment": {
+            "status": "fail",
+            "score": 0.0,
+            "findings": 6,
+            "reason": null
+          },
+          "content_delivery": {
+            "status": "warning",
+            "score": 0.6,
+            "findings": 5,
+            "reason": null
+          }
+        },
+        "findings": [
+          {
+            "key": "0237f791c6f23ed2",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "0bb93acd8e85cd65",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "2b70d2ac737685cd",
+            "dimension": "content_delivery",
+            "gap_type": "delivery_not_covered",
+            "severity": "warning"
+          },
+          {
+            "key": "2bf38ab4b43fc7cb",
+            "dimension": "content_delivery",
+            "gap_type": "topic_shallow_coverage",
+            "severity": "warning"
+          },
+          {
+            "key": "40fdb6f7938cb8a8",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "4ddbb6435ba8919a",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "61e0a2fb1e2ec8fe",
+            "dimension": "content_assessment",
+            "gap_type": "assessment_weak_support",
+            "severity": "warning"
+          },
+          {
+            "key": "6b3ce852fcce7488",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "6b8c1c35c67d6b11",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "6dc0dc48d852237d",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "76d6193650e8b895",
+            "dimension": "content_assessment",
+            "gap_type": "bloom_level_mismatch",
+            "severity": "warning"
+          },
+          {
+            "key": "9fad1656e6740516",
+            "dimension": "content_delivery",
+            "gap_type": "topic_shallow_coverage",
+            "severity": "warning"
+          },
+          {
+            "key": "a35815d00570bf56",
+            "dimension": "content_delivery",
+            "gap_type": "delivery_not_covered",
+            "severity": "warning"
+          },
+          {
+            "key": "a5798bb58ac513ae",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "aaf53d72c4df67b5",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "ae8428c282ae4bfd",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "c59aca79b2090463",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "cdc00cd5f0e96a93",
+            "dimension": "content_delivery",
+            "gap_type": "topic_not_delivered",
+            "severity": "warning"
+          }
+        ],
+        "finding_types": {
+          "assessment_weak_support": 1,
+          "bloom_level_mismatch": 1,
+          "topic_not_assessed": 5,
+          "clo_not_assessed": 6,
+          "topic_shallow_coverage": 2,
+          "topic_not_delivered": 1,
+          "delivery_not_covered": 2
+        },
+        "severities": {
+          "warning": 18
+        },
+        "objectives": {
+          "count": 6,
+          "derived": 6,
+          "bloom": {
+            "apply": 6
+          }
+        },
+        "drafts": {
+          "count": 2,
+          "reviewed_by_gate": 2,
+          "gate_passed": 2,
+          "mean_quality": 1.0,
+          "mean_attempts": 1.0,
+          "models": {
+            "local-test-template": 2
+          }
+        },
+        "trace": {
+          "valid": true,
+          "events": {
+            "audit_created": 1,
+            "agent_start": 12,
+            "agent_message": 6,
+            "agent_complete": 12,
+            "tool_call": 45,
+            "agent_decision": 22,
+            "quality_check": 4,
+            "finding_recorded": 18,
+            "draft_queued": 2,
+            "run_finished": 1
+          },
+          "model_calls": 0,
+          "model_calls_cached": 0,
+          "model_calls_failed": 0,
+          "tokens_in_trace": 0
+        },
+        "seconds": 13.3,
+        "documents": {
+          "exam.txt": "done",
+          "lecture_slides.txt": "done",
+          "lecture_transcript.vtt": "done",
+          "syllabus.md": "done"
+        },
+        "mode": "local_test",
+        "model": "deterministic test templates",
+        "retrieval": "local lexical hash vectors"
+      },
+      {
+        "run_id": "22cd1d2f-cfd8-4a70-bd6f-37522c95c05f",
+        "status": "waiting_for_human",
+        "tokens": 0,
+        "error": null,
+        "dimensions": {
+          "metadata_content": {
+            "status": "warning",
+            "score": 0.7116,
+            "findings": 0,
+            "reason": null
+          },
+          "content_assessment": {
+            "status": "fail",
+            "score": 0.2771,
+            "findings": 7,
+            "reason": null
+          },
+          "metadata_assessment": {
+            "status": "fail",
+            "score": 0.0,
+            "findings": 6,
+            "reason": null
+          },
+          "content_delivery": {
+            "status": "warning",
+            "score": 0.6,
+            "findings": 5,
+            "reason": null
+          }
+        },
+        "findings": [
+          {
+            "key": "0237f791c6f23ed2",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "0bb93acd8e85cd65",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "2b70d2ac737685cd",
+            "dimension": "content_delivery",
+            "gap_type": "delivery_not_covered",
+            "severity": "warning"
+          },
+          {
+            "key": "2bf38ab4b43fc7cb",
+            "dimension": "content_delivery",
+            "gap_type": "topic_shallow_coverage",
+            "severity": "warning"
+          },
+          {
+            "key": "40fdb6f7938cb8a8",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "4ddbb6435ba8919a",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "61e0a2fb1e2ec8fe",
+            "dimension": "content_assessment",
+            "gap_type": "assessment_weak_support",
+            "severity": "warning"
+          },
+          {
+            "key": "6b3ce852fcce7488",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "6b8c1c35c67d6b11",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "6dc0dc48d852237d",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "76d6193650e8b895",
+            "dimension": "content_assessment",
+            "gap_type": "bloom_level_mismatch",
+            "severity": "warning"
+          },
+          {
+            "key": "9fad1656e6740516",
+            "dimension": "content_delivery",
+            "gap_type": "topic_shallow_coverage",
+            "severity": "warning"
+          },
+          {
+            "key": "a35815d00570bf56",
+            "dimension": "content_delivery",
+            "gap_type": "delivery_not_covered",
+            "severity": "warning"
+          },
+          {
+            "key": "a5798bb58ac513ae",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "aaf53d72c4df67b5",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "ae8428c282ae4bfd",
+            "dimension": "metadata_assessment",
+            "gap_type": "clo_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "c59aca79b2090463",
+            "dimension": "content_assessment",
+            "gap_type": "topic_not_assessed",
+            "severity": "warning"
+          },
+          {
+            "key": "cdc00cd5f0e96a93",
+            "dimension": "content_delivery",
+            "gap_type": "topic_not_delivered",
+            "severity": "warning"
+          }
+        ],
+        "finding_types": {
+          "assessment_weak_support": 1,
+          "bloom_level_mismatch": 1,
+          "topic_not_assessed": 5,
+          "clo_not_assessed": 6,
+          "topic_shallow_coverage": 2,
+          "topic_not_delivered": 1,
+          "delivery_not_covered": 2
+        },
+        "severities": {
+          "warning": 18
+        },
+        "objectives": {
+          "count": 6,
+          "derived": 6,
+          "bloom": {
+            "apply": 6
+          }
+        },
+        "drafts": {
+          "count": 2,
+          "reviewed_by_gate": 2,
+          "gate_passed": 2,
+          "mean_quality": 1.0,
+          "mean_attempts": 1.0,
+          "models": {
+            "local-test-template": 2
+          }
+        },
+        "trace": {
+          "valid": true,
+          "events": {
+            "audit_created": 1,
+            "agent_start": 12,
+            "agent_message": 6,
+            "agent_complete": 12,
+            "tool_call": 45,
+            "agent_decision": 22,
+            "quality_check": 4,
+            "finding_recorded": 18,
+            "draft_queued": 2,
+            "run_finished": 1
+          },
+          "model_calls": 0,
+          "model_calls_cached": 0,
+          "model_calls_failed": 0,
+          "tokens_in_trace": 0
+        },
+        "seconds": 13.3,
+        "documents": {
+          "exam.txt": "done",
+          "lecture_slides.txt": "done",
+          "lecture_transcript.vtt": "done",
+          "syllabus.md": "done"
+        },
+        "mode": "local_test",
+        "model": "deterministic test templates",
+        "retrieval": "local lexical hash vectors"
+      }
+    ]
+  }
+}

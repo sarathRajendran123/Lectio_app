@@ -9,19 +9,26 @@ st.set_page_config(
 st.markdown("""
 <style>
 :root { --lectio-ink:#182B3A; --lectio-accent:#24695D; }
+/* Larger type: Streamlit sizes most text in rem, so one root size scales body, labels, captions, tabs and buttons together */
+html { font-size:112.5%; }
 [data-testid="stSidebar"] { background:#EDF1EF; border-right:1px solid #DCE3DF; }
-.block-container { padding-top:2.5rem; max-width:1380px; }
-h1 { font-size:2rem !important; letter-spacing:-.045em; font-weight:650 !important; }
-h2,h3 { letter-spacing:-.025em; }
+.block-container { padding-top:2.5rem; max-width:1440px; }
+h1 { font-size:2.5rem !important; letter-spacing:-.045em; font-weight:650 !important; }
+h2 { font-size:1.9rem !important; letter-spacing:-.025em; }
+h3 { font-size:1.45rem !important; letter-spacing:-.025em; }
+[data-testid="stCaptionContainer"], .stCaption { font-size:.95rem; line-height:1.5; }
+[data-testid="stWidgetLabel"] p { font-size:1rem; }
+[data-testid="stSidebar"] [role="radiogroup"] label p { font-size:1.02rem; }
 [data-testid="stMetric"] { background:white; border:1px solid #DEE4E0; border-radius:12px; padding:20px; }
 [data-testid="stMetricLabel"] { color:#526461; }
-[data-testid="stMetricValue"] { font-size:2rem; }
+[data-testid="stMetricLabel"] p { font-size:1rem; white-space:normal; overflow:visible; text-overflow:clip; }
+[data-testid="stMetricValue"] { font-size:2.4rem; }
 .stButton > button,.stDownloadButton > button { border-radius:8px; min-height:42px; }
 button:focus-visible,input:focus-visible,textarea:focus-visible { outline:3px solid #B87928 !important; outline-offset:3px; }
 [data-testid="stExpander"] { background:white; border-radius:10px; }
 [data-testid="stTabs"] [role="tab"] { padding:12px 20px; }
-@media(min-width:701px) { [data-testid="stSidebar"] { min-width:240px; } }
-@media(max-width:700px) { .block-container { padding:1rem; } h1 {font-size:1.6rem !important;} }
+@media(min-width:701px) { [data-testid="stSidebar"] { min-width:270px; } }
+@media(max-width:700px) { html { font-size:106%; } .block-container { padding:1rem; } h1 {font-size:1.8rem !important;} h2 {font-size:1.5rem !important;} }
 </style>
 """, unsafe_allow_html=True)
 
@@ -97,7 +104,7 @@ def _show_dashboard():
         if not courses:
             empty_state("No Courses Yet","Go to **Upload Course** to get started.")
         for c in courses[:5]:
-            a,b,cc = st.columns([3,1,1])
+            a,b,cc = st.columns([3,1,2])
             a.markdown(f"**{c['code']}** — {c['title'][:40]}")
             b.caption(c.get("level","") or "")
             cc.caption(f"{c.get('artifact_count',0)} artefacts")

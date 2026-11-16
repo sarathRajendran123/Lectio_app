@@ -60,6 +60,17 @@ async def _run_ingestion_pipeline(
                 f"[BG] Ingestion FAILED for artifact {artifact_id}: {e}",
                 exc_info=True,
             )
+            return  # nothing to extract from a failed ingestion
+
+        # Isolated on purpose: if this fails, the artifact above has already
+        # ingested successfully and must stay 'done' regardless.
+        try:
+            from services.auto_build import maybe_auto_extract
+            await maybe_auto_extract(course_id, db)
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            logger.exception(f"[BG] auto_build step failed for course {course_id} (artifact {artifact_id} still ingested OK)")
 
 async def run_ingestion_pipeline(artifact_id,course_id,file_path,file_type,artifact_type):
     async with INGESTION_SLOTS:

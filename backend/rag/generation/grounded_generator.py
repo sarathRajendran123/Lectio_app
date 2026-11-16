@@ -35,7 +35,7 @@ class GeneratedItem:
 
 class GroundedGenerator:
     """
-    Calls Groq (Llama 3.3 70B) with retrieved context.
+    Calls the configured OpenRouter model with retrieved context.
     System prompt enforces citation discipline.
     """
 
@@ -54,14 +54,19 @@ RULES:
 
     def __init__(self, model: Optional[str] = None):
         from config import settings
-        self.model = model or settings.active_model
+        self.model = model or settings.openrouter_model
         self._llm  = None
 
     def _get_llm(self):
         if self._llm is None:
             from config import settings
-            from services.llm_provider import build_chat
-            self._llm = build_chat(settings, model=self.model, temperature=0.3, max_tokens=2000)
+            from llm.openrouter import OpenRouterChat
+            self._llm = OpenRouterChat(
+                prompt_version="grounded-draft/2",
+                model=self.model,
+                temperature=0.3,      # Low temperature for factual grounding
+                max_tokens=settings.llm_max_tokens_generation,
+            )
         return self._llm
 
     def generate(
@@ -110,7 +115,8 @@ RULES:
             HumanMessage(content=full_prompt),
         ]
 
-        response    = llm.invoke(messages)
+        # Only drafts that pass schema/citation validation are cached for reuse.
+        response    = llm.invoke(messages, validate=lambda raw: parse_draft(raw, context_chunks))
         raw_content = response.content
         tokens_used = response.response_metadata.get("token_usage", {}).get("total_tokens", 0)
 

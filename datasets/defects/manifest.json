@@ -1,0 +1,140 @@
+{
+  "note": "Synthetic courses with misalignments planted on purpose. Written during development (AI-assisted); not real course material. A planted defect counts as found when a finding in the named dimension mentions one of the keywords, or names an objective whose text contains one.",
+  "courses": {
+    "en_clean": {
+      "language": "en",
+      "defects": []
+    },
+    "en_defects": {
+      "language": "en",
+      "defects": [
+        {
+          "id": "EN-1",
+          "what": "objective on dynamic programming is stated but never taught",
+          "dimension": "metadata_content",
+          "keywords": [
+            "dynamic programming",
+            "knapsack"
+          ]
+        },
+        {
+          "id": "EN-2",
+          "what": "red-black trees are taught but not in the module manual",
+          "dimension": "metadata_content",
+          "keywords": [
+            "red-black",
+            "red black"
+          ]
+        },
+        {
+          "id": "EN-3",
+          "what": "exam question on network flow, a topic never taught",
+          "dimension": "content_assessment",
+          "keywords": [
+            "ford-fulkerson",
+            "network flow",
+            "maximum flow",
+            "question 4",
+            "exam.txt"
+          ]
+        },
+        {
+          "id": "EN-4",
+          "what": "hash-table objective says evaluate, the exam only asks to define and name",
+          "dimension": "metadata_assessment",
+          "keywords": [
+            "chaining",
+            "hash"
+          ]
+        },
+        {
+          "id": "EN-5",
+          "what": "breadth-first search objective is never assessed",
+          "dimension": "metadata_assessment",
+          "keywords": [
+            "breadth-first",
+            "traverse a graph"
+          ]
+        },
+        {
+          "id": "EN-6",
+          "what": "dynamic programming objective is never assessed",
+          "dimension": "metadata_assessment",
+          "keywords": [
+            "dynamic programming",
+            "knapsack"
+          ]
+        },
+        {
+          "id": "EN-7",
+          "what": "hash tables are on the slides but skipped in the lecture",
+          "dimension": "content_delivery",
+          "keywords": [
+            "hash"
+          ]
+        },
+        {
+          "id": "EN-8",
+          "what": "lecture digression on quantum computing that is on no slide",
+          "dimension": "content_delivery",
+          "keywords": [
+            "quantum",
+            "qubit"
+          ]
+        }
+      ]
+    },
+    "de_defects": {
+      "language": "de",
+      "defects": [
+        {
+          "id": "DE-1",
+          "what": "Lernziel zur dynamischen Programmierung wird nicht gelehrt",
+          "dimension": "metadata_content",
+          "keywords": [
+            "dynamischer programmierung",
+            "dynamische programmierung",
+            "rucksack"
+          ]
+        },
+        {
+          "id": "DE-2",
+          "what": "Rot-Schwarz-Bäume werden gelehrt, stehen aber nicht im Modulhandbuch",
+          "dimension": "metadata_content",
+          "keywords": [
+            "rot-schwarz"
+          ]
+        },
+        {
+          "id": "DE-3",
+          "what": "Klausuraufgabe zum maximalen Fluss, der nie gelehrt wird",
+          "dimension": "content_assessment",
+          "keywords": [
+            "ford-fulkerson",
+            "maximalen fluss",
+            "aufgabe 3",
+            "klausur.txt"
+          ]
+        },
+        {
+          "id": "DE-4",
+          "what": "Lernziel Tiefensuche wird nicht geprüft",
+          "dimension": "metadata_assessment",
+          "keywords": [
+            "tiefensuche"
+          ]
+        },
+        {
+          "id": "DE-5",
+          "what": "Lernziel dynamische Programmierung wird nicht geprüft",
+          "dimension": "metadata_assessment",
+          "keywords": [
+            "dynamischer programmierung",
+            "dynamische programmierung",
+            "rucksack"
+          ]
+        }
+      ]
+    }
+  }
+}

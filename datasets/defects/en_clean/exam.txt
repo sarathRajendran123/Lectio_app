@@ -1,0 +1,3 @@
+Question 1. Explain how insertion sort and merge sort order a list of numbers and why merge sort needs n log n time.
+Question 2. Analyse the running time of binary search on a sorted array with 1024 entries.
+Question 3. Evaluate chaining and open addressing for collisions in hash tables with respect to the load factor and lookup cost.

@@ -5,9 +5,10 @@ The retrieval stage (bi-encoder) optimises for speed by comparing
 pre-computed embeddings. The reranker uses a cross-encoder that sees
 query + document together — much slower but significantly more accurate.
 
-Model: cross-encoder/ms-marco-MiniLM-L-12-v2
-  - Trained on MS MARCO passage ranking
-  - 33M parameters — fast enough for CPU inference on 40 candidates
+Model: settings.rerank_model (default cross-encoder/mmarco-mMiniLMv2-L12-H384-v1)
+  - Multilingual mMARCO cross-encoder (German + English); English-only MS MARCO
+    models rank German passages poorly
+  - Small enough for CPU inference on ~40 candidates
   - Outputs a raw logit score (higher = more relevant)
 
 When to rerank:
@@ -26,7 +27,7 @@ from typing import List, Optional
 from rag.chunking.chunk_models import RetrievedChunk
 
 logger        = logging.getLogger(__name__)
-RERANK_MODEL  = "cross-encoder/ms-marco-MiniLM-L-12-v2"
+RERANK_MODEL  = "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1"
 MIN_SCORE     = -5.0   # raw logit threshold (very permissive; tune upwards if noise)
 
 
@@ -45,7 +46,8 @@ class CrossEncoderReranker:
     @classmethod
     def get_instance(cls) -> "CrossEncoderReranker":
         if cls._instance is None:
-            cls._instance = cls()
+            from config import settings
+            cls._instance = cls(settings.rerank_model)
         return cls._instance
 
     def _load(self):

@@ -53,6 +53,7 @@ class AlignmentGap:
     score:               float        # 0.0 – 1.0 (lower = worse alignment)
     recommendation:      str
     evidence_chunk_ids:  List[str] = field(default_factory=list)
+    dismissed_by:        Optional[str] = None   # id of the lecturer constraint that dismissed this finding earlier
 
     def to_dict(self) -> dict:
         return self.__dict__.copy()
@@ -83,7 +84,7 @@ class AlignmentResult:
 @dataclass
 class GeneratedContentItem:
     item_id:       str
-    content_type:  str    # clo | description | exercise | quiz | assessment_suggestion
+    content_type:  str    # clo | description | exercise | quiz | assessment_suggestion | slide_outline
     title:         str
     content:       str
     bloom_level:   Optional[str]
@@ -91,6 +92,7 @@ class GeneratedContentItem:
     citations:     List[dict] = field(default_factory=list)
     confidence:    float = 0.0
     approval_status: str = "pending"
+    review:        dict = field(default_factory=dict)   # Stakeholder quality check: score, issues, rationale, attempts
 
     def to_dict(self) -> dict:
         return self.__dict__.copy()
@@ -149,7 +151,10 @@ class LectioWorkflowState(TypedDict, total=False):
 
     # Course context (loaded at start)
     course_metadata: Dict[str, Any]   # code, title, level, credits, semester …
-    search_translations: Dict[str, str]  # model-generated retrieval aids, not source evidence
+    course_intent:   Optional[Dict[str, Any]]   # the lecturer's stated intent (id, version, goals …) active for this run
+    lecturer_constraints: List[Dict]   # structured constraints in force for this lecturer and course
+    guidance:        str               # intent + constraints as prompt text, carried into every model context
+    dismissed_findings: Dict[str, Any] # finding fingerprint -> the lecturer constraint that dismissed it
     modules:         List[Dict]       # [{id, title, sequence_number, clos: [...]}]
     assessments:     List[Dict]       # [{id, title, type, weight_percent, questions: [...]}]
     broker_review: dict

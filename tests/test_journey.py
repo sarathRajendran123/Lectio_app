@@ -16,10 +16,14 @@ def test_full_journey(client,headers):
         assert status['processing_status']=='done',status
     evidence=client.get(base+'/evidence',headers=headers).json()
     assert len(evidence)>=3
+    # Auto-build runs right after ingestion, so the syllabus's 2 stated outcomes
+    # are already in the course -- no empty-structure window, no manual click needed.
+    modules=client.get(base+'/modules',headers=headers).json()
+    objectives=[o for m in modules for o in client.get(base+f"/modules/{m['id']}/clos",headers=headers).json()]
+    assert len(objectives)==2 and all(o['is_generated'] for o in objectives)
     r=client.post(base+'/extract-model',headers=headers)
     assert r.status_code==200,r.text
-    assert r.json()['objectives_added']==2
-    assert client.post(base+'/extract-model',headers=headers).json()['objectives_added']==0
+    assert r.json()['objectives_added']==0  # already there; re-running must not duplicate
     r=client.post(base+'/run-audit',headers=headers)
     assert r.status_code==202,r.text
     run=r.json()['run_id']
@@ -57,7 +61,8 @@ def test_reviewed_extraction_and_clusters(client,headers):
     base=f'/api/v1/courses/{course}'
     r=client.post(base+'/artifacts',headers=headers,files={'file':('outcomes.md',b'Students will be able to explain sorting algorithms.','text/markdown')},data={'artifact_type':'syllabus'})
     assert r.status_code==201
-    assert client.post(base+'/extract-model',headers=headers).json()['objectives_added']==1
+    # Auto-build already extracted it during ingestion; the manual call now finds nothing new.
+    assert client.post(base+'/extract-model',headers=headers).json()['objectives_added']==0
     module=client.get(base+'/modules',headers=headers).json()[0]
     objective=client.get(base+'/modules/'+module['id']+'/clos',headers=headers).json()[0]
     r=client.patch(base+'/objectives/'+objective['id'],headers=headers,json={'text':'Compare sorting algorithms and justify their complexity.','bloom_level':'analyse'})

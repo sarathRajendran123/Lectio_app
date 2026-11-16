@@ -1,0 +1,7 @@
+Binäre Suche. Die binäre Suche halbiert in jedem Schritt den Suchraum eines sortierten Arrays. Die Laufzeit ist logarithmisch; bei 1024 Einträgen genügen höchstens 10 Vergleiche.
+
+Hashtabellen. Eine Hashfunktion bildet Schlüssel auf Tabellenplätze ab. Kollisionen werden durch Verkettung oder offene Adressierung gelöst. Der Lastfaktor bestimmt die erwarteten Kosten einer Suche.
+
+Graphen und Tiefensuche. Die Tiefensuche folgt einem Pfad im Graphen bis zum Ende und kehrt dann zurück; sie verwendet einen Stapel. Die Breitensuche besucht die Knoten ebenenweise mit einer Warteschlange.
+
+Rot-Schwarz-Bäume. Ein Rot-Schwarz-Baum ist ein balancierter binärer Suchbaum. Jeder Knoten ist rot oder schwarz gefärbt, und Rotationen mit Umfärbung halten die Höhe des Baums logarithmisch.

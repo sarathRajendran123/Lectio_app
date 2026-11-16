@@ -80,6 +80,12 @@ class AuditLogResponse(BaseModel):
     metadata:      Optional[Dict[str, Any]]
     created_at:    datetime
 
+    @field_validator("ip_address", mode="before")
+    @classmethod
+    def _ip_to_str(cls, v):
+        # PostgreSQL INET columns come back as ipaddress objects, SQLite as str.
+        return None if v is None else str(v)
+
     class Config:
         from_attributes = True
 

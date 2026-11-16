@@ -2,7 +2,7 @@
 import json
 import streamlit as st
 from utils.session_utils import get_client, safe_api_call
-from components.ui_components import render_citations
+from components.ui_components import render_citations, render_draft_feedback
 
 def show_workbench():
     st.title('Course workbench')
@@ -20,6 +20,27 @@ def show_workbench():
         st.warning('LOCAL TEST MODE · deterministic retrieval and draft templates. No LLM inference has taken place.')
     tabs=st.tabs(['Sources & model','Alignment & evidence','Create drafts','Review & export'])
     with tabs[0]:
+        st.subheader('Course intent')
+        st.caption('What you want this course to achieve. Every agent works under it, and each audit records which version it used.')
+        intent_data,_=safe_api_call(client.workbench,base+'/intent')
+        current=(intent_data or {}).get('intent') or {}
+        levels=['remember','understand','apply','analyse','evaluate','create']
+        with st.form('intent'+cid):
+            goals=st.text_area('Goals',value=current.get('goals',''),placeholder='Students can analyse and compare search and hashing algorithms.')
+            wanted=st.multiselect('Intended cognitive levels',levels,default=current.get('cognitive_levels',[]))
+            audience=st.text_input('Audience',value=current.get('audience',''))
+            scope=st.text_input('Scope',value=current.get('scope',''))
+            extra=st.text_input('Other constraints',value=current.get('constraints',''))
+            save_intent=st.form_submit_button('Save intent (adds a new version)')
+        if save_intent:
+            _,err=safe_api_call(client.workbench,base+'/intent','PUT',{'goals':goals,'cognitive_levels':wanted,'audience':audience,'scope':scope,'constraints':extra})
+            if err:st.error(err)
+            else:st.success('Saved. The next audit uses this version.');st.rerun()
+        if current:st.caption(f"Active: version {current['version']}")
+        rules,_=safe_api_call(client.workbench,base+'/constraints')
+        if (rules or {}).get('active'):
+            with st.expander('Rules learned from your decisions'):
+                for c in rules['active']:st.write(f"{c['kind'].title()} ({'this course' if c['scope']=='course' else 'general'}): {c['text']}")
         st.subheader('Source collection')
         documents,err=safe_api_call(client.list_artifacts,cid)
         if err:st.error(err)
@@ -54,6 +75,11 @@ def show_workbench():
                 levels=[None,'remember','understand','apply','analyse','evaluate','create']
                 bloom=st.selectbox('Reviewed Bloom level',levels,index=levels.index(objective.get('bloom_level')) if objective.get('bloom_level') in levels else 0,format_func=lambda v:v or 'Unknown')
                 save=st.form_submit_button('Save reviewed objective')
+                check=st.form_submit_button('Check wording (not saved)')
+            if check:
+                feedback,err=safe_api_call(client.workbench,base+'/draft-feedback','POST',{'text':text[:6000],'content_type':'clo','intended_level':bloom})
+                if err:st.error(err)
+                else:render_draft_feedback(feedback)
             if save:
                 _,err=safe_api_call(client.workbench,base+'/objectives/'+objective['id'],'PATCH',{'text':text,'bloom_level':bloom})
                 if err:st.error(err)
@@ -80,10 +106,20 @@ def show_workbench():
                 if info.get('error_message'):st.warning(info['error_message'])
                 x,y=st.columns(2)
                 if x.button('Refresh audit progress'):st.rerun()
-                if info['status']=='running' and y.button('Cancel audit'):
+                if info['status'] in ('running','paused') and y.button('Cancel audit'):
                     _,err=safe_api_call(client.workbench,'runs/'+run+'/cancel','POST')
                     if err:st.error(err)
                     else:st.rerun()
+                if info['status']=='running' and x.button('Pause audit'):
+                    _,err=safe_api_call(client.workbench,'runs/'+run+'/pause','POST')
+                    if err:st.error(err)
+                    else:st.rerun()
+                if info['status']=='paused':
+                    st.caption('Paused. The step that was running finishes first. You can change the course intent or your rules now; they apply when the audit continues.')
+                    if y.button('Continue audit',type='primary'):
+                        _,err=safe_api_call(client.workbench,'runs/'+run+'/resume','POST')
+                        if err:st.error(err)
+                        else:st.rerun()
                 steps,_=safe_api_call(client.get_run_steps,run)
                 if steps:st.dataframe(steps,width="stretch",hide_index=True)
         matrix,err=safe_api_call(client.workbench,base+'/matrix')
@@ -160,6 +196,16 @@ def show_workbench():
                         if gap['severity'] not in severity:continue
                         st.markdown('**'+gap['gap_type'].replace('_',' ').title()+'**')
                         st.write(gap['description']);st.write('Suggested action: '+gap['recommendation'])
+                        if gap.get('dismissed_by'):st.caption('You dismissed this finding in an earlier review. It is listed for completeness.')
+                        if st.checkbox('How was this finding produced?',key='trace'+gap['gap_id']):
+                            trace,terr=safe_api_call(client.workbench,'findings/'+gap['gap_id']+'/trace')
+                            if terr:st.error(terr)
+                            else:
+                                used=trace['1_intent']['used']
+                                st.write('Intent used: '+(f"version {used['version']}: {used['goals']}" if used else 'none was stated'))
+                                st.write(f"Agents: {', '.join(trace['3_agents'])}. Model calls: {trace['summary']['model_calls']} ({trace['summary']['cached_calls']} cached), retries: {trace['summary']['retries']}.")
+                                st.caption('Event log integrity: '+('verified' if trace['integrity']['valid'] else 'BROKEN at event '+str(trace['integrity'].get('broken_at_seq'))))
+                                with st.expander('Technical trace'):st.dataframe(trace['4_decisions']+trace['5_model_calls_and_checks'],width='stretch',hide_index=True)
                         for ref in gap.get('evidence_chunk_ids',[]):
                             source=source_map.get(ref)
                             if source:
@@ -186,7 +232,7 @@ def show_workbench():
         st.subheader('Grounded alternatives')
         st.caption('Every result is a draft. Sources remain unchanged until you explicitly approve a proposal.')
         with st.form('generate'+cid):
-            kind=st.selectbox('Content type',['clo','exercise','quiz','description','assessment_suggestion'])
+            kind=st.selectbox('Content type',['clo','exercise','quiz','description','assessment_suggestion','slide_outline'],format_func=lambda v:v.replace('_',' '))
             purpose=st.text_area('Purpose and relevant course topic',placeholder='Create an exercise on binary search complexity')
             constraints=st.text_area('Constraints',placeholder='Academic level, format, target Bloom level, duration…')
             modules,_=safe_api_call(client.list_modules,cid)
@@ -197,13 +243,14 @@ def show_workbench():
             profiles,_=safe_api_call(client.workbench,'system/agent-profiles')
             styles=st.multiselect('Prompt styles',(profiles or {}).get('prompt_styles',['conceptual','applied','reflective']),default=['conceptual','applied'])
             models=st.multiselect('Configured model variants',(profiles or {}).get('models',[]))
+            depths=st.multiselect('Level of detail',(profiles or {}).get('granularity',['brief','standard','detailed']),default=['standard'],help='Each alternative uses the next selected level: brief uses fewer source passages, detailed uses more.')
             expected_format=st.text_input('Expected output format',placeholder='Two questions with marking criteria, or a short module description')
             alternatives=st.slider('Alternatives',1,3,2)
             submit=st.form_submit_button('Generate draft alternatives',type='primary')
         if submit:
             with st.spinner('Retrieving course evidence and preparing drafts…'):
                 result,err=safe_api_call(client.workbench,base+'/generate','POST',{'content_type':kind,'purpose':purpose,
-                    'constraints':constraints,'objective_ids':[o['id'] for o in selected_objectives],'alternatives':alternatives,'models':models,'prompt_styles':styles or ['conceptual'],'expected_format':expected_format})
+                    'constraints':constraints,'objective_ids':[o['id'] for o in selected_objectives],'alternatives':alternatives,'models':models,'prompt_styles':styles or ['conceptual'],'granularity':depths or ['standard'],'expected_format':expected_format})
             if err:st.error(err)
             else:st.session_state['variants'+cid]=result
         variants=st.session_state.get('variants'+cid,[])

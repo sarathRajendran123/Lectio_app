@@ -13,20 +13,19 @@ async def probe_services():
         results['database']={'status':'operational'}
     except Exception:results['database']={'status':'unavailable','message':'Database probe failed.'}
     if settings.runtime_mode=='local_test':results['llm']={'status':'disabled','message':'Deterministic testing mode; no model inference.'}
-    elif not settings.active_api_key or not settings.active_model:results['llm']={'status':'not_configured'}
-    elif settings.llm_provider=='openrouter':results['llm']={'status':'configured_not_probed','model':settings.active_model,'inference_tested':False}
+    elif not settings.llm_ready:results['llm']={'status':'not_configured'}
     else:
         try:
             async with httpx.AsyncClient(timeout=8,trust_env=False) as client:
-                response=await client.get('https://api.groq.com/openai/v1/models',headers={'Authorization':'Bearer '+settings.groq_api_key})
+                response=await client.get(settings.openrouter_base_url.rstrip('/')+'/models',headers={'Authorization':'Bearer '+settings.openrouter_api_key})
                 response.raise_for_status();models={m['id'] for m in response.json().get('data',[])}
-            results['llm']={'status':'reachable' if settings.groq_model in models else 'model_unavailable','model':settings.groq_model,'inference_tested':False}
+            results['llm']={'status':'reachable' if settings.openrouter_model in models else 'model_unavailable','model':settings.openrouter_model,'inference_tested':False}
         except Exception:results['llm']={'status':'unavailable','message':'Provider probe failed; verify network, credentials and model availability.'}
     if settings.runtime_mode=='local_test' or settings.retrieval_backend=='lexical':
         results['retrieval']={'status':'operational','backend':'lexical hash vectors; not neural embeddings'}
     else:
         results['retrieval']={'status':'operational' if results['database']['status']=='operational' else 'unavailable',
-            'backend':'BGE / transactional SQL vectors','embedding_inference_tested':False,
+            'backend':'multilingual dense ('+settings.embedding_model+') + BM25 / transactional SQL vectors','embedding_inference_tested':False,
             'message':'Vector persistence uses the course database. Neural model files require first use.'}
     if not settings.paperclip_api_url or not settings.paperclip_api_key:results['paperclip']={'status':'not_configured'}
     else:

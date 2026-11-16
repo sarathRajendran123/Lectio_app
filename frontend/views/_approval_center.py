@@ -1,11 +1,11 @@
 """LECTIO — Approval Center Page"""
 import streamlit as st
 from utils.session_utils import get_client, safe_api_call
-from components.ui_components import render_citations, bloom_chip, empty_state, status_badge
+from components.ui_components import render_citations, render_draft_feedback, bloom_chip, empty_state, status_badge
 
 CONTENT_LABELS = {
     "clo": "CLO", "quiz": "Quiz", "exercise": "Exercise",
-    "assessment": "Assessment", "description": "Description",
+    "assessment": "Assessment", "description": "Description", "slide_outline": "Slide outline",
 }
 
 
@@ -22,6 +22,11 @@ def show_approval_center():
     course_opts.update({f"{c['code']} — {c['title']}": c["id"] for c in courses})
     selected_course_label = col2.selectbox("Course", list(course_opts.keys()))
     course_filter    = course_opts[selected_course_label]
+    projected_course = st.session_state.get("show_projection_for")
+    if projected_course:
+        from views._alignment_reports import render_projection
+        render_projection(client, projected_course, compact=True)
+        st.divider()
 
     if col3.button("Refresh"):
         st.rerun()
@@ -60,12 +65,34 @@ def _render_approval_card(client, item: dict, status_filter: str):
         st.markdown(
             f"""<div style="background:#f8f9fa; padding:1rem; border-radius:6px;
             border-left:4px solid #4F46E5; white-space:pre-wrap; font-size:0.9rem;">
-            {item.get("content","").replace("<","&lt;").replace(">","&gt;")}
+            {item.get("content","").replace("<","&lt;").replace(">","&gt;").replace(chr(10), "&#10;")}
             </div>""",
             unsafe_allow_html=True,
         )
 
         render_citations(item.get("citations", []))
+
+        # The Stakeholder agent's own check of this draft: never hidden, never shown as a pass when it failed.
+        quality = item.get("quality")
+        if quality and not quality["passed"]:
+            st.warning(f"This draft did not pass the internal quality check ({quality['score']:.0%}, needs {quality['threshold']:.0%}) "
+                       f"after {quality['attempts']} attempt(s). " + " ".join(quality.get("issues") or []))
+        elif quality:
+            st.caption(f"Internal quality check passed ({quality['score']:.0%}, {quality['attempts']} attempt(s)). This is a consistency check, not a judgement of teaching quality.")
+        if item.get("rationale"):
+            st.caption("Why this draft: " + item["rationale"])
+        if st.checkbox("How was this draft produced?", key=f"trace_{content_id}"):
+            produced, trace_error = safe_api_call(client.workbench, f"approvals/{content_id}/trace")
+            if trace_error:
+                st.error(trace_error)
+            else:
+                used = produced["1_intent"]["used"]
+                st.write("Intent used: " + (f"version {used['version']}: {used['goals']}" if used else "none was stated"))
+                summary = produced["summary"]
+                st.write(f"Model calls: {summary['model_calls']} ({summary['cached_calls']} cached), quality checks: {summary['quality_checks']}, retries: {summary['retries']}.")
+                st.caption("Event log integrity: " + ("verified" if produced["integrity"]["valid"] else "BROKEN: " + str(produced["integrity"].get("reason"))))
+                with st.expander("Technical trace"):
+                    st.dataframe(produced["5_model_calls_and_checks"], width="stretch", hide_index=True)
 
         history, history_error = safe_api_call(client.workbench, f"approvals/{content_id}/history")
         if history:
@@ -102,6 +129,7 @@ def _render_approval_card(client, item: dict, status_filter: str):
                     st.error(err)
                 else:
                     st.success("Approved and recorded.")
+                    st.session_state["show_projection_for"] = item.get("course_id")
                     st.session_state.pop(action_key, None)
                     st.rerun()
 
@@ -112,6 +140,18 @@ def _render_approval_card(client, item: dict, status_filter: str):
                 key=f"rev_txt_{content_id}",
                 height=200,
             )
+            if st.button("Check this text (not saved)", key=f"chk_{content_id}"):
+                if len(revision.strip()) < 8:
+                    st.warning("Write at least a few words to check.")
+                else:
+                    kind = item.get("content_type") if item.get("content_type") in ("clo", "exercise", "quiz", "description", "slide_outline") else "assessment_suggestion"
+                    feedback, err = safe_api_call(client.workbench, f"courses/{item.get('course_id')}/draft-feedback", "POST",
+                                                  {"text": revision[:6000], "content_type": kind})
+                    if err:
+                        st.error(err)
+                    st.session_state[f"fb_{content_id}"] = feedback
+            if st.session_state.get(f"fb_{content_id}"):
+                render_draft_feedback(st.session_state[f"fb_{content_id}"])
             comment = st.text_input("Revision reason (optional)", key=f"cmt_rev_{content_id}")
             if st.button("Submit Revision", key=f"conf_rev_{content_id}", type="primary"):
                 if not revision.strip():

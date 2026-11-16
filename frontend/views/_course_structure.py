@@ -41,6 +41,40 @@ def show_course_structure():
     if not can_edit:
         st.info("You have read-only access here. Ask a coordinator to make changes.")
 
+    if can_edit:
+        col_btn, col_note = st.columns([1, 3])
+        if col_btn.button("Build from uploaded files"):
+            result, err = safe_api_call(client.extract_model, course_id)
+            if err:
+                st.error(err)
+            else:
+                added = result.get("objectives_added", 0)
+                extra = []
+                if result.get("assessments_added"):
+                    extra.append(f"{result['assessments_added']} assessment(s)")
+                if result.get("weeks_added"):
+                    extra.append(f"{result['weeks_added']} week(s)")
+                extra_txt = (" and " + ", ".join(extra)) if extra else ""
+                if added or extra:
+                    st.success(
+                        f"Found {added} learning objective(s){extra_txt} in your uploaded "
+                        f"files. New items are marked **AI-generated** below — review the "
+                        f"wording and Bloom level before relying on the audit."
+                    )
+                else:
+                    st.info(
+                        "No new objectives, assessments, or weeks found. This only reads "
+                        "lines that explicitly state an outcome (e.g. \"Students will be "
+                        "able to ...\") from your uploaded files, and never overwrites "
+                        "anything already here."
+                    )
+                st.rerun()
+        col_note.caption(
+            "Reads your uploaded syllabus/slides/assignments and adds any Learning "
+            "Objectives, Assessments, and weekly schedule it can find — safe to run "
+            "any time, it never duplicates or overwrites existing entries."
+        )
+
     tab1, tab2, tab3, tab4 = st.tabs([
         "Modules", "Weeks & Topics", "Learning Objectives", "Assessments",
     ])

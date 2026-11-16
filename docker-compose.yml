@@ -38,7 +38,8 @@ services:
       postgres:
         condition: service_healthy
     volumes:
-      - artifact_uploads:/app/uploads
+      - artifact_uploads:/app/uploads   # also holds .llm_cache and .embed_cache
+      - hf_cache:/models                # embedding/reranker weights, downloaded once
       - ./backend:/app                # Hot-reload in dev
     ports:
       - "127.0.0.1:8000:8000"
@@ -66,6 +67,7 @@ services:
 volumes:
   postgres_data:
   artifact_uploads:
+  hf_cache:
 
 networks:
   default:

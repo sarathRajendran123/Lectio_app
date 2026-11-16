@@ -77,7 +77,7 @@ class MetadataContentAlignmentAgent(BaseAgent):
             from config import settings
             from agents.cross_language import search_translation
             translated, translation_tokens, translation_status = search_translation(
-                clo['text'], settings.runtime_mode == 'live' and bool(settings.active_api_key and settings.active_model), self._invoke)
+                clo['text'], settings.runtime_mode == 'live' and bool(getattr(settings, 'llm_ready', False) or (getattr(settings, 'active_api_key', '') and getattr(settings, 'active_model', ''))), self._invoke)
             self.search_query = translated
             score, gap, tokens = self._audit_clo(clo, course_id)
             scores.append(score)

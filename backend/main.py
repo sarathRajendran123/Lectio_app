@@ -26,18 +26,21 @@ async def lifespan(app: FastAPI):
     from db.base import Base
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        from services.trace import install_guards
+        await conn.run_sync(install_guards)   # trace_events refuses UPDATE and DELETE at database level
     logger.info("Database tables verified.")
     await ensure_admin_user()
     logger.info(f"{settings.app_name} ready.")
     # Recover interrupted background work instead of leaving permanent spinners.
-    from sqlalchemy import update
-    from db.models.generated_content import AgentRun
-    from db.models.artifact import CourseArtifact
-    from db.session import AsyncSessionLocal
-    async with AsyncSessionLocal() as db:
-        await db.execute(update(AgentRun).where(AgentRun.status == "running").values(status="failed", error_message="Server restarted during audit; please rerun."))
-        await db.execute(update(CourseArtifact).where(CourseArtifact.processing_status.in_(["pending","parsing","chunking","embedding","storing"])).values(processing_status="error",processing_error="Server restarted during processing; retry ingestion."))
-        await db.commit()
+    from services.recovery import recover_interrupted_work
+    recovered = await recover_interrupted_work()
+    if recovered["runs"] or recovered["documents"]:
+        logger.warning("Closed interrupted work after restart: %s", recovered)
+    if settings.runtime_mode == "live" and settings.retrieval_backend == "neural":
+        # Load embedding weights in the background so the first search/upload/projection is not the one that waits.
+        import asyncio
+        from rag.embedding.bge_embedder import BGEEmbedder
+        asyncio.get_running_loop().run_in_executor(None, lambda: BGEEmbedder.get_instance().embed_texts(["warm-up"]))
     yield
     from services.workflow_service import workflow_service
     for run_id in list(workflow_service.tasks):
@@ -107,3 +110,5 @@ app.include_router(approvals_router,     prefix="/api/v1",          tags=["Appro
 
 from api.v1.routes.workbench import router as workbench_router
 app.include_router(workbench_router, prefix="/api/v1", tags=["Workbench"])
+from api.v1.routes.governance import router as governance_router
+app.include_router(governance_router, prefix="/api/v1", tags=["Intent, constraints and trace"])

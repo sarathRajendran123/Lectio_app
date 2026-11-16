@@ -80,7 +80,7 @@ async def create_course(
     user: CurrentUser  = Depends(require_role("lecturer")),
     db:   AsyncSession = Depends(get_db, scope="function"),
 ):
-    """Create a new course. Requires coordinator role or above."""
+    """Create a new course. Any authenticated lecturer may create one and owns it."""
     repo = CourseRepository(db)
     from sqlalchemy import select
     from db.models.course import Course

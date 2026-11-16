@@ -2,7 +2,7 @@
 
 An improved implementation of the supplied FastAPI / Streamlit / LangGraph project (implementation revision 2). It audits four educational alignment dimensions, links findings to uploaded sources, generates reviewable drafts, and preserves lecturer decisions. The supplied Lectio exposé informed this implementation; see `docs/REQUIREMENTS_TRACEABILITY.md`.
 
-**Status:** local end-to-end workflow tested. This is a research prototype with substantial hardening, not a certified production release. Live Groq inference returned HTTP 403 here; BGE inference, PostgreSQL/Docker and an external Paperclip deployment remain unverified. Local API, SQL vector retrieval, browser interactions and the installed dependency set were verified. See `docs/VERIFICATION.md` for exact results and remaining limits.
+**Status:** local end-to-end workflow tested. This is a research prototype with substantial hardening, not a certified production release. Generation now goes through OpenRouter and embeddings use multilingual BGE-M3; see `docs/COST_AND_MODELS.md` and `docs/VERIFICATION.md` for what has and has not been verified. Local API, SQL vector retrieval, browser interactions and the installed dependency set were verified. See `docs/VERIFICATION.md` for exact results and remaining limits.
 
 ## Quick start — no API key or Docker required
 
@@ -64,13 +64,13 @@ The sample is clearly named and contains an intentional missing graph-traversal 
 
 ## Live deployment configuration
 
-Copy `.env.example` to a private `.env` and set fresh database and JWT secrets, an optional bootstrap admin password (at least 12 characters), and `GROQ_API_KEY`. Set `RUNTIME_MODE=live`. `GROQ_MODEL` is configurable; verify its availability in your Groq account. Set `ARTIFACT_STORAGE_PATH=/app/uploads` for the supplied Docker volume.
+Copy `.env.example` to a private `.env` and set fresh database and JWT secrets, an optional bootstrap admin password (at least 12 characters), and `OPENROUTER_API_KEY`. Set `RUNTIME_MODE=live`. `OPENROUTER_MODEL` defaults to the free `nvidia/nemotron-3.5-super-vl:free`; free models are rate-limited and can be withdrawn, so check <https://openrouter.ai/models> and override if needed. Set `ARTIFACT_STORAGE_PATH=/app/uploads` for the supplied Docker volume.
 
 ```bash
 docker compose up --build
 ```
 
-The live stack is PostgreSQL, BGE embeddings, transactional SQL vector storage, BM25, cross-encoder reranking, LangGraph and Groq. ChromaDB was removed from the supported runtime because the audited release had four advisories without listed fixes. Source text and vectors now commit together in the existing database; retrieval enforces course ownership and source status. API keys are never shown by system status. Docker Compose binds services to loopback. Live model output is parsed and schema-checked; citations are restricted to retrieved sources. A valid citation proves source identity, not claim entailment: lecturers must still verify conclusions.
+The live stack is PostgreSQL, multilingual BGE-M3 embeddings (German + English), transactional SQL vector storage, BM25, a multilingual cross-encoder reranker, LangGraph and OpenRouter. Model weights download once into the `hf_cache` volume. Changing `EMBEDDING_MODEL` makes stored vectors stale (they are ignored, not mixed): run `python scripts/reembed.py` once. ChromaDB was removed from the supported runtime because the audited release had four advisories without listed fixes. Source text and vectors now commit together in the existing database; retrieval enforces course ownership and source status. API keys are never shown by system status. Docker Compose binds services to loopback. Live model output is parsed and schema-checked; citations are restricted to retrieved sources. A valid citation proves source identity, not claim entailment: lecturers must still verify conclusions.
 
 Use **one API worker** for this prototype's in-process scheduler and restart recovery. Audit admission uses database locks, but dispatch/cancellation/restart recovery remain local to an API worker. Multi-instance deployment still requires a durable external job queue before use. Use a reverse proxy with TLS, bounded request bodies (including chunked requests), authentication rate limits and network isolation before any public deployment. Refresh/revoke behaviour and deployment dependencies need a release security review.
 
@@ -85,7 +85,7 @@ See `docs/EVALUATION.md` for labelling and metric collection. Run `python script
 ## Checks
 
 ```bash
-python -m pytest -q
+python -m pytest -q          # set LECTIO_SKIP_MODEL_TESTS=1 to skip the real-model German retrieval tests
 python -m compileall -q backend frontend scripts
 python scripts/check_local_integration.py
 ```
@@ -98,18 +98,10 @@ Documentation: baseline assessment, requirements matrix, verification results, k
 
 ## Live inference without a neural-model download
 
-### Experimental OpenRouter provider
-
-OpenRouter may be selected with `LLM_PROVIDER=openrouter`, a private
-`OPENROUTER_API_KEY`, and an explicitly selected `OPENROUTER_MODEL` in `.env`.
-Set `RUNTIME_MODE=live` and, to test without downloading neural models,
-`RETRIEVAL_BACKEND=lexical`. The model must be available to the account and may
-incur provider charges. `python scripts/verify_live.py` exercises an actual
-synthetic inference request; the code has not been verified against a live
-OpenRouter account. No inference occurs in `local_test` mode. Live requests send
-selected course excerpts to the configured provider; check permission before
-using private material. Provider support alone does not make lexical retrieval
-multilingual. Do not commit or share `.env`.
+OpenRouter is configured with a private `OPENROUTER_API_KEY` and an
+`OPENROUTER_MODEL` in `.env`. Live requests can incur charges and send selected
+course excerpts to the configured provider. Use course material only with the
+appropriate permission; do not commit or share `.env`.
 
 In live mode, German-looking objectives in the metadata-content audit may use
 one additional model request to create an English search query. Both original
@@ -119,15 +111,20 @@ translation. A failed translation is flagged as needing review. Local test mode
 does not call a model. This heuristic does not support all languages or ensure
 cross-language coverage; real-course evaluation remains necessary.
 
-To verify real Groq generation while using the lightweight local retrieval path, install `requirements-local.txt` and configure:
+To verify real OpenRouter generation while using the lightweight local retrieval path, install `requirements-local.txt` and configure:
 
 ```dotenv
 RUNTIME_MODE=live
 RETRIEVAL_BACKEND=lexical
-GROQ_API_KEY=<your private Groq key>
-GROQ_MODEL=<an available model in your account>
+OPENROUTER_API_KEY=<your private OpenRouter key>
+OPENROUTER_MODEL=<an available model>
 ```
 
-Run `python scripts/verify_live.py`. It requires actual provider inference and strict source quotations; it refuses local_test mode. This lexical retrieval option is explicitly identified and does not claim neural semantics. Use `RETRIEVAL_BACKEND=neural` with `requirements.txt` for BGE and semantic boundary detection. On CPU-only machines install CPU PyTorch first to avoid CUDA downloads, as the backend Dockerfile does.
+Run `python scripts/verify_live.py`. It requires actual provider inference and strict source quotations; it refuses local_test mode. This lexical retrieval option is explicitly identified and does not claim neural semantics. Use `RETRIEVAL_BACKEND=neural` with `requirements.txt` for BGE-M3 and semantic boundary detection. On CPU-only machines install CPU PyTorch first to avoid CUDA downloads, as the backend Dockerfile does.
 
-Configured Groq variants can be supplied as `GROQ_MODEL_VARIANTS=["model-a","model-b"]`; only allow-listed models may be selected in the UI. Model availability is checked separately; configuring a name does not verify it.
+Configured variants can be supplied as `OPENROUTER_MODEL_VARIANTS=["model-a","model-b"]`; only allow-listed models may be selected in the UI. Model availability is checked separately; configuring a name does not verify it.
+
+## Screenshots
+
+`docs/screenshots/` holds current views of the interface (login, dashboard, documents, alignment reports with projected scores, approval center, course workbench), taken on the demo course from `datasets/en_algorithms`.
+

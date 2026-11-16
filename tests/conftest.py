@@ -6,7 +6,8 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 sys.path.insert(0,str(ROOT/'backend'))
 TEST_ROOT=Path(tempfile.mkdtemp(prefix='lectio-tests-'))
-os.environ.update(DATABASE_URL=f'sqlite+aiosqlite:///{TEST_ROOT}/test.db',
+# LECTIO_TEST_DATABASE_URL runs the suite on another engine (CI, PostgreSQL). Never point it at a database with real data.
+os.environ.update(DATABASE_URL=os.environ.get('LECTIO_TEST_DATABASE_URL') or f'sqlite+aiosqlite:///{TEST_ROOT}/test.db',
     SECRET_KEY='test-only-secret-more-than-thirty-two-characters',RUNTIME_MODE='local_test',
     ADMIN_EMAIL='admin@example.org',ADMIN_PASSWORD='LectioTestPassword!42',ARTIFACT_STORAGE_PATH=str(TEST_ROOT/'uploads'))
 import pytest

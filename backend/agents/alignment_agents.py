@@ -37,7 +37,7 @@ class MetadataAssessmentAlignmentAgent(BaseAgent):
                 report_type="metadata_assessment",
                 overall_score=0.0,
                 status="needs_review",
-                findings={"note": "Insufficient data (no CLOs or no assessments)."},
+                findings={"reason": "Needs both learning objectives and assessments: upload an exam or exercise sheet" + ("" if all_clos else " and a syllabus or materials the objectives can be derived from") + "."},
             ))
 
         gaps:     List[AlignmentGap] = []
@@ -155,7 +155,7 @@ class ContentDeliveryAlignmentAgent(BaseAgent):
                 report_type="content_delivery",
                 overall_score=0.0,
                 status="needs_review",
-                findings={"note": "No modules to check."},
+                findings={"reason": "No weekly schedule available: add 'Week N: topic' (German: 'Woche N: Thema') lines to the syllabus or enter the schedule in Course Structure."},
             ))
 
         gaps:     List[AlignmentGap] = []
@@ -183,32 +183,6 @@ class ContentDeliveryAlignmentAgent(BaseAgent):
                     if gap:
                         gaps.append(gap)
 
-        # Compare prepared slides and transcripts separately for each planned
-        # topic. Source pairs still need lecturer confirmation; co-occurrence
-        # is not proof that both sources convey the same ideas.
-        from agents.delivery_comparison import compare_delivery
-        comparison, truncated = compare_delivery(modules, course_id, self._retrieve, self._page_context)
-        findings['prepared_transcript_comparison'] = comparison
-        findings['comparison_truncated'] = truncated
-        findings['comparison_notice'] = (
-            'Topic-level evidence only. Confirm that sources are from the same '
-            'lecture; transcript completeness and semantic differences need review.'
-        )
-        for row in comparison:
-            if row['status'] in ('transcript_evidence_not_found', 'prepared_evidence_not_found'):
-                absent = 'transcript' if row['status'] == 'transcript_evidence_not_found' else 'prepared slides'
-                gaps.append(AlignmentGap(
-                    gap_id=str(uuid.uuid4()), gap_type='delivery_evidence_difference',
-                    severity='info',
-                    description=(f"For planned topic '{row['topic']}' in week {row['week']}, "
-                                 f"no matching {absent} evidence was found. This may reflect "
-                                 'missing or incomplete sources, retrieval, or a different session.'),
-                    affected_entity_type='topic', affected_entity_id=row['topic_id'],
-                    score=0.0,
-                    recommendation='Check the source pair and transcript completeness before drawing a conclusion.',
-                    evidence_chunk_ids=(row['prepared_chunk_ids'] + row['transcript_chunk_ids']),
-                ))
-
         # Sequencing check
         seq_issues = self._check_sequencing(modules, course_id)
         findings["sequencing_issues"] = seq_issues
@@ -226,9 +200,8 @@ class ContentDeliveryAlignmentAgent(BaseAgent):
 
         overall = sum(scores) / len(scores) if scores else 1.0
         status = ("pass" if overall >= 0.75 else "warning" if overall >= 0.55 else "fail") if scores else "needs_review"
-        if comparison and status == 'pass':
-            # Topic matches cannot prove alignment or complete delivery.
-            status = 'needs_review'
+        if not scores:
+            findings["reason"] = "The course has modules but no weekly topics to compare with the materials: add a schedule to the syllabus or in Course Structure."
 
         result = AlignmentResult(
             agent_name=self.name,
@@ -286,46 +259,6 @@ class ContentDeliveryAlignmentAgent(BaseAgent):
             )
 
         return best, None
-
-    def _page_context(self, course_id, matches):
-        return self._run_async(self._async_page_context(course_id, matches))
-
-    async def _async_page_context(self, course_id, matches):
-        """Return nearby source chunks as context, not additional topic matches."""
-        from collections import defaultdict
-        from sqlalchemy import select
-        from db.models.artifact import Chunk, CourseArtifact
-        from db.session import AsyncSessionLocal
-        from agents.delivery_comparison import repeated_text_key
-
-        target = {(c.artifact_id, c.page_number) for c in matches if c.page_number is not None}
-        if not target:
-            return []
-        artifact_ids = [uuid.UUID(a) for a in {a for a, _ in target}]
-        async with AsyncSessionLocal() as db:
-            rows = list((await db.scalars(select(Chunk).join(CourseArtifact, Chunk.artifact_id == CourseArtifact.id)
-                .where(Chunk.course_id == uuid.UUID(course_id), Chunk.artifact_id.in_(artifact_ids),
-                       CourseArtifact.processing_status == 'done')
-                .order_by(Chunk.chunk_index).limit(10000))).all())
-        locations = defaultdict(set)
-        for chunk in rows:
-            key = (str(chunk.artifact_id), repeated_text_key(chunk.text))
-            if chunk.page_number is not None:
-                locations[key].add(chunk.page_number)
-        output = []
-        matched_ids = {c.chunk_id for c in matches}
-        for artifact, page in sorted(target):
-            added = 0
-            for chunk in rows:
-                if (str(chunk.artifact_id), chunk.page_number) != (artifact, page):
-                    continue
-                key = (artifact, repeated_text_key(chunk.text))
-                if len(chunk.text.strip()) < 60 or len(locations[key]) >= 3 or str(chunk.id) in matched_ids:
-                    continue
-                output.append(str(chunk.id)); added += 1
-                if added == 2:
-                    break
-        return output
 
     def _check_sequencing(self, modules: list, course_id: str) -> List[str]:
         """

@@ -34,7 +34,7 @@ def show_generated_content():
 
     status_filter = col2.selectbox("Status", STATUS_FILTER_OPTS)
     type_filter   = col3.selectbox("Type",
-                                    ["all", "clo", "quiz", "exercise", "assessment", "description", "assessment_suggestion"])
+                                    ["all", "clo", "quiz", "exercise", "assessment", "description", "assessment_suggestion", "slide_outline"])
 
     # ── Load items ─────────────────────────────────────────────────────────
     if status_filter == "all":
@@ -110,7 +110,7 @@ def _render_content_card(item: dict):
                 f"""<div style="white-space:pre-wrap; font-size:0.9rem;
                 padding:0.75rem; background:#fff; border-radius:6px;
                 border:1px solid #E2E8F0;">
-                {item.get("content","").replace("<","&lt;").replace(">","&gt;")}
+                {item.get("content","").replace("<","&lt;").replace(">","&gt;").replace(chr(10), "&#10;")}
                 </div>""",
                 unsafe_allow_html=True,
             )

@@ -66,7 +66,7 @@ class GeneratedContentRecord(Base):
     title:               Mapped[Optional[str]]       = mapped_column(String(500))
     content:             Mapped[str]                 = mapped_column(Text, nullable=False)
     bloom_level:         Mapped[Optional[str]]       = mapped_column(String(50))
-    source_gap_id:       Mapped[Optional[str]]       = mapped_column(String(255))
+    source_gap_id:       Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("alignment_gaps.id", ondelete="SET NULL"))
     citations:           Mapped[Optional[list]]      = mapped_column(JSONB)
     confidence_score:    Mapped[Optional[Decimal]]   = mapped_column(Numeric(5, 4))
     model_used:          Mapped[Optional[str]]       = mapped_column(String(100))

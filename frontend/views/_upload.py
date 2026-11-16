@@ -127,6 +127,11 @@ def _poll_processing(client, course_id, artifact_id):
         if s in ("done", "error"):
             if s == "done":
                 st.success(f"Processing complete — {chunks} chunks indexed.")
+                st.caption(
+                    "If this course had no Learning Objectives yet, LECTIO just "
+                    "scanned this file for any it could find — check the "
+                    "**Course Structure** page."
+                )
             else:
                 st.error(f"Processing error: {status_data.get('processing_error','')}")
             break

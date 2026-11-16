@@ -30,3 +30,7 @@ chroma_data/
 
 # Private development data, uploads, vector files and browser QA captures
 data/
+
+# Reference deliverables
+*.zip
+*.pdf

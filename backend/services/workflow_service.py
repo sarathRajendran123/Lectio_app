@@ -83,7 +83,7 @@ class WorkflowService:
                 cwd=str(Path(__file__).resolve().parents[1]),
                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
             self.processes[run_id] = process
-            stdout, stderr = await asyncio.wait_for(process.communicate(), settings.workflow_timeout_seconds)
+            stdout, stderr = await self._wait_for_worker(run_id, process)
             if process.returncode:
                 logger.error("Workflow worker failed: %s", stderr.decode(errors='replace')[-2000:])
                 raise RuntimeError('Workflow worker failed. Check configuration and backend logs.')
@@ -103,6 +103,40 @@ class WorkflowService:
             await self._update_run(run_id,'failed',error=str(exc)[:500] or 'Workflow exceeded time limit.')
         finally:
             self.processes.pop(run_id,None)
+
+    async def _wait_for_worker(self, run_id, process):
+        """Wait for the worker. Working time is limited by WORKFLOW_TIMEOUT_SECONDS; paused time by PAUSE_MAX_SECONDS."""
+        import asyncio, time
+        from config import settings
+        finished = asyncio.ensure_future(process.communicate())
+        worked = paused = 0.0
+        last = time.monotonic()
+        try:
+            while True:
+                done, _ = await asyncio.wait({finished}, timeout=max(settings.pause_poll_seconds, 0.2))
+                if done:
+                    return finished.result()
+                now = time.monotonic()
+                async with AsyncSessionLocal() as db:
+                    status = await db.scalar(select(AgentRun.status).where(AgentRun.id == uuid.UUID(run_id)))
+                if status == "paused":
+                    paused += now - last
+                else:
+                    worked += now - last
+                last = now
+                if worked > settings.workflow_timeout_seconds:
+                    raise RuntimeError("Workflow exceeded time limit.")
+                if paused > settings.pause_max_seconds:
+                    raise RuntimeError(f"The audit was paused for more than {settings.pause_max_seconds // 60} minutes and was stopped.")
+        finally:
+            if not finished.done():
+                finished.cancel()
+
+    async def set_paused(self, run_id, paused: bool, db) -> bool:
+        """Pause a running audit or let a paused one continue. False when the run is not in the state to change from."""
+        before, after = ("running", "paused") if paused else ("paused", "running")
+        result = await db.execute(update(AgentRun).where(AgentRun.id == uuid.UUID(str(run_id)), AgentRun.status == before).values(status=after))
+        return bool(result.rowcount)
 
     async def cancel(self, run_id):
         task=self.tasks.get(str(run_id))
@@ -137,6 +171,13 @@ class WorkflowService:
                 .values(**values)
             )
             await db.commit()
+            # Close the run in the trace, then record the chain head outside the database.
+            from services import trace
+            run = await db.get(AgentRun, uuid.UUID(run_id))
+            await trace.aemit("run_finished", {"status": status, "tokens": tokens, "error": (error or "")[:300] or None},
+                              subject=("run", run_id), run_id=run_id, course_id=str(run.course_id) if run else None,
+                              agent="workflow_service")
+            await trace.anchor(db, run_id)
 
     def _serialise_state(self, state: dict) -> dict:
         """Make state JSON-serialisable (convert dataclasses to dicts)."""
@@ -217,6 +258,15 @@ class WorkflowService:
             )
 
         item = await db.get(GeneratedContentRecord, uuid.UUID(content_id))
+        if item:
+            # The decision becomes an explicit constraint (and a rejected draft is remembered so it is not offered again).
+            from services import constraints as lecturer_constraints, trace
+            rule = await lecturer_constraints.from_draft_decision(db, reviewer_id, item.course_id, content_id, decision, comment, item.content)
+            await trace.aemit("lecturer_decision", {"decision": decision, "has_comment": bool((comment or "").strip()),
+                                                    "edited": bool(revision), "constraint_id": rule["id"] if rule else None,
+                                                    "gap_id": str(item.source_gap_id) if item.source_gap_id else None},
+                              db=db, subject=("draft", content_id), run_id=str(item.run_id) if item.run_id else None,
+                              course_id=str(item.course_id), agent="lecturer")
         if item and item.run_id:
             await db.flush()
             from sqlalchemy import func

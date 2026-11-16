@@ -428,5 +428,135 @@ INSERT INTO departments (name, code, faculty) VALUES
 ON CONFLICT (code) DO NOTHING;
 
 -- ═══════════════════════════════════════════════════════════════════════
+-- GOVERNANCE AND REVIEW TABLES (added 2026-11-13, generated from the ORM models)
+-- course intent, lecturer rules, draft quality reviews, finding decisions, applied drafts,
+-- assessment source links and the append-only trace. The triggers that refuse UPDATE,
+-- DELETE and TRUNCATE on trace_events are installed by the application at start-up
+-- (services/trace.py, install_guards), not by this file.
+-- ═══════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS trace_events (
+    id UUID NOT NULL,
+    chain_key VARCHAR(80) NOT NULL,
+    seq INTEGER NOT NULL,
+    ts VARCHAR(40) NOT NULL,
+    run_id VARCHAR(64),
+    course_id VARCHAR(64),
+    event_type VARCHAR(40) NOT NULL,
+    agent VARCHAR(80),
+    task_id VARCHAR(160),
+    parent_id VARCHAR(160),
+    subject_type VARCHAR(20),
+    subject_id VARCHAR(64),
+    payload JSONB NOT NULL,
+    prev_hash VARCHAR(64) NOT NULL,
+    hash VARCHAR(64) NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uq_trace_chain_seq UNIQUE (chain_key, seq)
+);
+CREATE INDEX IF NOT EXISTS ix_trace_events_chain_key ON trace_events (chain_key);
+CREATE INDEX IF NOT EXISTS ix_trace_events_course_id ON trace_events (course_id);
+CREATE INDEX IF NOT EXISTS ix_trace_events_event_type ON trace_events (event_type);
+CREATE INDEX IF NOT EXISTS ix_trace_events_run_id ON trace_events (run_id);
+CREATE INDEX IF NOT EXISTS ix_trace_events_task_id ON trace_events (task_id);
+CREATE INDEX IF NOT EXISTS ix_trace_subject ON trace_events (subject_type, subject_id);
+
+CREATE TABLE IF NOT EXISTS course_intents (
+    id UUID NOT NULL,
+    course_id UUID NOT NULL,
+    version INTEGER NOT NULL,
+    goals TEXT NOT NULL,
+    cognitive_levels JSONB NOT NULL,
+    audience TEXT,
+    scope TEXT,
+    constraints TEXT,
+    created_by UUID,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uq_course_intent_version UNIQUE (course_id, version),
+    FOREIGN KEY(course_id) REFERENCES courses (id) ON DELETE CASCADE,
+    FOREIGN KEY(created_by) REFERENCES users (id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS ix_course_intents_course_id ON course_intents (course_id);
+
+CREATE TABLE IF NOT EXISTS lecturer_constraints (
+    id UUID NOT NULL,
+    user_id UUID NOT NULL,
+    course_id UUID,
+    scope VARCHAR(20) NOT NULL,
+    kind VARCHAR(20) NOT NULL,
+    text TEXT NOT NULL,
+    source_type VARCHAR(40) NOT NULL,
+    source_id VARCHAR(64),
+    decision VARCHAR(20),
+    rejected_fingerprint VARCHAR(64),
+    supersedes_id UUID,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    PRIMARY KEY (id),
+    FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE,
+    FOREIGN KEY(course_id) REFERENCES courses (id) ON DELETE CASCADE,
+    FOREIGN KEY(supersedes_id) REFERENCES lecturer_constraints (id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS ix_lecturer_constraints_course_id ON lecturer_constraints (course_id);
+CREATE INDEX IF NOT EXISTS ix_lecturer_constraints_rejected_fingerprint ON lecturer_constraints (rejected_fingerprint);
+CREATE INDEX IF NOT EXISTS ix_lecturer_constraints_user_id ON lecturer_constraints (user_id);
+
+CREATE TABLE IF NOT EXISTS assessment_sources (
+    assessment_id UUID NOT NULL,
+    artifact_id UUID NOT NULL,
+    chunk_id UUID NOT NULL,
+    extraction_method VARCHAR(60) NOT NULL,
+    PRIMARY KEY (assessment_id),
+    FOREIGN KEY(assessment_id) REFERENCES assessments (id) ON DELETE CASCADE,
+    FOREIGN KEY(artifact_id) REFERENCES course_artifacts (id) ON DELETE CASCADE,
+    FOREIGN KEY(chunk_id) REFERENCES chunks (id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS finding_decisions (
+    id UUID NOT NULL,
+    gap_id UUID NOT NULL,
+    reviewer_id UUID NOT NULL,
+    decision VARCHAR(30) NOT NULL,
+    rationale TEXT,
+    revised_recommendation TEXT,
+    version_context JSONB NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    PRIMARY KEY (id),
+    FOREIGN KEY(gap_id) REFERENCES alignment_gaps (id) ON DELETE CASCADE,
+    FOREIGN KEY(reviewer_id) REFERENCES users (id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS applied_suggestions (
+    content_id UUID NOT NULL,
+    target_type VARCHAR(40) NOT NULL,
+    target_id UUID NOT NULL,
+    applied_by UUID NOT NULL,
+    accepted_snapshot TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    PRIMARY KEY (content_id),
+    FOREIGN KEY(content_id) REFERENCES generated_content (id) ON DELETE CASCADE,
+    FOREIGN KEY(applied_by) REFERENCES users (id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS draft_reviews (
+    content_id UUID NOT NULL,
+    score FLOAT NOT NULL,
+    threshold FLOAT NOT NULL,
+    passed BOOLEAN NOT NULL,
+    attempts INTEGER NOT NULL,
+    issues JSONB NOT NULL,
+    checks JSONB NOT NULL,
+    rationale TEXT NOT NULL,
+    task_id VARCHAR(160),
+    intent_id VARCHAR(64),
+    intent_version INTEGER,
+    constraint_ids JSONB NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    PRIMARY KEY (content_id),
+    FOREIGN KEY(content_id) REFERENCES generated_content (id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS ix_draft_reviews_task_id ON draft_reviews (task_id);
+
+-- ═══════════════════════════════════════════════════════════════════════
 -- END OF MIGRATION 001
 -- ═══════════════════════════════════════════════════════════════════════

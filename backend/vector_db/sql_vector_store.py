@@ -6,6 +6,7 @@ Exact cosine search is appropriate for this bounded research prototype.
 """
 import math
 from uuid import UUID
+from config import settings
 from sqlalchemy import select
 from db.session import AsyncSessionLocal
 from db.models.artifact import Chunk,CourseArtifact
@@ -25,12 +26,14 @@ class SQLVectorStore:
         from rag.local_service import matches
         rows=BaseAgent._run_async(self._rows(course_id))
         if len(rows)>10000:raise ValueError('Exact-vector prototype supports at most 10,000 chunks per course. Reduce the corpus or provision an indexed vector store.')
+        neural=settings.runtime_mode=='live' and settings.retrieval_backend=='neural'
         qnorm=math.sqrt(sum(x*x for x in query_embedding))
         if qnorm==0:return []
         results=[]
         for chunk,artifact in rows:
             metadata=chunk.metadata_ or {};vec=metadata.get('vector')
             if not vec or len(vec)!=len(query_embedding):continue
+            if neural and chunk.embedding_model and chunk.embedding_model!=settings.embedding_model:continue  # stale vector space; re-embed
             vnorm=math.sqrt(sum(x*x for x in vec))
             if vnorm==0:continue
             score=max(0.,min(1.,sum(x*y for x,y in zip(query_embedding,vec))/(qnorm*vnorm)))

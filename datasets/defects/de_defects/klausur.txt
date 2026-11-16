@@ -1,0 +1,3 @@
+Aufgabe 1. Erklären Sie die binäre Suche in einem sortierten Array mit 1024 Einträgen.
+Aufgabe 2. Vergleichen Sie Verkettung und offene Adressierung bei Kollisionen in Hashtabellen.
+Aufgabe 3. Erklären Sie den Ford-Fulkerson-Algorithmus und berechnen Sie den maximalen Fluss im gegebenen Netzwerk mit Kapazitäten.

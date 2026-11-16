@@ -13,16 +13,7 @@ from rag.generation.grounded_generator import GroundedGenerator
 from db.repositories.artifact_repository import ArtifactRepository
 from services.safe_parser import parse_document
 
-STOP = {'the','and','for','with','that','this','from','will','able','students','learning','outcome','explain','describe','apply','understand','analyse','analyze','evaluate','create','lecture','slides','covering'}
-def terms(text):
-    return [w for w in re.findall(r'\b\w{3,}\b',text.lower()) if w not in STOP]
-def vector(text):
-    values = [0.] * 256
-    for word in terms(text):
-        index = int.from_bytes(hashlib.sha256(word.encode()).digest()[:4], 'big') % 256
-        values[index] += 1
-    length = math.sqrt(sum(v*v for v in values)) or 1
-    return [v/length for v in values]
+from rag.lexical import STOP, lexical_score, terms, vector  # noqa: F401  (kept importable from here)
 
 def matches(chunk, where):
     for key, expected in (where or {}).items():
@@ -64,17 +55,12 @@ class LocalRAGService:
     def retrieve(self, query, course_id, top_k=10, where=None, **kwargs):
         from agents.base_agent import BaseAgent
         chunks = BaseAgent._run_async(self.load(course_id))
-        qterms=set(terms(query)); qvec=vector(query)
         found=[]
         for c in chunks:
             if not matches(c,where): continue
-            overlap = qterms & set(terms(c.text))
-            if not overlap: continue
-            v=c.metadata.get('vector') or vector(c.text)
-            cosine=sum(a*b for a,b in zip(v,qvec))
-            c.score=round(0.65*len(overlap)/max(1,len(qterms))+0.35*max(0,cosine),4)
+            c.score=lexical_score(query,c.text,c.metadata.get('vector'))
             if c.score >= .12: found.append(c)
         return sorted(found,key=lambda c:c.score,reverse=True)[:min(top_k,40)]
 
-    def generate(self, task_prompt, course_id, top_k=10, where=None, extra_instructions=None):
-        return GroundedGenerator().generate(task_prompt, self.retrieve(task_prompt,course_id,top_k,where),extra_instructions)
+    def generate(self, task_prompt, course_id, top_k=10, where=None, extra_instructions=None, model=None, query=None):
+        return GroundedGenerator(model=model).generate(task_prompt, self.retrieve(query or task_prompt,course_id,top_k,where),extra_instructions)

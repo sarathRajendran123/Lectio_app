@@ -5,6 +5,7 @@ to the audit_logs table with user, action, resource, and IP.
 """
 
 import logging
+import re
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -91,6 +92,19 @@ AUDITED_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 SKIP_PATHS      = {"/health", "/docs", "/redoc", "/openapi.json"}
 
 
+_UUID_IN_PATH = re.compile(
+    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+)
+_ACTION_MAX = 100  # audit_logs.action is VARCHAR(100)
+
+
+def _audit_action(method: str, path: str) -> str:
+    """Stable, groupable action label. UUIDs become {id} (the concrete object is
+    kept in resource_id) and the value is capped to the column width, so deep
+    URLs with several IDs can no longer overflow and silently drop the entry."""
+    return f"{method} {_UUID_IN_PATH.sub('{id}', path)}"[:_ACTION_MAX]
+
+
 class AuditMiddleware(BaseHTTPMiddleware):
     """
     Logs every state-changing HTTP request to audit_logs.
@@ -115,7 +129,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
 
     async def _log(self, request: Request, response: Response) -> None:
         user_id = self._extract_user_id(request)
-        action  = f"{request.method} {request.url.path}"
+        action  = _audit_action(request.method, request.url.path)
         resource_type, resource_id = self._parse_resource(request.url.path)
 
         async with AsyncSessionLocal() as db:

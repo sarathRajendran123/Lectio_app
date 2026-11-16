@@ -24,6 +24,16 @@ from agents.graph.state import (
 logger = logging.getLogger(__name__)
 
 
+def _as_uuid(value):
+    """Coerce an agent-state id string to a UUID; None if absent or malformed."""
+    if not value:
+        return None
+    try:
+        return uuid.UUID(str(value))
+    except (ValueError, AttributeError):
+        return None
+
+
 class StakeholderAgent(BaseAgent):
     name = "stakeholder_agent"
 
@@ -154,6 +164,11 @@ class StakeholderAgent(BaseAgent):
                         score=gap.score,
                         recommendation=gap.recommendation,
                     ))
+                    from services import trace
+                    await trace.aemit("finding_recorded", {"dimension": report_type, "gap_type": gap.gap_type, "severity": gap.severity,
+                        "evidence_chunk_ids": list(gap.evidence_chunk_ids or []), "source_agent": result.agent_name},
+                        db=db, subject=("gap", gap.gap_id), run_id=run_id, course_id=course_id, agent=self.name,
+                        task_id=f"{run_id}:{result.agent_name}:{report_type}")
 
             await db.commit()
 
@@ -179,7 +194,13 @@ class StakeholderAgent(BaseAgent):
 
         pending = []
         async with AsyncSessionLocal() as db:
+            from sqlalchemy import select
+            known = set((await db.execute(select(GeneratedContentRecord.content_type, GeneratedContentRecord.content)
+                .where(GeneratedContentRecord.course_id == uuid.UUID(course_id)))).all())
             for item in generated:
+                if (item.content_type, item.content) in known:
+                    continue   # identical draft already in the lecturer's queue
+                known.add((item.content_type, item.content))
                 record = GeneratedContentRecord(
                     id=uuid.UUID(item.item_id),
                     run_id=uuid.UUID(run_id),
@@ -191,10 +212,24 @@ class StakeholderAgent(BaseAgent):
                     citations=item.citations,
                     confidence_score=item.confidence,
                     approval_status="pending",
-                    model_used=__import__("config").settings.active_model if __import__("config").settings.runtime_mode == "live" else "local-test-template",
-                    source_gap_id=item.source_gap_id,
+                    model_used=__import__("config").settings.openrouter_model if __import__("config").settings.runtime_mode == "live" else "local-test-template",
+                    source_gap_id=_as_uuid(item.source_gap_id),
                 )
                 db.add(record)
+                review = getattr(item, "review", None) or {}
+                if review:
+                    await db.flush()
+                    from db.models.governance import DraftReview
+                    intent = review.get("intent") or {}
+                    db.add(DraftReview(content_id=record.id, score=review.get("score", 0.0), threshold=review.get("threshold", 0.0),
+                        passed=bool(review.get("passed")), attempts=review.get("attempts", 1), issues=review.get("issues", []),
+                        checks=review.get("checks", {}), rationale=review.get("rationale", ""), task_id=review.get("task_id"),
+                        intent_id=intent.get("id"), intent_version=intent.get("version"), constraint_ids=review.get("constraint_ids", [])))
+                from services import trace
+                await trace.aemit("draft_queued", {"gap_id": item.source_gap_id, "content_type": item.content_type,
+                    "quality_score": review.get("score"), "quality_passed": review.get("passed"), "attempts": review.get("attempts", 1)},
+                    db=db, subject=("draft", item.item_id), run_id=run_id, course_id=course_id, agent=self.name,
+                    task_id=review.get("task_id"))
                 pending.append(ApprovalRequest(
                     request_id=str(uuid.uuid4()),
                     content_item_id=item.item_id,

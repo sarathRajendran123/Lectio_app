@@ -52,8 +52,12 @@ class BaseAgent:
     def _get_llm(self):
         if self._llm is None:
             from config import settings
-            from services.llm_provider import build_chat
-            self._llm = build_chat(settings, temperature=0.1, max_tokens=4000)
+            from llm.openrouter import OpenRouterChat
+            self._llm = OpenRouterChat(
+                prompt_version="audit-review/3",
+                temperature=0.1,      # Low temperature for factual analysis
+                max_tokens=settings.llm_max_tokens_audit,
+            )
         return self._llm
 
     # ── RAG ───────────────────────────────────────────────────────────────────
@@ -66,27 +70,31 @@ class BaseAgent:
 
     def _retrieve(self, query: str, course_id: str, top_k: int = 8, where: Optional[dict] = None):
         """Retrieve grounded context chunks."""
-        return self._get_rag().retrieve(
+        chunks = self._get_rag().retrieve(
             query=query,
             course_id=course_id,
             top_k=top_k,
             where=where,
             rerank=True,
         )
+        from services import trace
+        trace.emit("tool_call", {"tool": "retrieve", "query_fingerprint": trace.fingerprint(query)[:16], "top_k": top_k,
+                                 "filter": where, "results": len(chunks), "chunk_ids": [c.chunk_id for c in chunks[:8]]})
+        return chunks
 
     # ── LLM Utilities ─────────────────────────────────────────────────────────
 
-    def _invoke(self, system: str, human: str) -> tuple[str, int]:
+    def _invoke(self, system: str, human: str, validate=None) -> tuple[str, int]:
         """
-        Call the LLM and return (content, tokens_used).
-        Handles token tracking for cost monitoring.
+        Call the LLM and return (content, tokens_used); cached results cost 0 tokens.
+        `validate(content)` must raise on unusable output so it is never cached.
         """
         from langchain_core.messages import HumanMessage, SystemMessage
         llm = self._get_llm()
         response = llm.invoke([
             SystemMessage(content=system),
             HumanMessage(content=human),
-        ])
+        ], validate=validate)
         tokens = response.response_metadata.get("token_usage", {}).get("total_tokens", 0)
         return response.content, tokens
 
