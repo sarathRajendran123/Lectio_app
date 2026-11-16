@@ -132,8 +132,8 @@ def produce(generate: Callable, *, content_type: str, target: str, intent: Optio
             extra = (guidance + "\n\n" if guidance else "") + (
                 "QUALITY REVIEW of your previous attempt found these problems. Fix every one and do not repeat the earlier wording: " + reason)
             if "quotation does not occur verbatim" in reason:
-                extra += ("\nFor each support quote, select a short continuous excerpt directly from its numbered source. "
-                          "Copy it exactly, including punctuation, capitalization, and spacing; do not translate or paraphrase the quote.")
+                extra += ("\nFor each support, choose an offered excerpt ID belonging to its numbered source; "
+                          "do not copy or paraphrase the quotation. The application will insert the exact excerpt.")
     if best is None:
         raise last_error if last_error else RuntimeError("No draft was produced.")
     best_review["attempts"] = max(best_review.get("attempts", 1), attempt + 1)

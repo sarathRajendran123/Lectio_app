@@ -90,7 +90,7 @@ RULES:
         # Only sources actually present in the prompt may be cited.
         selected=[]; budget=0
         for chunk in context_chunks:
-            size=len(chunk.text)+len(chunk.to_citation())+30
+            size=len(self._context_entry(chunk, len(selected)+1))+5
             if budget+size>MAX_CONTEXT_CHARS: break
             selected.append(chunk);budget+=size
         context_chunks=selected
@@ -106,7 +106,7 @@ RULES:
         import json
         full_prompt = self._build_prompt(task_prompt, context_text, extra_instructions)
         full_prompt += "\nReturn ONLY a JSON object matching this schema: " + json.dumps(EducationalDraft.model_json_schema())
-        full_prompt += "\nEach section must include supports containing a source number and an exact verbatim quote from that source. For each quote, copy one short continuous substring (at least 8 characters) directly from the text of the numbered source, preserving spelling, capitalization, punctuation and spacing exactly. Do not translate, paraphrase, add ellipses, combine passages, or quote a source label as if it were source text. Mark newly proposed educational tasks as proposed_content; unsupported inference as unverified_inference. Include marking guidance for exercises/quizzes, measurable verbs for outcomes, and an honest limitations list."
+        full_prompt += "\nEach section must include supports with a source number and a matching excerpt_id selected from the offered excerpts for that source, for example {\"source\":1,\"excerpt_id\":\"S1Q1\"}. Do not include a quote field; the application inserts the original excerpt. Choose excerpts that support the section and do not invent IDs. If no offered excerpt supports your section, state the limitation instead of making an unsupported claim. Mark newly proposed educational tasks as proposed_content; unsupported inference as unverified_inference. Include marking guidance for exercises/quizzes, measurable verbs for outcomes, and an honest limitations list."
 
         llm          = self._get_llm()
         from langchain_core.messages import HumanMessage, SystemMessage
@@ -132,14 +132,20 @@ RULES:
             context_used=len(context_chunks),
         )
 
+    @staticmethod
+    def _context_entry(chunk, number):
+        from rag.generation.draft_schema import source_excerpts
+        offered = source_excerpts(chunk.text, number)
+        anchors = '\n'.join(f'{key}: {value}' for key, value in offered.items())
+        return f"[SOURCE_{number}] {chunk.to_citation()}\n{chunk.text}\nOffered excerpt IDs:\n{anchors}"
+
     def _build_context(self, chunks: List[RetrievedChunk]) -> str:
         """Format chunks as numbered context sections."""
         parts   = []
         total   = 0
         for i, chunk in enumerate(chunks, start=1):
-            citation = chunk.to_citation()
-            entry    = f"[SOURCE_{i}] {citation}\n{chunk.text}"
-            entry_len = len(entry)
+            entry = self._context_entry(chunk, i)
+            entry_len = len(entry)+5
             if total + entry_len > MAX_CONTEXT_CHARS:
                 logger.debug(f"Context budget reached at chunk {i}/{len(chunks)}")
                 break

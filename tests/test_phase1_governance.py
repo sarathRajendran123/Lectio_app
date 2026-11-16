@@ -263,7 +263,7 @@ def test_gate_records_failed_generations_and_raises_only_if_nothing_was_produced
     assert all(p["passed"] is False for k, p, _ in events if k == "quality_check")
 
 
-def test_quote_mismatch_retry_explicitly_requests_an_exact_source_substring(monkeypatch):
+def test_quote_mismatch_retry_requests_source_specific_excerpt_id(monkeypatch):
     _capture(monkeypatch)
     monkeypatch.setattr(settings, "quality_max_retries", 1)
     calls = []
@@ -275,7 +275,7 @@ def test_quote_mismatch_retry_explicitly_requests_an_exact_source_substring(monk
     item, review = stakeholder_gate.produce(generate, content_type="quiz", target=TARGET,
         intent=None, constraint_ids=[], rejected_fingerprints=set(), models=["a", "b"])
     assert review["passed"] and item.content == GOOD
-    assert "short continuous excerpt" in calls[1] and "do not translate or paraphrase" in calls[1]
+    assert "offered excerpt ID" in calls[1] and "do not copy or paraphrase" in calls[1]
 
 
 # ── model-call logging ───────────────────────────────────────────────────────
