@@ -16,7 +16,7 @@ class Finding(BaseModel):
     severity:Literal['warning','info','critical']
     rationale:str=Field(min_length=5,max_length=1000)
     correction:str=Field(min_length=5,max_length=1000)
-    evidence_ids:list[str]=Field(min_length=1,max_length=8)
+    evidence_ids:list[str]=Field(min_length=1,max_length=12)
     affected_entity_type:Literal["course","clo","assessment","topic","week"]="course"
     affected_entity_id:str|None=None
     evidence_strength:Literal['weak','moderate','strong']
@@ -51,7 +51,7 @@ def _compute(agent,state,dimension,extra=''):
         'Schedules describe planned delivery, not actual teaching. Separate inference from observations. '
         'Findings are ONLY problems, risks or missing evidence; never report that something is fine or well supported as a finding, list such confirmations briefly in confirmed. '
         'Set fixable_by to objective only if adding a learning objective would resolve the finding, assessment only if adding an assessment item would, otherwise none. '
-        'Use the listed source aliases, such as S1, in evidence_ids. '
+        'Use only relevant listed source aliases, such as S1, in evidence_ids; use at most 12 per finding. '
         'Return at most 5 findings, each field at most two sentences. Return JSON matching this schema: '+str(Review.model_json_schema()))
     human=(state.get('guidance') or 'COURSE INTENT: the lecturer has not stated one.')+'\n\n'+f'Dimension: {dimension}. Course metadata: {state.get("course_metadata",{})}. Objectives: {objectives[:20]}. '+\
         'Sources:\n'+'\n'.join(f'ID=S{i}; source_id={c.chunk_id}; type={c.artifact_type}\n{c.text[:1200]}' for i, c in enumerate(context, 1))
