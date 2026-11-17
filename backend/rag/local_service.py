@@ -51,7 +51,8 @@ class LocalRAGService:
             rows = (await db.execute(select(Chunk, CourseArtifact).join(CourseArtifact, Chunk.artifact_id == CourseArtifact.id)
                 .where(Chunk.course_id == UUID(str(course_id)), CourseArtifact.processing_status == 'done', current_chunk()))).all()
             return [RetrievedChunk(str(c.id),c.text,0.,str(c.artifact_id),a.artifact_type,str(c.course_id),
-                c.page_number,c.slide_number,c.section_title,c.week_number,dict(c.metadata_ or {},filename=a.original_filename)) for c,a in rows]
+                c.page_number,c.slide_number,c.section_title,c.week_number,dict(c.metadata_ or {},filename=a.original_filename,
+                embedding_model=c.embedding_model)) for c,a in rows]
 
     def retrieve(self, query, course_id, top_k=10, where=None, **kwargs):
         from agents.base_agent import BaseAgent

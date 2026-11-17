@@ -115,9 +115,18 @@ class OpenRouterChat:
         started = time.monotonic()
         hit = self._cache_get(path)
         if hit and hit.get("content"):
-            self._record(hit.get("model") or self.model, fp, started, outcome="ok", attempt=0, cached=True)
-            return SimpleNamespace(content=hit["content"], response_metadata={
-                "token_usage": {"total_tokens": 0}, "model": hit.get("model"), "cached": True})
+            try:
+                if validate:
+                    validate(hit['content'])
+            except Exception as exc:
+                # A cached answer can predate the current validation rules.
+                # Reject it before use, then obtain and validate a fresh answer.
+                self._record(hit.get('model') or self.model, fp, started,
+                             outcome='rejected_by_validation', attempt=0, cached=True, error=str(exc))
+            else:
+                self._record(hit.get("model") or self.model, fp, started, outcome="ok", attempt=0, cached=True)
+                return SimpleNamespace(content=hit["content"], response_metadata={
+                    "token_usage": {"total_tokens": 0}, "model": hit.get("model"), "cached": True})
         if not settings.llm_ready:
             raise ValueError("OPENROUTER_API_KEY is not configured; use local_test for deterministic testing.")
         models = [self.model]

@@ -19,6 +19,7 @@ and k=60 is a smoothing constant that reduces the impact of very high ranks.
 """
 
 import logging
+import math
 from collections import defaultdict
 from typing import Dict, List, Optional
 
@@ -30,6 +31,19 @@ from vector_db.sql_vector_store import SQLVectorStore
 logger = logging.getLogger(__name__)
 
 RRF_K = 60    # RRF smoothing constant (standard value from literature)
+
+
+def _cosine(query, vector):
+    """Comparable similarity for a sparse-only hit with a matching stored vector."""
+    if not isinstance(vector, (list, tuple)) or len(query) != len(vector) or not vector:
+        return None
+    try:
+        dot = sum(float(x) * float(y) for x, y in zip(query, vector))
+        norm = math.sqrt(sum(float(x) ** 2 for x in query) * sum(float(y) ** 2 for y in vector))
+        score = dot / norm if norm else None
+        return max(0., min(1., score)) if score is not None and math.isfinite(score) else None
+    except (ValueError, TypeError, OverflowError):
+        return None
 
 
 class HybridRetriever:
@@ -117,13 +131,22 @@ class HybridRetriever:
 
         # RRF controls ordering only. Preserve measured relevance.
         sorted_items = sorted(fused.items(), key=lambda x: x[1], reverse=True)[:final_k]
-        max_rrf_score = sorted_items[0][1] if sorted_items else 1.0
+        dense_ids = {r.chunk_id for r in dense_results}
 
         fused_results: List[RetrievedChunk] = []
         for chunk_id, rrf_score in sorted_items:
             if chunk_id in chunk_map:
                 r = chunk_map[chunk_id]
-                normalized_score = r.score  # Ranking is not relevance; never force best match to 1.0
+                # A BM25-only hit carries a BM25 score, not a cosine score.
+                # Do not silently compare it with dense scores in audit formulas.
+                normalized_score = r.score
+                metadata = dict(r.metadata or {})
+                if chunk_id not in dense_ids:
+                    from config import settings
+                    model = metadata.get('embedding_model')
+                    similarity = _cosine(query_vec, metadata.get('vector')) if model == settings.embedding_model else None
+                    normalized_score = similarity if similarity is not None else 0.0
+                    metadata['similarity_available'] = similarity is not None
                 fused_results.append(RetrievedChunk(
                     chunk_id=r.chunk_id,
                     text=r.text,
@@ -135,7 +158,7 @@ class HybridRetriever:
                     slide_number=r.slide_number,
                     section_title=r.section_title,
                     week_number=r.week_number,
-                    metadata=r.metadata,
+                    metadata=metadata,
                 ))
 
         logger.info(

@@ -60,6 +60,17 @@ def test_invalid_output_is_never_cached(llm, monkeypatch):
     assert len(calls) == 2
 
 
+def test_cache_is_revalidated_before_reuse(llm, monkeypatch):
+    import json
+    chat, calls = llm
+    _patch_post(monkeypatch, calls, _reply('old invalid'), _reply('{"valid": true}'))
+    assert chat.invoke(MSGS).content == 'old invalid'
+    response = chat.invoke(MSGS, validate=json.loads)
+    assert response.content == '{"valid": true}'
+    assert len(calls) == 2
+    assert chat.invoke(MSGS, validate=json.loads).response_metadata['cached']
+
+
 def test_single_bounded_fallback_on_rate_limit(llm, monkeypatch):
     chat, calls = llm
     limited = httpx.Response(429, request=httpx.Request("POST", "http://x"))

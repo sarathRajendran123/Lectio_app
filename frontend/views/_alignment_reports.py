@@ -18,7 +18,7 @@ REPORT_LABELS = {
 
 
 def render_projection(client, course_id, compact=False):
-    """Verified score vs. projected score if the lecturer's approved drafts are adopted."""
+    """Current heuristic score vs. projected score if approved drafts are adopted."""
     with st.spinner("Re-checking gaps against your approved drafts (first time after new approvals can take a few seconds)..."):
         data, err = safe_api_call(client.workbench, f"courses/{course_id}/projection")
     if err or not data or not data.get("dimensions"):
@@ -29,13 +29,13 @@ def render_projection(client, course_id, compact=False):
                    "without re-running the whole audit.")
         return
     st.caption(f"Projected from {data['approved_drafts']} approved draft(s). Only a full audit after you change the real "
-               "course files gives a verified score.")
+               "course files gives a new audit score. Scores remain heuristic and require lecturer review.")
     cols = st.columns(4)
     for col, d in zip(cols, data["dimensions"]):
         label = REPORT_LABELS.get(d["report_type"], d["report_type"])
         if d["projected_score"] is None:
             col.metric(label, "Not assessable"); continue
-        col.metric(label, f"{d['projected_score']:.0%}", delta=f"{d['delta']:+.0%} vs verified {d['verified_score']:.0%}")
+        col.metric(label, f"{d['projected_score']:.0%}", delta=f"{d['delta']:+.0%} vs current {d['verified_score']:.0%}")
         col.caption(f"{len(d['addressed'])} of {d['gaps_total']} findings addressed")
     if compact:
         return
@@ -96,6 +96,7 @@ def show_reports():
 
     # ── Overall score cards ────────────────────────────────────────────────
     st.divider()
+    st.caption('Scores are heuristic indicators based on retrieved evidence; they are not percentages of course quality or proof of missing content. Changes to documents, retrieval, or scoring can change the result.')
     cols = st.columns(4)
     report_map = {r["report_type"]: r for r in run_reports}
 
@@ -109,7 +110,7 @@ def show_reports():
                 st.metric(label, "Not assessable" if unscored else f"{score:.0%}",
                           delta=r["status"].upper(), delta_color=delta_c)
                 if unscored:
-                    st.caption(r.get("reason") or "Not enough source data to score this check.")
+                    st.caption(r.get("reason") or "This check could not be scored; review its details and available source documents.")
                 if r.get("model_review_error"):
                     st.warning("Model review unavailable: " + r["model_review_error"] + " Other checks are separate and should be interpreted with their stated limitations.")
             else:
@@ -162,7 +163,8 @@ def _render_report_detail(client, report_meta):
         st.error(err); return
 
     col1, col2, col3 = st.columns(3)
-    col1.metric("Overall Score", f"{report['overall_score']:.0%}")
+    unscored = report['status'] in ('needs_review', 'failed')
+    col1.metric("Overall Score", "Not assessable" if unscored else f"{report['overall_score']:.0%}")
     col2.metric("Gaps Found",    report_meta.get("gap_count", len(report.get("gaps", []))))
     col3.metric("Status",        report["status"].upper())
 
