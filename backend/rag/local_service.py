@@ -6,6 +6,7 @@ import re
 from uuid import UUID
 from sqlalchemy import select
 from db.models.artifact import Chunk, CourseArtifact
+from db.chunk_visibility import current_chunk
 from db.session import AsyncSessionLocal
 from rag.chunking.chunk_models import RetrievedChunk
 from rag.chunking.semantic_chunker import SemanticChunker
@@ -48,7 +49,7 @@ class LocalRAGService:
     async def load(self, course_id):
         async with AsyncSessionLocal() as db:
             rows = (await db.execute(select(Chunk, CourseArtifact).join(CourseArtifact, Chunk.artifact_id == CourseArtifact.id)
-                .where(Chunk.course_id == UUID(str(course_id)), CourseArtifact.processing_status == 'done'))).all()
+                .where(Chunk.course_id == UUID(str(course_id)), CourseArtifact.processing_status == 'done', current_chunk()))).all()
             return [RetrievedChunk(str(c.id),c.text,0.,str(c.artifact_id),a.artifact_type,str(c.course_id),
                 c.page_number,c.slide_number,c.section_title,c.week_number,dict(c.metadata_ or {},filename=a.original_filename)) for c,a in rows]
 

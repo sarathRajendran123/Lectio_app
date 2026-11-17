@@ -10,6 +10,7 @@ from config import settings
 from sqlalchemy import select
 from db.session import AsyncSessionLocal
 from db.models.artifact import Chunk,CourseArtifact
+from db.chunk_visibility import current_chunk
 from rag.chunking.chunk_models import RetrievedChunk
 
 class SQLVectorStore:
@@ -20,7 +21,7 @@ class SQLVectorStore:
     async def _rows(self,course_id):
         async with AsyncSessionLocal() as db:
             return (await db.execute(select(Chunk,CourseArtifact).join(CourseArtifact,Chunk.artifact_id==CourseArtifact.id)
-                .where(Chunk.course_id==UUID(str(course_id)),CourseArtifact.processing_status=='done').limit(10001))).all()
+                .where(Chunk.course_id==UUID(str(course_id)),CourseArtifact.processing_status=='done',current_chunk()).limit(10001))).all()
     def query(self,course_id,query_embedding,top_k=10,where=None):
         from agents.base_agent import BaseAgent
         from rag.local_service import matches
