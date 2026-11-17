@@ -6,9 +6,9 @@ syllabus) is reflected in the actual course content (slides, transcripts,
 reading materials).
 
 Scoring per CLO:
-  semantic_score   = max cosine similarity across top-10 retrieved chunks
-  keyword_score    = fraction of CLO keywords found in retrieved texts
-  bloom_score      = 1.0 if content matches CLO Bloom level, 0.5 if adjacent, 0.0 if far
+  retrieval_score  = best retrieval indicator among the displayed passages
+  keyword_score    = fraction of CLO keywords found in those passages
+  bloom_score      = heuristic cognitive-level comparison for those passages
   CLO_score        = 0.4*semantic + 0.3*keyword + 0.3*bloom
 
 Overall = mean(CLO_scores)
@@ -141,37 +141,24 @@ class MetadataContentAlignmentAgent(BaseAgent):
         clo_code  = clo.get("code", "CLO?")
         tokens    = 0
 
-        # Retrieve relevant content chunks
-        chunks = self._retrieve(
-            query=clo_text,
-            course_id=course_id,
-            top_k=40,
-            where={"artifact_type": {"$in": ["slides", "transcript", "reading", "other"]}},
-        )
-        translated = getattr(self, 'search_query', None)
-        if translated:
-            translated_chunks = self._retrieve(
-                query=translated, course_id=course_id, top_k=40,
-                where={"artifact_type": {"$in": ["slides", "transcript", "reading", "other"]}},
-            )
-            unique = {c.chunk_id: c for c in chunks}
-            for chunk in translated_chunks:
-                if chunk.chunk_id not in unique or chunk.score > unique[chunk.chunk_id].score:
-                    unique[chunk.chunk_id] = chunk
-            chunks = sorted(unique.values(), key=lambda c: c.score, reverse=True)
-
-        # Supplement the broad query with short phrases for retrieval only.
-        # Their scores are not substituted for the original objective score.
-        original_score = max((c.score for c in chunks), default=0.0)
-        candidates = list(chunks)
-        if translated:
-            from agents.evidence_selection import phrase_queries
-            for query in phrase_queries(translated):
-                candidates.extend(self._retrieve(query=query, course_id=course_id, top_k=40,
-                    where={"artifact_type": {"$in": ["slides", "transcript", "reading", "other"]}}))
-        from agents.evidence_selection import useful_evidence
+        # Search the complete objective in its original language and, when
+        # available, its translation. A short phrase's similarity measures a
+        # different question and must not be ranked against the full objective.
+        # A bounded top_k also allows the neural retriever to rerank candidates.
+        from itertools import zip_longest
         from config import settings
-        chunks = useful_evidence(candidates, limit=10)
+        from agents.evidence_selection import useful_evidence
+
+        top_k = 10 if settings.runtime_mode == 'live' and getattr(settings, 'retrieval_backend', 'neural') == 'neural' else 40
+        where = {"artifact_type": {"$in": ["slides", "transcript", "reading", "other"]}}
+        original = self._retrieve(query=clo_text, course_id=course_id, top_k=top_k, where=where)
+        translated = getattr(self, 'search_query', None)
+        translation = self._retrieve(query=translated, course_id=course_id, top_k=top_k, where=where) if translated else []
+        # Interleave the ranked lists without comparing scores from different
+        # queries. Duplicate passages are retained only at their earliest rank.
+        candidates = [chunk for pair in zip_longest(original, translation) for chunk in pair if chunk is not None]
+        chunks = useful_evidence(candidates, limit=3, preserve_order=True,
+                                 objective_text=clo_text + ' ' + (translated or ''))
 
         self.last_evidence = [c.chunk_id for c in chunks[:3]]
         if not chunks:
@@ -188,7 +175,9 @@ class MetadataContentAlignmentAgent(BaseAgent):
             return 0.0, gap, tokens
 
         # Semantic score — best chunk similarity
-        semantic_score = original_score
+        # This indicator is calculated from the same three passages displayed
+        # to the lecturer, not from unseen or phrase-only matches.
+        semantic_score = max(c.score for c in chunks)
 
         # Keyword score — CLO keywords in retrieved texts
         combined_text = " ".join(c.text for c in chunks).lower()
@@ -234,8 +223,9 @@ class MetadataContentAlignmentAgent(BaseAgent):
             "should", "can", "of", "in", "on", "at", "by", "for",
             "with", "this", "that", "is", "are", "students",
         }
-        words = re.findall(r"\b[a-z]{3,}\b", text.lower())
-        return [w for w in words if w not in stop]
+        from rag.lexical import STOP as multilingual_stopwords
+        words = re.findall(r"\b[^\W\d_]{3,}\b", text.lower(), flags=re.UNICODE)
+        return [w for w in words if w not in stop and w not in multilingual_stopwords]
 
     def _bloom_score(self, clo_level: str, content_text: str) -> float:
         """Check if course content addresses the CLO's cognitive level."""

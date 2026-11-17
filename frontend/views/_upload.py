@@ -91,7 +91,6 @@ def show_upload():
                 run_id = result["run_id"]
                 st.success(f"Audit started! Run ID: `{run_id[:8]}…`")
                 st.session_state["active_run_id"] = run_id
-                _poll_run(client, run_id)
 
         if st.session_state.get("active_run_id"):
             _poll_run(client, st.session_state["active_run_id"])
@@ -154,7 +153,7 @@ def _poll_run(client, run_id):
         tokens = data.get("total_tokens") or 0
         with placeholder.container():
             st.info(f"Run status: {status_badge(s)} | Tokens: {tokens:,}")
-        if s in ("completed", "failed", "waiting_for_human"):
+        if s in ("completed", "failed", "waiting_for_human", "needs_review", "cancelled"):
             if s == "completed":
                 st.success("Audit complete! Check Alignment Reports.")
                 # A "completed" status doesn't guarantee generation worked —
@@ -165,6 +164,12 @@ def _poll_run(client, run_id):
                     st.warning(f"Note: {data['error_message']}")
             elif s == "waiting_for_human":
                 st.warning("Audit complete — items awaiting your review in Approval Center.")
+            elif s == "needs_review":
+                st.warning("Audit finished with issues requiring review. Check Alignment Reports and the audit details.")
+                if data.get("error_message"):
+                    st.warning(f"Note: {data['error_message']}")
+            elif s == "cancelled":
+                st.warning("Audit was cancelled. Check Alignment Reports for any saved results.")
             else:
                 st.error(f"Audit failed: {data.get('error_message','')}")
             break

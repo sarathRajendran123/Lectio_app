@@ -111,7 +111,7 @@ def show_reports():
                 if unscored:
                     st.caption(r.get("reason") or "Not enough source data to score this check.")
                 if r.get("model_review_error"):
-                    st.warning("Model review unavailable: " + r["model_review_error"] + " The rule-based score above is still valid.")
+                    st.warning("Model review unavailable: " + r["model_review_error"] + " Other checks are separate and should be interpreted with their stated limitations.")
             else:
                 st.metric(label, "—", delta="not run", delta_color="off")
 

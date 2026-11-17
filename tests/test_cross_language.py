@@ -34,7 +34,7 @@ def test_original_and_english_searches_return_actual_source_ids():
     objective = {'id': 'objective', 'code': 'CLO1', 'text': 'Die Studierenden verstehen neuronaler Netze', 'bloom_level': 'understand'}
     score, gap, tokens = agent._audit_clo(objective, 'course')
     assert calls[:2] == [objective['text'], agent.search_query]
-    assert 'neural networks' in calls
+    assert calls == [objective['text'], agent.search_query]  # no incomparable phrase scores
     assert agent.last_evidence == ['real-source']
     assert score > 0 and tokens == 0
 
@@ -66,3 +66,42 @@ def test_live_lexical_low_score_is_uncertain_not_a_confirmed_failure(monkeypatch
     assert report.status == 'needs_review'
     assert report.findings['clo_scores'][0]['status'] == 'needs_review'
     assert 'not proven missing coverage' in report.findings['retrieval_notice']
+
+
+def test_coverage_and_evidence_use_same_full_objective_passages(monkeypatch):
+    from config import settings
+    monkeypatch.setattr(settings, 'runtime_mode', 'live')
+    monkeypatch.setattr(settings, 'retrieval_backend', 'neural')
+    agent = MetadataContentAlignmentAgent()
+    agent.search_query = 'Explain the importance of deep learning across industries'
+    relevant = SimpleNamespace(chunk_id='teaching', score=.6, page_number=5, artifact_id='slides',
+                               text='Deep learning is a key technology for applications across industries.')
+    admin = SimpleNamespace(chunk_id='admin', score=.99, page_number=6, artifact_id='org',
+                            text='Prüfungsleistung – Teams Die Studierenden bilden feste Teams.')
+    second = SimpleNamespace(chunk_id='industry', score=.5, page_number=8, artifact_id='slides',
+                             text='Industrial artificial intelligence improves quality and manufacturing.')
+    third = SimpleNamespace(chunk_id='applications', score=.4, page_number=9, artifact_id='slides',
+                            text='Machine learning applications affect many industries and services.')
+    queries = []
+    def retrieve(query, course_id, top_k, where):
+        queries.append((query, top_k))
+        if query == agent.search_query:
+            return [admin, second, third]
+        return [relevant]
+    monkeypatch.setattr(agent, '_retrieve', retrieve)
+    monkeypatch.setattr(agent, '_bloom_score', lambda *_: 0.0)
+    objective = {'id': 'objective', 'code': 'EXT-1', 'text': 'Die Studierenden verstehen Deep Learning',
+                 'bloom_level': 'understand'}
+    score, gap, _ = agent._audit_clo(objective, 'course')
+    assert queries == [(objective['text'], 10), (agent.search_query, 10)]
+    assert agent.last_evidence == ['teaching', 'industry', 'applications']
+    assert gap and 'Best retrieval match: 0.60' in gap.description
+    assert 'admin' not in gap.evidence_chunk_ids
+
+
+def test_german_keyword_extraction_keeps_umlauts_and_skips_common_words():
+    agent = MetadataContentAlignmentAgent()
+    words = agent._extract_keywords('Die Studierenden können neuronale Netze für Ölqualität erklären.')
+    assert 'ölqualität' in words
+    assert 'können' not in words and 'die' not in words and 'für' not in words
+    assert 'erklären' in words
