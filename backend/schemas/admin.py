@@ -36,6 +36,13 @@ class UserUpdateRequest(BaseModel):
     full_name:     Optional[str]  = Field(None, min_length=2, max_length=255)
     is_active:     Optional[bool] = None
     department_id: Optional[UUID] = None
+    password:      Optional[str]  = Field(None, min_length=8)   # admin sets a new password; also lifts a lockout
+
+    @field_validator("password")
+    @classmethod
+    def bounded_new_password(cls, v):
+        if v is not None and len(v.encode("utf-8")) > 72: raise ValueError("Password must not exceed 72 UTF-8 bytes")
+        return v
 
 
 class UserAdminResponse(BaseModel):

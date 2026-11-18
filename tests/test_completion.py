@@ -17,6 +17,118 @@ def test_strict_generation_schema_and_quotes():
     with pytest.raises(ValueError,match='verbatim'):parse_draft(payload('This quote is fabricated.'),[source()])
     with pytest.raises(ValueError):parse_draft('{"title":"Missing sections"}',[source()])
 
+
+def test_quotation_whitespace_is_restored_from_actual_cited_source():
+    chunk=source()
+    chunk.text='Binary search\n  halves a sorted array. It has logarithmic complexity.'
+    _, citations, draft = parse_draft(payload('Binary search halves a sorted array.'), [chunk])
+    exact='Binary search\n  halves a sorted array.'
+    assert citations[0]['quote'] == exact
+    assert draft.sections[0].supports[0].quote == exact
+    assert citations[0]['quote'] in chunk.text
+
+
+def test_quotation_validation_still_rejects_changed_words_and_wrong_sources():
+    chunk=source()
+    with pytest.raises(ValueError, match='verbatim'):
+        parse_draft(payload('Binary search halves an unsorted array.'), [chunk])
+    other=RetrievedChunk('other','Quoted material only belongs to this second source.',.8,'doc2','slides','course',2,None,None,None)
+    with pytest.raises(ValueError, match='verbatim'):
+        parse_draft(payload('Quoted material only belongs to this second source.'), [chunk, other])
+
+
+def test_numbered_excerpt_resolves_to_exact_source_text_and_keeps_review_notice():
+    chunk = source()
+    data = json.loads(payload())
+    data['sections'][0]['supports'] = [{'source': 1, 'excerpt_id': 'S1Q1'}]
+    _, citations, draft = parse_draft(json.dumps(data), [chunk])
+    quote = citations[0]['quote']
+    assert quote in chunk.text and draft.sections[0].supports[0].quote == quote
+    assert 'requires lecturer approval' in citations[0]['verification']
+
+
+def test_numbered_excerpts_reject_unknown_or_wrong_source_ids():
+    chunk = source()
+    other = RetrievedChunk('other', 'This second source discusses graph algorithms and their implementation.',
+                           .8, 'doc2', 'slides', 'course', 2, None, None, None)
+    data = json.loads(payload())
+    for excerpt_id in ('S1Q4', 'S2Q1'):
+        data['sections'][0]['supports'] = [{'source': 1, 'excerpt_id': excerpt_id}]
+        with pytest.raises(ValueError, match='excerpt ID'):
+            parse_draft(json.dumps(data), [chunk, other])
+    data['sections'][0]['supports'] = [{'source': 1, 'excerpt_id': 'S1Q1', 'quote': 'Completely fabricated quotation.'}]
+    with pytest.raises(ValueError, match='verbatim'):
+        parse_draft(json.dumps(data), [chunk, other])
+
+
+def test_live_generation_can_use_a_selected_excerpt_without_copying_it(monkeypatch):
+    from types import SimpleNamespace
+    from config import settings
+    from rag.generation.grounded_generator import GroundedGenerator
+    monkeypatch.setattr(settings, 'runtime_mode', 'live')
+    data = json.loads(payload())
+    data['sections'][0]['supports'] = [{'source': 1, 'excerpt_id': 'S1Q1'}]
+    class FakeModel:
+        def invoke(self, messages, validate):
+            assert 'S1Q1:' in messages[1].content
+            raw = json.dumps(data)
+            validate(raw)
+            return SimpleNamespace(content=raw, response_metadata={'token_usage': {'total_tokens': 12}})
+    generator = GroundedGenerator(model='test-model')
+    generator._llm = FakeModel()
+    result = generator.generate('Create a short exercise.', [source()])
+    assert result.citations[0]['quote'] in source().text
+    assert result.tokens_used == 12
+
+
+def test_model_cannot_cite_source_omitted_by_context_budget(monkeypatch):
+    from config import settings
+    from rag.generation import grounded_generator as generation
+    monkeypatch.setattr(settings, 'runtime_mode', 'live')
+    generator = generation.GroundedGenerator(model='test-model')
+    first = source()
+    second = RetrievedChunk('other', 'Another completely different source passage about graph traversal.',
+                            .8, 'doc2', 'slides', 'course', 2, None, None, None)
+    monkeypatch.setattr(generation, 'MAX_CONTEXT_CHARS', len(generator._context_entry(first, 1)) + 5)
+    data = json.loads(payload())
+    data['sections'][0]['supports'] = [{'source': 2, 'excerpt_id': 'S2Q1'}]
+    class FakeModel:
+        def invoke(self, messages, validate):
+            assert '[SOURCE_2]' not in messages[1].content
+            raw = json.dumps(data)
+            validate(raw)
+    generator._llm = FakeModel()
+    with pytest.raises(ValueError, match='not included'):
+        generator.generate('Create a short exercise.', [first, second])
+
+
+def test_manual_generation_api_saves_selected_exact_excerpt_for_review(client, headers, monkeypatch):
+    from types import SimpleNamespace
+    from config import settings
+    from rag.rag_service import RAGService
+    from rag.generation.grounded_generator import GroundedGenerator
+    course = client.post('/api/v1/courses', headers=headers,
+                         json={'code': 'EXCERPT-API', 'title': 'Search algorithms'}).json()['id']
+    context = [source()]
+    data = json.loads(payload())
+    data['sections'][0]['supports'] = [{'source': 1, 'excerpt_id': 'S1Q1'}]
+    class FakeModel:
+        def invoke(self, messages, validate):
+            raw = json.dumps(data)
+            validate(raw)
+            return SimpleNamespace(content=raw, response_metadata={'token_usage': {'total_tokens': 12}})
+    monkeypatch.setattr(settings, 'runtime_mode', 'live')
+    monkeypatch.setattr(settings, 'quality_max_retries', 0)
+    monkeypatch.setattr(RAGService, 'get_instance', classmethod(lambda cls: SimpleNamespace(retrieve=lambda *a, **k: context)))
+    monkeypatch.setattr(GroundedGenerator, '_get_llm', lambda self: FakeModel())
+    result = client.post(f'/api/v1/courses/{course}/generate', headers=headers,
+                         json={'content_type': 'exercise', 'purpose': 'Explain binary search', 'alternatives': 1})
+    assert result.status_code == 201, result.text
+    draft = result.json()[0]
+    assert draft['approval_status'] == 'pending'
+    assert draft['citations'][0]['quote'] in context[0].text
+    assert 'requires lecturer approval' in draft['citations'][0]['verification']
+
 def test_broker_duplicates_conflicts_and_evidence():
     gaps=[AlignmentGap(str(uuid.uuid4()),'coverage','warning','Missing topic','clo','x',.2,'Add lecture material',['real']),
         AlignmentGap(str(uuid.uuid4()),'coverage','critical','Missing topic','clo','x',.2,'Add lecture material',['real']),
@@ -130,3 +242,34 @@ def test_apply_requires_human_approval_and_preserves_sources(client,headers):
     assert client.get(base+'/modules/'+module+'/clos',headers=headers).json()[0]['text']==text.decode()
     assert client.post(path,headers=headers,json=body).status_code==409
     assert client.get(base+'/evidence',headers=headers).json()[0]['text']==text.decode()
+
+
+def test_inline_excerpt_references_are_resolved_and_not_exposed():
+    chunk = source()
+    data = json.loads(payload())
+    data['sections'][0]['text'] = 'Explain the sorted array requirement. [S1Q1]'
+    data['sections'][0]['supports'] = [{'source': 1, 'excerpt_id': 'S1Q1'}]
+    rendered, citations, _ = parse_draft(json.dumps(data), [chunk])
+    assert '[S1Q1]' not in rendered
+    assert '[SOURCE_1]' in rendered
+    assert citations[0]['quote'] in chunk.text
+
+
+def test_inline_reference_must_belong_to_section_support():
+    data = json.loads(payload())
+    data['sections'][0]['supports'] = [{'source': 1, 'excerpt_id': 'S1Q1'}]
+    for marker in ('[S1Q2]', '[S2Q1]', '[SOURCE_2]'):
+        data['sections'][0]['text'] = 'Explain the algorithm carefully. ' + marker
+        with pytest.raises(ValueError, match='not supported'):
+            parse_draft(json.dumps(data), [source()])
+
+
+def test_offered_excerpt_preserves_whole_short_passage_and_avoids_cutting_words():
+    from rag.generation.draft_schema import source_excerpts
+    passage = 'A question?\\nA full explanation follows with important context.'
+    assert source_excerpts(passage, 1)['S1Q1'] == passage
+    passage = ('A long sentence about gradient descent and model parameters. ' * 12).strip()
+    for quote in source_excerpts(passage, 1).values():
+        assert quote in passage
+        assert len(quote) <= 400
+        assert not quote.endswith('paramet')

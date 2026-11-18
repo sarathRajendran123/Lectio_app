@@ -72,6 +72,8 @@ docker compose up --build
 
 The live stack is PostgreSQL, multilingual BGE-M3 embeddings (German + English), transactional SQL vector storage, BM25, a multilingual cross-encoder reranker, LangGraph and OpenRouter. Model weights download once into the `hf_cache` volume. Changing `EMBEDDING_MODEL` makes stored vectors stale (they are ignored, not mixed): run `python scripts/reembed.py` once. ChromaDB was removed from the supported runtime because the audited release had four advisories without listed fixes. Source text and vectors now commit together in the existing database; retrieval enforces course ownership and source status. API keys are never shown by system status. Docker Compose binds services to loopback. Live model output is parsed and schema-checked; citations are restricted to retrieved sources. A valid citation proves source identity, not claim entailment: lecturers must still verify conclusions.
 
+Audit percentages are heuristic evidence indicators, not measurements of teaching quality or proof that an outcome is absent. Changes to source files, chunking, retrieval, or scoring can change results; compare the underlying evidence, not just percentages between runs. A model review can fail independently of the heuristic checks, and a check may be unscorable when supporting material is missing. Correcting code does not retroactively alter an existing audit report.
+
 Use **one API worker** for this prototype's in-process scheduler and restart recovery. Audit admission uses database locks, but dispatch/cancellation/restart recovery remain local to an API worker. Multi-instance deployment still requires a durable external job queue before use. Use a reverse proxy with TLS, bounded request bodies (including chunked requests), authentication rate limits and network isolation before any public deployment. Refresh/revoke behaviour and deployment dependencies need a release security review.
 
 Existing databases: the changes reuse existing ORM tables; portable JSON compiles to PostgreSQL JSONB. Startup creates missing tables but is not a schema-migration system. Back up existing data; run a PostgreSQL migration rehearsal before deployment. Current access policy is admin-global and course-owner for other roles; department-wide sharing must be explicitly modelled before enabling it.
@@ -98,7 +100,20 @@ Documentation: baseline assessment, requirements matrix, verification results, k
 
 ## Live inference without a neural-model download
 
-To verify real Groq generation while using the lightweight local retrieval path, install `requirements-local.txt` and configure:
+OpenRouter is configured with a private `OPENROUTER_API_KEY` and an
+`OPENROUTER_MODEL` in `.env`. Live requests can incur charges and send selected
+course excerpts to the configured provider. Use course material only with the
+appropriate permission; do not commit or share `.env`.
+
+In live mode, German-looking objectives in the metadata-content audit may use
+one additional model request to create an English search query. Both original
+and translated wording are searched, and the generated wording is shown for
+lecturer review. It is a search aid, not source evidence or a verified
+translation. A failed translation is flagged as needing review. Local test mode
+does not call a model. This heuristic does not support all languages or ensure
+cross-language coverage; real-course evaluation remains necessary.
+
+To verify real OpenRouter generation while using the lightweight local retrieval path, install `requirements-local.txt` and configure:
 
 ```dotenv
 RUNTIME_MODE=live

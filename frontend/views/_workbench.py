@@ -2,6 +2,7 @@
 import json
 import streamlit as st
 from utils.session_utils import get_client, safe_api_call
+from utils.evidence_refs import cited_chunk_ids
 from components.ui_components import render_citations, render_draft_feedback
 
 def show_workbench():
@@ -139,9 +140,61 @@ def show_workbench():
                 with st.expander(meta['report_type'].replace('_',' ↔ ').title()+' · '+meta['status']):
                     report,err=safe_api_call(client.get_report,meta['id'])
                     if err:st.error(err);continue
+                    missing=sorted(cited_chunk_ids(report)-source_map.keys())
+                    for offset in range(0,len(missing),200):
+                        found,lookup_error=safe_api_call(client.workbench,base+'/evidence/lookup','POST',{'chunk_ids':missing[offset:offset+200]})
+                        if lookup_error:
+                            st.warning('Could not look up some cited sources: '+str(lookup_error))
+                            break
+                        source_map.update({item['id']:item for item in found or []})
                     findings=report.get('findings') or {}
                     details=findings.get('findings') or {}
                     if details.get('note') or details.get('error'):st.info(details.get('note') or details['error'])
+                    if details.get('live_review_failure'):st.warning(details['live_review_failure'])
+                    if meta['report_type'] == 'metadata_content':
+                        if details.get('retrieval_notice'):
+                            st.info(details['retrieval_notice'])
+                        if details.get('translation_notice'):
+                            st.warning(details['translation_notice'])
+                        for objective in details.get('clo_scores', []):
+                            if objective.get('search_translation'):
+                                st.caption('Model-generated English search wording; verify the translation:')
+                                st.write(objective['search_translation'])
+                                st.caption('Retrieved teaching excerpts (lecturer review required):')
+                                for ref in objective.get('evidence_chunk_ids', []):
+                                    source = source_map.get(ref)
+                                    if source:
+                                        st.caption(f"{source['filename']} · page {source['page'] or '—'} · slide {source['slide'] or '—'}")
+                                        st.text(source['text'])
+                    if meta['report_type'] == 'content_delivery':
+                        comparison = details.get('prepared_transcript_comparison', [])
+                        if comparison:
+                            st.markdown('**Prepared materials and transcript evidence**')
+                            st.caption(details.get('comparison_notice', 'Lecturer review required.'))
+                            if details.get('comparison_truncated'):
+                                st.warning('Only the first 20 planned topics were compared.')
+                            for row in comparison:
+                                st.write(f"Week {row['week']} · {row['topic']} · {row['status'].replace('_', ' ')}")
+                                for label, key in [('Prepared slides', 'prepared_chunk_ids'), ('Transcript', 'transcript_chunk_ids')]:
+                                    st.caption(label)
+                                    if not row.get(key):
+                                        st.caption('No matching source excerpt found.')
+                                    for ref in row.get(key, []):
+                                        source = source_map.get(ref)
+                                        if source:
+                                            st.caption(f"{source['filename']} · page {source['page'] or '—'} · slide {source['slide'] or '—'}")
+                                            st.text(source['text'])
+                                        else:
+                                            st.warning('Source no longer available. Rerun the audit.')
+                                if row.get('prepared_context_ids'):
+                                    st.caption('Additional text from the same pages (context, not necessarily a topic match):')
+                                    for ref in row['prepared_context_ids']:
+                                        source = source_map.get(ref)
+                                        if source:
+                                            st.caption(f"{source['filename']} · page {source['page'] or '—'}")
+                                            st.text(source['text'])
+                                        else:
+                                            st.caption('Page context is unavailable in this view.')
                     st.caption('Scores are heuristic evidence indicators, not probabilities. Planned delivery does not verify attendance or teaching.')
                     broker=details.get('broker_review',{})
                     if broker.get('possible_conflicts'):st.warning('Potentially conflicting recommendations require lecturer review.');st.json(broker['possible_conflicts'])
@@ -151,7 +204,8 @@ def show_workbench():
                     stored={g['id']:g for g in report.get('gaps',[])}
                     for gap in findings.get('gaps',[]):
                         if gap['severity'] not in severity:continue
-                        st.markdown('**'+gap['gap_type'].replace('_',' ').title()+'**')
+                        gap_label = 'Learning objective: evidence needs review' if gap['gap_type'] == 'clo_not_covered' else gap['gap_type'].replace('_',' ').title()
+                        st.markdown('**'+gap_label+'**')
                         st.write(gap['description']);st.write('Suggested action: '+gap['recommendation'])
                         if gap.get('dismissed_by'):st.caption('You dismissed this finding in an earlier review. It is listed for completeness.')
                         if st.checkbox('How was this finding produced?',key='trace'+gap['gap_id']):
@@ -168,7 +222,7 @@ def show_workbench():
                             if source:
                                 st.caption(f"{source['filename']} · page {source['page'] or '—'} · slide {source['slide'] or '—'}")
                                 st.text(source['text'])
-                            else:st.warning('Source no longer available. Rerun the audit after document changes.')
+                            else:st.warning('Cited source could not be found in this course. Check whether the source was deleted or rebuilt.')
                         if not gap.get('evidence_chunk_ids'):st.caption('No direct supporting excerpt. This is an evidence gap requiring lecturer review.')
                         saved=stored.get(gap['gap_id'])
                         if saved:

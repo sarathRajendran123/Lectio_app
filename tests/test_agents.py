@@ -27,6 +27,32 @@ def test_live_review_rejects_unretrieved_evidence():
     result=state['alignment_results']['metadata_content']
     assert result.gaps==[] and result.findings['live_review']['discarded_unverifiable']==1   # invented evidence never surfaces
 
+def test_live_review_resolves_aliases_and_discards_invalid_findings(monkeypatch):
+    import json
+    from config import settings
+    monkeypatch.setattr(settings, "quality_max_retries", 0)
+    class Agent:
+        def _retrieve(self, *a, **k):
+            return [RetrievedChunk("real", "Real source excerpt", .8, "a", "slides", "c", 1, None, None, None)]
+        def _invoke(self, system, human, validate=None):
+            assert "ID=S1" in human
+            finding = {"title":"Finding", "description":"A grounded conclusion", "severity":"warning",
+                       "rationale":"Rationale here", "correction":"Review this issue", "evidence_ids":["S1"],
+                       "evidence_strength":"strong"}
+            raw = json.dumps({"findings":[finding, {**finding, "evidence_ids":["invented"]}], "limitations":"Unverified"})
+            if validate:
+                validate(raw)
+            return raw, 10
+        def _parse_json(self, text):
+            return json.loads(text)
+    report = AlignmentResult("a", "metadata_content", .5, "warning")
+    state = {"course_id":"c", "modules":[], "course_metadata":{"title":"Topic"}, "alignment_results":{"metadata_content":report}}
+    output = augment(Agent(), state, "metadata_content")
+    assert len(report.gaps) == 1
+    assert report.gaps[0].evidence_chunk_ids == ["real"]
+    assert report.findings["live_review"]["discarded_unverifiable"] == 1
+    assert output["total_tokens"] == 10
+
 def test_evaluation_is_ground_truth_based():
     result=evaluate([{'predicted':'1','actual':'1','accepted':'1','quality':'4'}, {'predicted':'1','actual':'0','accepted':'0'}, {'predicted':'0','actual':'1'}])
     assert result['precision']==.5 and result['recall']==.5 and result['acceptance_rate']==.5
@@ -36,6 +62,49 @@ def test_generation_marks_empty_action_list_attempted():
     state={'course_id':'x','all_gaps':[AlignmentGap('g','objective_not_measurable','warning','Vague verb','clo',None,.2,'Review verb')]}
     result=ContentGenerationAgent().run(state)
     assert result['generation_attempted'] is True
+
+
+def test_quote_failure_is_reported_as_validation_not_an_api_key_error(monkeypatch):
+    from agents.content_generation_agent import ContentGenerationAgent
+    agent = ContentGenerationAgent()
+    monkeypatch.setattr(agent, '_load_rejected', lambda course_id: set())
+    def reject_quote(*args):
+        agent._failure_reasons.append('Generated quotation does not occur verbatim in its cited source.')
+        return None, 0
+    monkeypatch.setattr(agent, '_generate_for_gap', reject_quote)
+    gap = AlignmentGap('g', 'clo_not_assessed', 'warning', 'An objective needs assessment',
+                       'clo', 'obj', .2, 'Review assessment')
+    result = agent.run({'course_id': 'c', 'course_metadata': {}, 'all_gaps': [gap], 'modules': []})
+    message = result['error_log'][0].message
+    assert 'quotations could not be verified' in message
+    assert 'API key' not in message
+
+
+def test_uncovered_existing_objective_does_not_generate_a_duplicate_clo(monkeypatch):
+    from agents.content_generation_agent import ContentGenerationAgent
+    agent = ContentGenerationAgent()
+    gap = AlignmentGap('g', 'clo_not_covered', 'warning', 'Existing objective is weakly supported',
+                       'clo', 'existing', .2, 'Review evidence')
+    result = agent.run({'course_id': 'c', 'all_gaps': [gap], 'modules': []})
+    assert result['generation_attempted'] is True
+    assert not result.get('generated_items')
+
+
+def test_draft_quality_check_uses_the_actual_objective_not_a_score_message(monkeypatch):
+    from types import SimpleNamespace
+    from agents.content_generation_agent import ContentGenerationAgent
+    from services import stakeholder_gate
+    captured = {}
+    def fake_produce(generate, **kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(item=SimpleNamespace(review=None)), {'passed': True}
+    monkeypatch.setattr(stakeholder_gate, 'produce', fake_produce)
+    gap = AlignmentGap('g', 'clo_not_assessed', 'warning', 'EXT-2 score 0.24 is below threshold',
+                       'clo', 'obj-1', .24, 'Review assessment')
+    state = {'run_id': 'r', 'modules': [{'clos': [{'id': 'obj-1', 'text': 'Die Studierenden erklären neuronale Netze.'}]}]}
+    item, _ = ContentGenerationAgent()._generate_for_gap(gap, 'c', state, '')
+    assert item is not None
+    assert captured['target'] == 'Die Studierenden erklären neuronale Netze.'
 
 
 def test_live_reviews_are_prefetched_concurrently_and_called_once_each():
@@ -240,14 +309,16 @@ def test_drafts_are_written_in_parallel_in_planned_order_each_with_its_own_model
     monkeypatch.setattr(settings, "generation_concurrency", 4)
     monkeypatch.setattr(settings, "generation_max_items_per_run", 20)
     objectives = [{"id": f"obj-{i}", "code": f"EXT-{i}", "text": f"Students can explain topic number {i} in depth.", "bloom_level": "understand"} for i in range(8)]
-    gaps = [_gap(f"g{i}", "clo_not_covered", f"obj-{i}", score=i / 10) for i in range(8)]
+    # clo_not_assessed: the team branch (2026-11-17) stopped automatic drafts for clo_not_covered
+    gaps = [_gap(f"g{i}", "clo_not_assessed", f"obj-{i}", score=i / 10) for i in range(8)]
     seen, threads = [], set()
 
     def generate(**kwargs):
         threads.add(threading.get_ident())
         time.sleep(0.3)                                                                        # a model call
         seen.append(kwargs["model"])
-        return SimpleNamespace(content=f"Upon completion of this module, students will be able to explain {kwargs['query']} in detail with an example. [SOURCE_1]",
+        return SimpleNamespace(content=f"Question 1: Explain {kwargs['query']} and give an example of how it is used. "
+                                       "Expected answer: a correct explanation with one worked example. [SOURCE_1]",
                                citations=[{"marker": "[SOURCE_1]", "citation": "[Slides]"}], tokens_used=10)
 
     agent = ContentGenerationAgent()

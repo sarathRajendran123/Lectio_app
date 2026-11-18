@@ -18,6 +18,8 @@ Status: Done, In progress, Open. Update this file with every change (see `Rules.
 | Experiments | Runner with one isolated server per condition, ablation spec, comparison report (`scripts/run_experiment.py`); run in test mode only |
 | Drafts | Built from the objective's wording, grounded in teaching material only, written in the course's language (2026-11-16) |
 | Drafts | One draft per distinct objective or topic with a gap, cap 20 per audit (was 4), four written at a time (2026-11-16; test mode and mocks only) |
+| Upload and reports | Several files per upload with a type guessed from the name (German and English); report pages read the nested findings, show assessment statistics and every check's real reason; admin can set a new password (lifts a lockout) (2026-11-18) |
+| Team branch | `testing` merged locally (13 commits); one integration fix; review findings in `DEVELOPMENT_PROGRESS.md` (2026-11-18) |
 | Retrieval speed | Each course's passages and vectors read once and reused until the course changes; cosine search with numpy; reranker scores reused (2026-11-16) |
 | Live model | claude-sonnet-5.5 with gpt-6.1-terra as fallback, chosen after a three-model comparison on the real course (2026-11-16) |
 | Live feedback | Provisional check of text being edited (level, objectives, evidence, uncertainty) in the Approval Center and the workbench; rules only |
@@ -26,7 +28,7 @@ Status: Done, In progress, Open. Update this file with every change (see `Rules.
 | Log analysis | Goal propagation, delegation, traceability and quality-loop indicators per run, lecturer decisions per course (`scripts/analyse_trace.py`) |
 | Defect suite | 28 broken files and three courses with planted misalignments (`scripts/run_defect_suite.py`); seven defects found and fixed; all 13 planted defects found, no finding on the aligned course (test mode) |
 | Load test | `scripts/load_test.py`; 20 simulated users on one process and SQLite without errors |
-| Quality | 292 tests passing (332 on SQLite, 2026-11-16); live provider and German retrieval checks recorded |
+| Quality | 292 tests passing (416 on SQLite, 2026-11-18); live provider and German retrieval checks recorded |
 | Safety tests | Every endpoint checked for login and course isolation; approval transitions; parallel audit starts and applies; upload and model-output fuzzing; injected instructions in a document; cancel; restart recovery (`tests/test_phase2_resilience.py`, `tests/test_phase2_access.py`) |
 | Docs | PRD, Architecture, Design, Rules, Memory, Tasks, roadmap, progress, security checklist, testing report, schema, release checklist |
 
@@ -44,10 +46,14 @@ Status: Done, In progress, Open. Update this file with every change (see `Rules.
 | High | Lecturer judgement of the findings on the MWI Deep Learning course | 17 objectives, 15 findings without a model; `scripts/study.py` can export the sheets |
 | Done 2026-11-16 | Search speed on large courses | course cache: the MWI audit without a model took 142 s instead of 516 s; live audit time with 20 drafts not measured yet |
 | Medium | Slide titles with a leading "I" (e.g. "I Part 1 Context Engineering") in "taught but not in the manual" findings | seen on the MWI course on 2026-11-16; probably a bullet glyph read as a letter; not investigated |
-| Medium | Chunk slides per slide instead of per bullet | 3,121 passages for 13 decks; needs re-embedding |
+| Partly done 2026-11-18 | Chunk slides per slide instead of per bullet | 3,121 passages for 13 decks; needs re-embedding |
 | Medium | Coverage score across languages | the 30 % word-overlap share penalises German objectives against English slides; decide with real labels, not by tuning |
 | High | Defect courses written independently of the fixes | the current three were used to develop the fixes, so their perfect result is weak evidence |
 | Medium | Paraphrased exam questions reported as weakly supported in test mode | word-overlap search; check with the embedding search |
+| Medium | Remove or route `services/llm_provider.py` through `OpenRouterChat` | found in the team-branch review; unused, references settings that do not exist |
+| Medium | One model call for all German objective translations instead of one per objective | found in the team-branch review |
+| Medium | Check the quality gate's new hard fail on low word overlap with real drafts | found in the team-branch review |
+| Medium | "A new user cannot log in" as the user saw it | not reproduced on SQLite, PostgreSQL or the login page; confirm password and admin reset added |
 | Medium | Draft for "tested below the stated level" findings | finding type exists; no draft handler yet |
 | Medium | Draft generation for model findings that are not about objectives or assessments | none have a handler yet |
 | Medium | Accessibility audit with a screen reader | colour contrast measured and fixed (2026-11-13); screen reader and keyboard not tested |

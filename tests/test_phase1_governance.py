@@ -197,10 +197,20 @@ def test_gate_scores_good_and_weak_drafts():
     assert not short["passed"]
     off_topic = stakeholder_gate.assess("Question: Describe photosynthesis in green plants and the role of chlorophyll in capturing sunlight for energy?",
                                         CITED, content_type="quiz", target=TARGET, intent=None)
-    assert off_topic["checks"]["relevance"] < .5 and any("barely mentions" in i for i in off_topic["issues"])
+    assert off_topic["checks"]["relevance"] < .5 and not off_topic["passed"]
+    assert any("low word overlap" in i for i in off_topic["issues"])
     wrong_level = stakeholder_gate.assess("Students will be able to design a new hash table collision handling scheme for large tables and justify it.",
                                           CITED, content_type="clo", target=TARGET, intent={"cognitive_levels": ["remember", "understand"]})
     assert wrong_level["checks"]["intent"] < 1 and any("course intent asks for" in i for i in wrong_level["issues"])
+
+
+def test_low_cross_language_overlap_requires_review_instead_of_false_pass():
+    target = "Students can identify privacy challenges and explain societal risks."
+    draft = "Die Studierenden können gesellschaftliche Auswirkungen kritisch erläutern und Verantwortung bewerten."
+    result = stakeholder_gate.assess(draft, CITED, content_type="clo", target=target, intent=None)
+    assert result["checks"]["relevance"] < .5
+    assert result["passed"] is False
+    assert any("across languages" in issue for issue in result["issues"])
 
 
 def _capture(monkeypatch):
@@ -251,6 +261,21 @@ def test_gate_records_failed_generations_and_raises_only_if_nothing_was_produced
                                  intent=None, constraint_ids=[], rejected_fingerprints=set())
     assert [k for k, _, _ in events] == ["quality_check", "retry", "quality_check"]
     assert all(p["passed"] is False for k, p, _ in events if k == "quality_check")
+
+
+def test_quote_mismatch_retry_requests_source_specific_excerpt_id(monkeypatch):
+    _capture(monkeypatch)
+    monkeypatch.setattr(settings, "quality_max_retries", 1)
+    calls = []
+    def generate(extra, model):
+        calls.append(extra)
+        if len(calls) == 1:
+            raise ValueError("Generated quotation does not occur verbatim in its cited source.")
+        return NS(content=GOOD, citations=CITED, model=model, tokens_used=5)
+    item, review = stakeholder_gate.produce(generate, content_type="quiz", target=TARGET,
+        intent=None, constraint_ids=[], rejected_fingerprints=set(), models=["a", "b"])
+    assert review["passed"] and item.content == GOOD
+    assert "offered excerpt ID" in calls[1] and "do not copy or paraphrase" in calls[1]
 
 
 # ── model-call logging ───────────────────────────────────────────────────────
@@ -395,3 +420,36 @@ def test_draft_trace_links_review_decision_and_events(audited, client, headers):
     kinds = [e["event_type"] for e in data["5_model_calls_and_checks"]]
     assert "quality_check" in kinds and data["7_lecturer"][0]["decision"] == "approved"
     assert data["2_evidence"] and data["integrity"]["valid"]
+
+
+def test_exercise_with_no_student_question_fails_structure():
+    result = stakeholder_gate.assess(
+        'Gradient descent uses the negative gradient to adjust parameters and reduce a loss function.',
+        CITED, content_type='exercise', target='Explain gradient descent', intent=None,
+    )
+    assert not result['passed']
+    assert any('No question' in issue for issue in result['issues'])
+
+
+def test_exercise_requested_answers_are_required_and_retryable():
+    question = 'Question: How does gradient descent update model parameters to reduce the loss function?'
+    target = 'Create a gradient descent exercise with suggested answers.'
+    missing = stakeholder_gate.assess(question, CITED, content_type='exercise', target=target, intent=None)
+    assert not missing['passed']
+    assert any('requested suggested answers' in issue for issue in missing['issues'])
+    complete = stakeholder_gate.assess(question + '\n\n### Suggested answers\nThe gradient guides the parameter update.',
+                                       CITED, content_type='exercise', target=target, intent=None)
+    assert complete['checks']['structure'] == 1.0
+    no_request = stakeholder_gate.assess(question, CITED, content_type='exercise',
+                                         target='Create a gradient descent exercise.', intent=None)
+    assert not any('requested suggested answers' in issue for issue in no_request['issues'])
+
+
+def test_requested_answers_in_constraints_are_checked():
+    result = stakeholder_gate.assess(
+        'Question: How does gradient descent update model parameters to reduce the loss function?',
+        CITED, content_type='exercise', target='Practice gradient descent', intent=None,
+        requirements='Include a model answer.',
+    )
+    assert not result['passed']
+    assert any('requested suggested answers' in issue for issue in result['issues'])

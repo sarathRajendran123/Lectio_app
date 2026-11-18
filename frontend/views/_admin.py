@@ -111,6 +111,37 @@ def _render_user_row(client, u: dict):
                 else:
                     st.success(f"Role '{remove_role}' removed."); st.rerun()
 
+        # Set a new password (also ends a lockout after five failed logins)
+        with st.form(f"pw_form_{u['id']}", clear_on_submit=True):
+            st.markdown("**Set a new password**")
+            pc1, pc2 = st.columns(2)
+            new_pw  = pc1.text_input("New password", type="password", key=f"pw_new_{u['id']}", help="At least 8 characters")
+            new_pw2 = pc2.text_input("Repeat new password", type="password", key=f"pw_rep_{u['id']}")
+            if st.form_submit_button("Set password"):
+                problem = _password_problem(new_pw, new_pw2)
+                if problem:
+                    st.error(problem)
+                else:
+                    _, err = safe_api_call(client.update_user, u["id"], {"password": new_pw})
+                    if err:
+                        st.error(err)
+                    else:
+                        st.success(f"New password set for {u['email']}. Their open sessions were ended; "
+                                   "a lockout from failed logins is lifted.")
+
+
+def _password_problem(password: str, repeated: str):
+    """Why a typed password cannot be used, in plain words; None when it is fine."""
+    if len(password or "") < 8:
+        return "The password needs at least 8 characters."
+    if len(password.encode("utf-8")) > 72:
+        return "The password is too long (at most 72 bytes)."
+    if password != repeated:
+        return "The two passwords do not match. Type the same password twice."
+    if password != password.strip():
+        return "The password starts or ends with a space. Remove it: spaces at the ends are easy to miss when logging in."
+    return None
+
 
 def _create_user_form(client):
     with st.form("create_user_form", clear_on_submit=True):
@@ -120,13 +151,19 @@ def _create_user_form(client):
         col3, col4 = st.columns(2)
         password  = col3.text_input("Password *", type="password",
                                      help="Min 8 characters")
-        role      = col4.selectbox("Initial Role",
+        repeated  = col4.text_input("Repeat password *", type="password")
+        role      = st.selectbox("Initial Role",
                                     ["lecturer", "coordinator", "dept_head", "admin"])
         submitted = st.form_submit_button("Create User", type="primary")
 
     if submitted:
+        email = (email or "").strip()
         if not email or not full_name or not password:
             st.error("Email, name, and password are required.")
+            return
+        problem = _password_problem(password, repeated)
+        if problem:
+            st.error(problem)
             return
         result, err = safe_api_call(client.create_user, {
             "email":     email,
@@ -137,8 +174,9 @@ def _create_user_form(client):
         if err:
             st.error(err)
         else:
-            st.success(f"User **{result['email']}** created with role `{role}`.")
-            st.rerun()
+            # No rerun here: it would hide this message at once. The user list below is read after this form.
+            st.success(f"User created with role `{role}`. They log in with the email **{result['email']}** "
+                       "(stored in lower case) and the password you typed.")
 
 
 # ── Audit Logs ────────────────────────────────────────────────────────────────

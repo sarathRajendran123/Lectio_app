@@ -64,7 +64,7 @@ def _show_alignment_analytics(client, courses):
                 latest[rt] = r
         for rt, r in latest.items():
             label = rt.replace("_", " ↔ ").title()
-            if r["status"] in ("needs_review", "failed"):
+            if not r.get("has_statistics", r["status"] not in ("needs_review", "failed")):   # needs_review can still have numbers
                 unassessed.append({"Course": course["code"], "Check": label,
                                    "Why": r.get("reason") or "Not enough source data."})
                 continue

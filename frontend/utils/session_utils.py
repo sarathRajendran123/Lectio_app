@@ -55,6 +55,9 @@ def safe_api_call(fn, *args, **kwargs):
         if e.status_code == 401:
             if try_refresh():
                 try:
+                    client = getattr(fn, '__self__', None)
+                    if isinstance(client, LectioClient):
+                        client._token = _st().session_state.get('access_token')
                     return fn(*args, **kwargs), None
                 except APIError as e2:
                     return None, str(e2)

@@ -6,9 +6,9 @@ syllabus) is reflected in the actual course content (slides, transcripts,
 reading materials).
 
 Scoring per CLO:
-  semantic_score   = max cosine similarity across top-10 retrieved chunks
-  keyword_score    = fraction of CLO keywords found in retrieved texts
-  bloom_score      = 1.0 if content matches CLO Bloom level, 0.5 if adjacent, 0.0 if far
+  retrieval_score  = best retrieval indicator among the displayed passages
+  keyword_score    = fraction of CLO keywords found in those passages
+  bloom_score      = heuristic cognitive-level comparison for those passages
   CLO_score        = 0.4*semantic + 0.3*keyword + 0.3*bloom
 
 Overall = mean(CLO_scores)
@@ -48,7 +48,7 @@ class MetadataContentAlignmentAgent(BaseAgent):
                 report_type="metadata_content",
                 overall_score=0.0,
                 status="needs_review",
-                findings={"error": "No modules found in course"},
+                findings={"reason": "No course structure yet: upload a syllabus or module manual (or enter the modules in Course Structure) so the stated objectives can be compared with the teaching material."},
             ))
 
         all_clos  = []
@@ -63,24 +63,38 @@ class MetadataContentAlignmentAgent(BaseAgent):
                 report_type="metadata_content",
                 overall_score=0.0,
                 status="needs_review",
-                findings={"error": "No CLOs defined. Add CLOs before auditing."},
+                findings={"reason": "No learning objectives found: none are stated in the uploaded syllabus or module manual and none could be derived. Add them in Course Structure or upload the module manual."},
             ))
 
         gaps:   List[AlignmentGap] = []
         scores: List[float] = []
         findings: dict = {"clo_scores": []}
         total_tokens = 0
+        translation_failures = False
+        translations = {}
+        from config import settings
+        lexical_live = settings.runtime_mode == 'live' and getattr(settings, 'retrieval_backend', 'neural') == 'lexical'
 
         for clo in all_clos:
+            from config import settings
+            from agents.cross_language import search_translation
+            translated, translation_tokens, translation_status = search_translation(
+                clo['text'], settings.runtime_mode == 'live' and bool(getattr(settings, 'llm_ready', False) or (getattr(settings, 'active_api_key', '') and getattr(settings, 'active_model', ''))), self._invoke)
+            self.search_query = translated
             score, gap, tokens = self._audit_clo(clo, course_id)
             scores.append(score)
-            total_tokens += tokens
+            total_tokens += tokens + translation_tokens
+            if translated:
+                translations[clo['text']] = translated
+            translation_failures = translation_failures or translation_status == 'failed'
             findings["clo_scores"].append({
                 "code":    clo.get("code", "?"),
                 "text":    clo["text"][:120],
                 "score":   round(score, 3),
                 "evidence_chunk_ids": getattr(self,"last_evidence",[]),
-                "status":  "pass" if score >= PASS_THRESHOLD else
+                "search_translation": translated,
+                "translation_status": translation_status,
+                "status":  "needs_review" if translation_status == 'failed' or (lexical_live and score < WARNING_THRESHOLD) else "pass" if score >= PASS_THRESHOLD else
                            "warning" if score >= WARNING_THRESHOLD else "fail",
             })
             if gap:
@@ -92,6 +106,14 @@ class MetadataContentAlignmentAgent(BaseAgent):
             "warning" if overall >= WARNING_THRESHOLD else
             "fail"
         )
+        if translation_failures:
+            status = 'needs_review'
+            findings['translation_notice'] = 'Search translation failed for at least one objective; cross-language coverage is uncertain.'
+        if lexical_live:
+            findings['retrieval_notice'] = ('Lexical retrieval may miss relevant material, especially across languages. '
+                                             'Low scores indicate evidence needing review, not proven missing coverage.')
+            if overall < WARNING_THRESHOLD:
+                status = 'needs_review'
 
         result = AlignmentResult(
             agent_name=self.name,
@@ -109,6 +131,7 @@ class MetadataContentAlignmentAgent(BaseAgent):
         )
         updated = self._store_result(state, result)
         updated["total_tokens"] = state.get("total_tokens", 0) + total_tokens
+        updated['search_translations'] = translations
         return updated
 
     # ── Per-CLO audit ─────────────────────────────────────────────────────────
@@ -118,13 +141,24 @@ class MetadataContentAlignmentAgent(BaseAgent):
         clo_code  = clo.get("code", "CLO?")
         tokens    = 0
 
-        # Retrieve relevant content chunks
-        chunks = self._retrieve(
-            query=clo_text,
-            course_id=course_id,
-            top_k=10,
-            where={"artifact_type": {"$in": ["slides", "transcript", "reading", "other"]}},
-        )
+        # Search the complete objective in its original language and, when
+        # available, its translation. A short phrase's similarity measures a
+        # different question and must not be ranked against the full objective.
+        # A bounded top_k also allows the neural retriever to rerank candidates.
+        from itertools import zip_longest
+        from config import settings
+        from agents.evidence_selection import useful_evidence
+
+        top_k = 10 if settings.runtime_mode == 'live' and getattr(settings, 'retrieval_backend', 'neural') == 'neural' else 40
+        where = {"artifact_type": {"$in": ["slides", "transcript", "reading", "other"]}}
+        original = self._retrieve(query=clo_text, course_id=course_id, top_k=top_k, where=where)
+        translated = getattr(self, 'search_query', None)
+        translation = self._retrieve(query=translated, course_id=course_id, top_k=top_k, where=where) if translated else []
+        # Interleave the ranked lists without comparing scores from different
+        # queries. Duplicate passages are retained only at their earliest rank.
+        candidates = [chunk for pair in zip_longest(original, translation) for chunk in pair if chunk is not None]
+        chunks = useful_evidence(candidates, limit=3, preserve_order=True,
+                                 objective_text=clo_text + ' ' + (translated or ''))
 
         self.last_evidence = [c.chunk_id for c in chunks[:3]]
         if not chunks:
@@ -136,18 +170,22 @@ class MetadataContentAlignmentAgent(BaseAgent):
                 affected_entity_type="clo",
                 affected_entity_id=clo.get("id"),
                 score=0.0,
-                recommendation=f"Add lecture content addressing: {clo_text[:100]}",
+                recommendation="Check the uploaded materials, language, and independent study before making changes.",
             )
             return 0.0, gap, tokens
 
         # Semantic score — best chunk similarity
+        # This indicator is calculated from the same three passages displayed
+        # to the lecturer, not from unseen or phrase-only matches.
         semantic_score = max(c.score for c in chunks)
 
         # Keyword score — CLO keywords in retrieved texts
-        keywords      = self._extract_keywords(clo_text)
         combined_text = " ".join(c.text for c in chunks).lower()
-        kw_hits       = sum(1 for kw in keywords if kw.lower() in combined_text)
-        keyword_score = kw_hits / max(len(keywords), 1)
+        keyword_groups = [self._extract_keywords(clo_text)]
+        if translated:
+            keyword_groups.append(self._extract_keywords(translated))
+        keyword_score = max(sum(1 for kw in words if kw.lower() in combined_text) / max(len(words), 1)
+                            for words in keyword_groups)
 
         # Bloom level score
         clo_bloom     = clo.get("bloom_level") or classify_text(clo_text)[0] or "understand"
@@ -157,7 +195,7 @@ class MetadataContentAlignmentAgent(BaseAgent):
 
         gap = None
         if final < WARNING_THRESHOLD:
-            sev = "critical" if final < 0.4 else "warning"
+            sev = "warning" if settings.runtime_mode == 'live' and getattr(settings, 'retrieval_backend', 'neural') == 'lexical' else ("critical" if final < 0.4 else "warning")
             gap = AlignmentGap(
                 gap_id=str(uuid.uuid4()),
                 gap_type="clo_not_covered",
@@ -165,13 +203,13 @@ class MetadataContentAlignmentAgent(BaseAgent):
                 description=(
                     f"{clo_code} coverage score {final:.2f} is below threshold. "
                     f"Keyword coverage: {keyword_score:.0%}. "
-                    f"Best semantic match: {semantic_score:.2f}."
+                    f"Best retrieval match: {semantic_score:.2f}."
                 ),
                 affected_entity_type="clo",
                 affected_entity_id=clo.get("id"),
                 score=round(final, 4),
                 recommendation=(
-                    f"Expand lecture content to explicitly address: {clo_text[:100]}"
+                    "Review the evidence, source completeness and translation before changing course content."
                 ),
                 evidence_chunk_ids=[c.chunk_id for c in chunks[:3]],
             )
@@ -185,8 +223,9 @@ class MetadataContentAlignmentAgent(BaseAgent):
             "should", "can", "of", "in", "on", "at", "by", "for",
             "with", "this", "that", "is", "are", "students",
         }
-        words = re.findall(r"\b[a-z]{3,}\b", text.lower())
-        return [w for w in words if w not in stop]
+        from rag.lexical import STOP as multilingual_stopwords
+        words = re.findall(r"\b[^\W\d_]{3,}\b", text.lower(), flags=re.UNICODE)
+        return [w for w in words if w not in stop and w not in multilingual_stopwords]
 
     def _bloom_score(self, clo_level: str, content_text: str) -> float:
         """Check if course content addresses the CLO's cognitive level."""
@@ -208,14 +247,14 @@ class MetadataContentAlignmentAgent(BaseAgent):
         critical = [g for g in gaps if g.severity == "critical"]
         if critical:
             recs.append(
-                f"{len(critical)} CLO(s) have no course content coverage. "
-                "Prioritise adding slides or lecture notes for these objectives."
+                f"{len(critical)} CLO(s) have weak retrieved evidence. "
+                "Review the sources and extraction before deciding on changes."
             )
         warnings = [g for g in gaps if g.severity == "warning"]
         if warnings:
             recs.append(
-                f"{len(warnings)} CLO(s) have partial coverage. "
-                "Review lecture materials to ensure sufficient depth."
+                f"{len(warnings)} CLO(s) need evidence review. "
+                "Check the uploaded material and independent study."
             )
         return recs
 

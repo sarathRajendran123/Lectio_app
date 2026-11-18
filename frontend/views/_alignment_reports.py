@@ -18,7 +18,7 @@ REPORT_LABELS = {
 
 
 def render_projection(client, course_id, compact=False):
-    """Verified score vs. projected score if the lecturer's approved drafts are adopted."""
+    """Current heuristic score vs. projected score if approved drafts are adopted."""
     with st.spinner("Re-checking gaps against your approved drafts (first time after new approvals can take a few seconds)..."):
         data, err = safe_api_call(client.workbench, f"courses/{course_id}/projection")
     if err or not data or not data.get("dimensions"):
@@ -29,13 +29,13 @@ def render_projection(client, course_id, compact=False):
                    "without re-running the whole audit.")
         return
     st.caption(f"Projected from {data['approved_drafts']} approved draft(s). Only a full audit after you change the real "
-               "course files gives a verified score.")
+               "course files gives a new audit score. Scores remain heuristic and require lecturer review.")
     cols = st.columns(4)
     for col, d in zip(cols, data["dimensions"]):
         label = REPORT_LABELS.get(d["report_type"], d["report_type"])
         if d["projected_score"] is None:
             col.metric(label, "Not assessable"); continue
-        col.metric(label, f"{d['projected_score']:.0%}", delta=f"{d['delta']:+.0%} vs verified {d['verified_score']:.0%}")
+        col.metric(label, f"{d['projected_score']:.0%}", delta=f"{d['delta']:+.0%} vs current {d['verified_score']:.0%}")
         col.caption(f"{len(d['addressed'])} of {d['gaps_total']} findings addressed")
     if compact:
         return
@@ -96,6 +96,7 @@ def show_reports():
 
     # ── Overall score cards ────────────────────────────────────────────────
     st.divider()
+    st.caption('Scores are heuristic indicators based on retrieved evidence; they are not percentages of course quality or proof of missing content. Changes to documents, retrieval, or scoring can change the result.')
     cols = st.columns(4)
     report_map = {r["report_type"]: r for r in run_reports}
 
@@ -105,13 +106,18 @@ def show_reports():
             if r:
                 score = r["overall_score"]
                 delta_c = "normal" if score >= 0.75 else ("off" if score >= 0.55 else "inverse")
-                unscored = r["status"] in ("needs_review", "failed")
-                st.metric(label, "Not assessable" if unscored else f"{score:.0%}",
-                          delta=r["status"].upper(), delta_color=delta_c)
+                unscored = not has_statistics(r)
+                # "Not assessable" does not fit the card's large value at normal widths, so it is the label below a dash
+                st.metric(label, "—" if unscored else f"{score:.0%}",
+                          delta=("NOT ASSESSABLE" if unscored else r["status"].upper().replace("_", " ")),
+                          delta_color="off" if unscored else delta_c)
+                st.caption(f"{r.get('gap_count') or 0} finding(s)")
                 if unscored:
-                    st.caption(r.get("reason") or "Not enough source data to score this check.")
+                    st.caption("No score, because: " + (r.get("reason") or "no reason was recorded."))
+                elif r["status"] == "needs_review":
+                    st.caption("Statistics shown, review needed: " + (r.get("reason") or "see the details below."))
                 if r.get("model_review_error"):
-                    st.warning("Model review unavailable: " + r["model_review_error"] + " The rule-based score above is still valid.")
+                    st.warning("Model review unavailable: " + r["model_review_error"] + " Other checks are separate and should be interpreted with their stated limitations.")
             else:
                 st.metric(label, "—", delta="not run", delta_color="off")
 
@@ -119,7 +125,7 @@ def show_reports():
     st.divider()
 
     # ── Radar chart ────────────────────────────────────────────────────────
-    scored = [r for r in run_reports if r["status"] not in ("needs_review", "failed")]
+    scored = [r for r in run_reports if has_statistics(r)]
     if len(scored) >= 2:
         _render_radar(scored)
 
@@ -156,24 +162,61 @@ def _render_radar(reports):
     st.plotly_chart(fig, width="stretch")
 
 
+def has_statistics(report: dict) -> bool:
+    """The API says whether the check computed its numbers; older API versions only sent the status."""
+    if "has_statistics" in report:
+        return bool(report["has_statistics"])
+    return report.get("status") not in ("needs_review", "failed")
+
+
+def report_findings(report: dict) -> dict:
+    """The agent's findings: a report stores the whole AlignmentResult, with its findings one level down."""
+    outer = report.get("findings") or {}
+    inner = outer.get("findings") if isinstance(outer, dict) else None
+    return inner if isinstance(inner, dict) else (outer if isinstance(outer, dict) else {})
+
+
 def _render_report_detail(client, report_meta):
     report, err = safe_api_call(client.get_report, report_meta["id"])
     if err:
         st.error(err); return
 
     col1, col2, col3 = st.columns(3)
-    col1.metric("Overall Score", f"{report['overall_score']:.0%}")
+    unscored = not has_statistics(report)
+    col1.metric("Overall Score", "Not assessable" if unscored else f"{report['overall_score']:.0%}")
     col2.metric("Gaps Found",    report_meta.get("gap_count", len(report.get("gaps", []))))
     col3.metric("Status",        report["status"].upper())
 
     # ── Findings detail ────────────────────────────────────────────────────
-    findings = report.get("findings", {})
+    findings = report_findings(report)
+    reason = report.get("reason") or report_meta.get("reason")
+    if unscored:
+        st.warning("Not assessable: " + (reason or "no reason was recorded."))
+    elif report["status"] == "needs_review":
+        st.warning("NEEDS REVIEW. The statistics below were computed, but: " + (reason or "the audit asked for a review of this check."))
+    review = findings.get("live_review") if isinstance(findings.get("live_review"), dict) else {}
+    if review.get("confirmed"):
+        st.markdown("#### Confirmed by the model review")
+        for point in review["confirmed"]:
+            st.text("- " + str(point))
+    if review.get("limitations"):
+        st.caption("Model review limits: " + str(review["limitations"]))
+    check = findings.get("delivery_verification")
+    if isinstance(check, dict) and check.get("ran") is False and check.get("reason"):
+        st.info("Transcript comparison not run: " + str(check["reason"]))
     if "clo_scores" in findings:
         _render_clo_heatmap(findings["clo_scores"])
     if "assessment_scores" in findings:
         _render_assessment_table(findings["assessment_scores"])
+    if findings.get("uncovered_topics"):
+        st.markdown("#### Taught topics without an assessment question")
+        for topic in findings["uncovered_topics"]:
+            st.text("- " + str(topic))
     if "topic_coverage" in findings:
         _render_topic_coverage(findings["topic_coverage"])
+    for note in [findings.get("score_notice"), *(findings.get("limitations") or [])]:
+        if note:
+            st.caption(str(note))
 
     st.markdown("#### Identified Gaps")
     render_gap_table(report.get("gaps", []))
@@ -216,7 +259,7 @@ def _render_assessment_table(assessment_scores: list):
         "Assessment": a["title"],
         "Type":       a.get("type", "—").title(),
         "Coverage":   f"{a['score']:.0%}",
-        "Status":     "Pass" if a["score"] >= 0.6 else "Fail",
+        "Status":     (a.get("status") or ("pass" if a["score"] >= 0.6 else "fail")).upper(),
     } for a in assessment_scores])
     st.dataframe(df, width="stretch", hide_index=True)
 

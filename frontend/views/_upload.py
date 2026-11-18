@@ -49,28 +49,36 @@ def show_upload():
     with tab1:
         col1, col2 = st.columns(2)
         with col1:
-            artifact_type = st.selectbox("Artefact Type", ARTIFACT_TYPES)
+            artifact_type = st.selectbox("Artefact Type", ARTIFACT_TYPES,
+                                         help="Used for every file unless you change it per file below.")
         with col2:
-            uploaded = st.file_uploader(
-                "Choose file", type=FILE_TYPES,
-                help="PDF, DOCX, PPTX, TXT, or VTT (max 50 MB)",
+            uploaded_files = st.file_uploader(
+                "Choose files", type=FILE_TYPES, accept_multiple_files=True,
+                help="PDF, DOCX, PPTX, TXT, MD or VTT (max 50 MB each). You can select several files at once.",
             )
 
-        if uploaded:
-            st.info(f"**{uploaded.name}** — {uploaded.size:,} bytes")
-            if st.button("Upload & Process", type="primary"):
-                with st.spinner(f"Uploading {uploaded.name}…"):
-                    result, err = safe_api_call(
-                        client.upload_artifact,
-                        course_id, uploaded.read(),
-                        uploaded.name, artifact_type,
-                    )
-                if err:
-                    st.error(f"Upload failed: {err}")
-                else:
-                    artifact_id = result["id"]
-                    st.success(f"Uploaded! Processing started (ID: `{artifact_id[:8]}…`)")
-                    _poll_processing(client, course_id, artifact_id)
+        if uploaded_files:
+            st.markdown(f"**{len(uploaded_files)} file(s) selected.** Check the type of each file:")
+            chosen = []
+            for i, f in enumerate(uploaded_files):
+                c1, c2 = st.columns([3, 2])
+                c1.text(f"{f.name} ({f.size:,} bytes)")
+                default = guess_artifact_type(f.name, artifact_type)
+                kind = c2.selectbox("Type", ARTIFACT_TYPES, index=ARTIFACT_TYPES.index(default),
+                                    key=f"upload_type_{i}_{f.name}", label_visibility="collapsed")
+                chosen.append((f, kind))
+            if st.button(f"Upload & Process {len(chosen)} file(s)", type="primary"):
+                started = []
+                for f, kind in chosen:
+                    with st.spinner(f"Uploading {f.name}…"):
+                        result, err = safe_api_call(client.upload_artifact, course_id, f.getvalue(), f.name, kind)
+                    if err:
+                        st.error(f"{f.name}: upload failed: {err}")
+                    else:
+                        started.append((f.name, result["id"]))
+                if started:
+                    st.success(f"{len(started)} of {len(chosen)} file(s) uploaded; processing runs in the background.")
+                    _poll_many(client, course_id, started)
 
     # ── TAB 2: Artefact list ───────────────────────────────────────────────
     with tab2:
@@ -91,10 +99,55 @@ def show_upload():
                 run_id = result["run_id"]
                 st.success(f"Audit started! Run ID: `{run_id[:8]}…`")
                 st.session_state["active_run_id"] = run_id
-                _poll_run(client, run_id)
 
         if st.session_state.get("active_run_id"):
             _poll_run(client, st.session_state["active_run_id"])
+
+_NAME_HINTS = [   # file-name words (English and German) that say what a document is; first match wins
+    ("module_manual", ("modulhandbuch", "module_manual", "module manual", "modulbeschreibung", "handbook")),
+    ("syllabus",      ("syllabus", "lehrplan")),
+    ("exam",          ("exam", "klausur", "prüfung", "pruefung")),
+    ("transcript",    ("transcript", "transkript", ".vtt")),
+    ("assignment",    ("assignment", "exercise", "übung", "uebung", "aufgabe", "worksheet")),
+    ("schedule",      ("schedule", "zeitplan", "semesterplan")),
+]
+
+
+def guess_artifact_type(filename: str, default: str) -> str:
+    """Suggested type from the file name; the lecturer can change it. Falls back to the chosen default."""
+    name = (filename or "").lower()
+    for kind, words in _NAME_HINTS:
+        if any(w in name for w in words):
+            return kind
+    return default
+
+
+def _poll_many(client, course_id, started):
+    """Processing status of several uploads in one table, until all are done or failed (or the wait ends)."""
+    placeholder = st.empty()
+    state = {aid: ("pending", 0, "") for _, aid in started}
+    for _ in range(150):
+        for _, aid in started:
+            if state[aid][0] in ("done", "error"):
+                continue
+            data, err = safe_api_call(client.get_artifact_status, course_id, aid)
+            if not err and data:
+                state[aid] = (data.get("processing_status", "pending"), data.get("chunk_count", 0), data.get("processing_error") or "")
+        rows = [{"File": name, "Status": state[aid][0].upper(), "Passages": state[aid][1], "Problem": state[aid][2][:200]} for name, aid in started]
+        with placeholder.container():
+            st.dataframe(rows, width="stretch", hide_index=True)
+        if all(state[aid][0] in ("done", "error") for _, aid in started):
+            break
+        time.sleep(2)
+    done = sum(1 for _, aid in started if state[aid][0] == "done")
+    failed = [name for name, aid in started if state[aid][0] == "error"]
+    if failed:
+        st.error(f"{len(failed)} file(s) could not be processed: {', '.join(failed)}. The reason is in the Problem column.")
+    if done == len(started):
+        st.success(f"All {done} file(s) processed. Check the **Course Structure** page for the objectives and schedule found.")
+    elif not failed:
+        st.warning("Some files are still processing; check the **Uploaded Artefacts** tab in a moment.")
+
 
 def _poll_processing(client, course_id, artifact_id):
     placeholder = st.empty()
@@ -154,7 +207,7 @@ def _poll_run(client, run_id):
         tokens = data.get("total_tokens") or 0
         with placeholder.container():
             st.info(f"Run status: {status_badge(s)} | Tokens: {tokens:,}")
-        if s in ("completed", "failed", "waiting_for_human"):
+        if s in ("completed", "failed", "waiting_for_human", "needs_review", "cancelled"):
             if s == "completed":
                 st.success("Audit complete! Check Alignment Reports.")
                 # A "completed" status doesn't guarantee generation worked —
@@ -165,6 +218,12 @@ def _poll_run(client, run_id):
                     st.warning(f"Note: {data['error_message']}")
             elif s == "waiting_for_human":
                 st.warning("Audit complete — items awaiting your review in Approval Center.")
+            elif s == "needs_review":
+                st.warning("Audit finished with issues requiring review. Check Alignment Reports and the audit details.")
+                if data.get("error_message"):
+                    st.warning(f"Note: {data['error_message']}")
+            elif s == "cancelled":
+                st.warning("Audit was cancelled. Check Alignment Reports for any saved results.")
             else:
                 st.error(f"Audit failed: {data.get('error_message','')}")
             break

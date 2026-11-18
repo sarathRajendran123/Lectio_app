@@ -46,7 +46,7 @@ Docker image build and `docker compose up`; PostgreSQL deployment (one test skip
 
 ## How to run
 ```bash
-python -m pytest -q                       # full suite (332 passed, 2 skipped on SQLite, 2026-11-16; 299 passed on PostgreSQL, 2026-11-13)
+python -m pytest -q                       # full suite (416 passed, 2 skipped on SQLite, 2026-11-18; 299 passed on PostgreSQL, 2026-11-13)
 LECTIO_SKIP_MODEL_TESTS=1 python -m pytest -q   # skip the real-model tests
 python scripts/verify_live.py             # needs OPENROUTER_API_KEY
 python scripts/run_dataset.py datasets/en_algorithms   # against a running local API
@@ -56,6 +56,27 @@ python scripts/run_dataset.py datasets/en_algorithms   # against a running local
 
 `python -m pytest -q`: **77 passed, 1 skipped** (about 85 s). New file `tests/test_phase1_governance.py` (17 tests): intent versioning and validation; intent on every audit event and hand-over; a changed intent reaching later runs while earlier runs keep theirs; intent and constraints in the model prompt; decisions becoming constraints, supersede, retire, general vs course scope; a rejected draft not passing again; gate scoring; gate retry with adjusted instructions, intent kept and model switched; retry limit and no false pass; failed generations recorded; per-model-call logging without prompt text or secrets; trace order, linkage and hash-chain verification; ORM, SQL and tamper detection; briefing in plain language; per-finding and per-draft trace.
 Failures found while writing them and fixed: gate relevance compared singular and plural words as different (now 5-letter stems); a test assumed one start event per director task.
+
+## Update 2026-11-18 (team branch merged; upload, reports, login, reasons)
+
+Baseline 332 passed, 2 skipped (before the merge). After merging `testing` and the fixes: **416 passed, 2 skipped** on SQLite (344 s). The merge brought the team's new tests; the first full run after the merge had 1 failure (412 passed), explained below.
+
+| Test | What it shows |
+|---|---|
+| `test_user_accounts.py` (6) | a user an admin creates (each role, mixed-case email) logs in and lists courses; an admin's new password works, lifts a lockout after five failed logins and ends old sessions; a lecturer cannot set another user's password |
+| `test_report_reasons.py` (6) | a German course without an exam gets the agent's own reason, never the generic text; the reason is read from the stored result including review and translation notices; checks marked for review keep their statistics unless there was nothing to score; the reports list and the report say which; the report page reads nested findings; file names suggest the type in German and English |
+| `test_cross_language.py` (+1) | the translation call passes a validator; fenced JSON is accepted; unusable answers are rejected by it, so they are never cached |
+
+Changed tests (assumptions outdated, each for a stated reason):
+- `test_drafts_are_written_in_parallel_in_planned_order_each_with_its_own_model`: the team branch stopped automatic drafts for `clo_not_covered`, so the test uses `clo_not_assessed`; its fake draft is now a question, because an assessment draft without one fails the quality check and was retried. This was the one failure after the merge.
+- `test_failed_translation_marks_result_needs_review`: its fake model call now accepts the `validate=` argument the call passes; the expectation is unchanged.
+- `test_multilingual_model.py` still only checks that a reason exists. It passed while every reason was the generic fallback, which is why the nesting bug went unnoticed; the new tests check the actual wording.
+
+Checked in a browser (test-mode server with the two sample courses and a German course without an exam): two files uploaded at once with their types guessed from German names (schedule, exam) and processed; the Content to Assessment tab shows the assessment table and the untested topics; checks without data show their reason; a create-user form with mismatched passwords is refused and a correct one creates a user who can log in. On the Docker stack (PostgreSQL, live mode): a newly created user logged in through the API and through the login page; the reports of course CA101 return their real reasons after the backend rebuild.
+
+Defect suite on the merged code (`scripts/run_defect_suite.py`, test mode): 28 broken files, 0 with an unexpected outcome; clean course 0 findings; planted defects found 8 of 8 (English) and 5 of 5 (German), as before.
+
+Not verified: the file dialog itself (files were handed to the page by a script); the login problem as the user saw it (not reproduced); the merged code in a live audit.
 
 ## Update 2026-11-16 (faster search, more drafts)
 

@@ -6,6 +6,7 @@ import re
 from uuid import UUID
 from sqlalchemy import select
 from db.models.artifact import Chunk, CourseArtifact
+from db.chunk_visibility import current_chunk
 from db.session import AsyncSessionLocal
 from rag.chunking.chunk_models import RetrievedChunk
 from rag.chunking.semantic_chunker import SemanticChunker

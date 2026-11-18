@@ -130,14 +130,16 @@ class ArtifactRepository:
     # ── Chunks ────────────────────────────────────────────────────────────────
 
     async def count_chunks(self, artifact_id: UUID) -> int:
+        from db.chunk_visibility import current_chunk
         result = await self.db.execute(
-            select(func.count(Chunk.id)).where(Chunk.artifact_id == artifact_id)
+            select(func.count(Chunk.id)).where(Chunk.artifact_id == artifact_id, current_chunk())
         )
         return result.scalar_one()
 
     async def count_chunks_for_course(self, course_id: UUID) -> int:
+        from db.chunk_visibility import current_chunk
         result = await self.db.execute(
-            select(func.count(Chunk.id)).where(Chunk.course_id == course_id)
+            select(func.count(Chunk.id)).where(Chunk.course_id == course_id, current_chunk())
         )
         return result.scalar_one()
 

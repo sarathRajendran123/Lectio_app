@@ -15,6 +15,7 @@ from uuid import UUID
 import numpy as np
 from sqlalchemy import func, select
 
+from db.chunk_visibility import current_chunk
 from db.models.artifact import Chunk, CourseArtifact
 from db.session import AsyncSessionLocal
 from rag.chunking.chunk_models import RetrievedChunk
@@ -38,7 +39,7 @@ class Corpus:
 
 
 def _course_filter(course_id):
-    return (Chunk.course_id == UUID(str(course_id)), CourseArtifact.processing_status == "done")
+    return (Chunk.course_id == UUID(str(course_id)), CourseArtifact.processing_status == "done", current_chunk())   # passages replaced by re-indexing stay out
 
 
 async def _fingerprint(db, course_id) -> tuple:
@@ -53,7 +54,7 @@ async def _load(db, course_id, fingerprint) -> Corpus:
                              .where(*_course_filter(course_id)).order_by(Chunk.chunk_index, Chunk.id).limit(10001))).all()
     passages, models, vectors = [], [], []
     for chunk, artifact in rows:
-        metadata = dict(chunk.metadata_ or {}, filename=artifact.original_filename)
+        metadata = dict(chunk.metadata_ or {}, filename=artifact.original_filename, embedding_model=chunk.embedding_model)
         passages.append(RetrievedChunk(str(chunk.id), chunk.text, 0., str(artifact.id), artifact.artifact_type, str(chunk.course_id),
                                        chunk.page_number, chunk.slide_number, chunk.section_title, chunk.week_number, metadata))
         models.append(chunk.embedding_model)

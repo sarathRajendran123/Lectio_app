@@ -47,10 +47,24 @@ def chunk_dict(chunk, artifact):
         'text':chunk.text,'page':chunk.page_number,'slide':chunk.slide_number,'section':chunk.section_title,
         'artifact_type':artifact.artifact_type,'week':chunk.week_number}
 
+class EvidenceLookup(BaseModel):
+    chunk_ids: list[UUID] = Field(max_length=200)
+
+@router.post('/courses/{course_id}/evidence/lookup')
+async def lookup_evidence(course_id:UUID,request:EvidenceLookup,user=Depends(get_current_user),db=Depends(get_db, scope="function")):
+    """Resolve cited chunks directly, including those beyond the preview limit."""
+    await _assert_course_access(course_id,user,db)
+    if not request.chunk_ids:
+        return []
+    q=(select(Chunk,CourseArtifact).join(CourseArtifact,Chunk.artifact_id==CourseArtifact.id)
+       .where(Chunk.course_id==course_id, CourseArtifact.course_id==course_id, Chunk.id.in_(request.chunk_ids)))
+    return [chunk_dict(c,a) for c,a in (await db.execute(q)).all()]
+
 @router.get('/courses/{course_id}/evidence')
 async def evidence(course_id:UUID,artifact_id:UUID|None=None,user=Depends(get_current_user),db=Depends(get_db, scope="function")):
+    from db.chunk_visibility import current_chunk
     await _assert_course_access(course_id,user,db)
-    q=select(Chunk,CourseArtifact).join(CourseArtifact,Chunk.artifact_id==CourseArtifact.id).where(Chunk.course_id==course_id)
+    q=select(Chunk,CourseArtifact).join(CourseArtifact,Chunk.artifact_id==CourseArtifact.id).where(Chunk.course_id==course_id, current_chunk())
     if artifact_id: q=q.where(Chunk.artifact_id==artifact_id)
     return [chunk_dict(c,a) for c,a in (await db.execute(q.order_by(Chunk.chunk_index).limit(2000))).all()]
 
@@ -170,7 +184,8 @@ async def generate(course_id:UUID,body:GenerationRequest,user=Depends(get_curren
                             intent=course_intent.ref(intent),constraint_ids=constraint_ids):
                         return stakeholder_gate.produce(lambda extra,chosen:GroundedGenerator(model=chosen).generate(prompt,context,extra),
                             content_type=body.content_type,target=query,intent=intent,constraint_ids=constraint_ids,
-                            rejected_fingerprints=rejected,guidance=guidance,style=style,models=choices)
+                            rejected_fingerprints=rejected,guidance=guidance,style=style,models=choices,
+                            requirements=body.constraints+" "+body.expected_format)
                 result,review=await asyncio.to_thread(gated)
                 reviews.append({**review,'task_id':task_id,'granularity':level})
                 record=GeneratedContentRecord(course_id=course_id,content_type=body.content_type,
@@ -243,6 +258,10 @@ async def retry_ingestion(course_id:UUID,artifact_id:UUID,user=Depends(get_curre
     artifact=await db.get(CourseArtifact,artifact_id)
     if not artifact or artifact.course_id!=course_id:raise HTTPException(404,'Document not found.')
     if artifact.processing_status not in ('error','done'):raise HTTPException(409,'Only failed or processed documents can be rebuilt.')
+    from db.chunk_visibility import current_chunk
+    archived = await db.scalar(select(Chunk.id).where(Chunk.artifact_id == artifact_id, ~current_chunk()).limit(1))
+    if archived:
+        raise HTTPException(409, 'This document has historical citations. Use the citation-preserving reindexing process to rebuild it.')
     from db.models.source_link import AssessmentSource
     from db.models.course import Assessment
     from sqlalchemy import delete
@@ -260,10 +279,11 @@ async def retry_ingestion(course_id:UUID,artifact_id:UUID,user=Depends(get_curre
 
 @router.post('/courses/{course_id}/cluster-topics')
 async def cluster_topics(course_id:UUID,user=Depends(get_current_user),db=Depends(get_db, scope="function")):
+    from db.chunk_visibility import current_chunk
     await _assert_course_access(course_id,user,db)
     from services.admission import assert_idle
     await assert_idle(course_id,db)
-    chunks=list((await db.scalars(select(Chunk).where(Chunk.course_id==course_id).order_by(Chunk.id).limit(200))).all())
+    chunks=list((await db.scalars(select(Chunk).where(Chunk.course_id==course_id, current_chunk()).order_by(Chunk.id).limit(200))).all())
     from services.topic_clusters import cluster
     groups=await asyncio.to_thread(cluster,chunks)
     assignments={cid:g for g in groups for cid in g['chunk_ids']}

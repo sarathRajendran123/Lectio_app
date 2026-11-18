@@ -107,7 +107,7 @@ async def update_user(
     user:    CurrentUser  = AdminUser,
     db:      AsyncSession = Depends(get_db, scope="function"),
 ):
-    """Update user name, active status, or department."""
+    """Update user name, active status, department, or set a new password."""
     repo   = UserRepository(db)
     target = await repo.get_by_id(user_id)
     if not target:
@@ -116,6 +116,13 @@ async def update_user(
     if body.full_name    is not None: target.full_name    = body.full_name
     if body.is_active    is not None: target.is_active    = body.is_active
     if body.department_id is not None: target.department_id = body.department_id
+    if body.password is not None:
+        from auth.password_handler import hash_password
+        target.hashed_password       = hash_password(body.password)
+        target.failed_login_attempts = 0           # a new password also ends a lockout from failed attempts
+        target.locked_until          = None
+        await repo.revoke_all_user_tokens(target.id)   # sessions opened with the old password end
+        logger.info(f"Admin {user.email} set a new password for user {target.email}")
 
     await db.flush()
     target = await repo.get_by_id(user_id)

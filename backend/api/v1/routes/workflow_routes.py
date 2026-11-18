@@ -161,18 +161,36 @@ async def list_reports(
             "gap_count":     r.gap_count,
             "generated_at":  r.generated_at.isoformat(),
             "reason":        _reason(r),
+            "has_statistics": _has_statistics(r),
             "model_review_error": ((r.findings or {}).get("findings") or {}).get("live_review_error") if isinstance(r.findings, dict) else None,
         }
         for r in reports
     ]
 
 
+def _has_statistics(report) -> bool:
+    """Whether the check computed its numbers. "needs_review" alone does not mean no data: a rejected model review,
+    a failed search translation or keyword-only search keep the heuristic score and ask for review. Only a check whose
+    agent stated a reason for having nothing to score (no exam, no objectives, no schedule) or a failed step has none."""
+    if report.status == "failed" or report.overall_score is None:
+        return False
+    outer = report.findings if isinstance(report.findings, dict) else {}
+    inner = outer.get("findings") if isinstance(outer.get("findings"), dict) else outer
+    return not (inner.get("reason") or inner.get("error"))
+
+
 def _reason(report) -> str | None:
     """Why a dimension could not be scored (shown instead of a bare 'Unknown')."""
     if report.status not in ("needs_review", "failed"):
         return None
-    f = report.findings if isinstance(report.findings, dict) else {}
-    return f.get("reason") or f.get("error") or f.get("note") or "Not enough source data to score this check."
+    outer = report.findings if isinstance(report.findings, dict) else {}
+    inner = outer.get("findings") if isinstance(outer.get("findings"), dict) else {}   # stored as AlignmentResult.to_dict()
+    for f in (inner, outer):
+        for key in ("reason", "error", "note", "live_review_failure", "translation_notice", "retrieval_notice"):
+            if f.get(key):
+                return str(f[key])
+    return ("The audit marked this check for review but recorded no reason. Re-run the audit; if this stays, "
+            "the check needs fixing (please report it).")
 
 
 @reports_router.get("/reports/{report_id}")
@@ -201,6 +219,8 @@ async def get_report(
         "report_type":     report.report_type,
         "overall_score":   float(report.overall_score or 0),
         "status":          report.status,
+        "has_statistics":  _has_statistics(report),
+        "reason":          _reason(report),
         "findings":        report.findings,
         "recommendations": report.recommendations,
         "generated_at":    report.generated_at.isoformat(),

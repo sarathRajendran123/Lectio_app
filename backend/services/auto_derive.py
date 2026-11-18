@@ -68,11 +68,12 @@ def _llm_texts(top: list[dict], info: dict, german: bool, intent_text: str = "")
 
 
 async def derive_missing_objectives(course_id, db) -> dict:
+    from db.chunk_visibility import current_chunk
     if await db.scalar(select(func.count(LearningObjective.id)).join(Module, LearningObjective.module_id == Module.id)
                        .where(Module.course_id == course_id)):
         return {'objectives_derived': 0}
     rows = (await db.execute(select(Chunk, CourseArtifact).join(CourseArtifact, Chunk.artifact_id == CourseArtifact.id)
-            .where(Chunk.course_id == course_id, CourseArtifact.processing_status == 'done',
+            .where(Chunk.course_id == course_id, CourseArtifact.processing_status == 'done', current_chunk(),
                    CourseArtifact.artifact_type.notin_(ASSESSMENT_TYPES)).order_by(CourseArtifact.uploaded_at, Chunk.chunk_index))).all()
     if not rows:
         return {'objectives_derived': 0}

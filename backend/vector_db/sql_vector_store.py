@@ -9,6 +9,7 @@ from config import settings
 from sqlalchemy import select
 from db.session import AsyncSessionLocal
 from db.models.artifact import Chunk,CourseArtifact
+from db.chunk_visibility import current_chunk
 from rag.chunking.chunk_models import RetrievedChunk
 
 class SQLVectorStore:
@@ -16,10 +17,6 @@ class SQLVectorStore:
         # RAGService stores source text and vectors together in its existing transaction.
         for item in chunks:
             if item.chunk.course_id!=str(course_id):raise ValueError('Cross-course vector insertion refused.')
-    async def _rows(self,course_id):
-        async with AsyncSessionLocal() as db:
-            return (await db.execute(select(Chunk,CourseArtifact).join(CourseArtifact,Chunk.artifact_id==CourseArtifact.id)
-                .where(Chunk.course_id==UUID(str(course_id)),CourseArtifact.processing_status=='done').limit(10001))).all()
     def query(self,course_id,query_embedding,top_k=10,where=None):
         import numpy as np
         from rag import course_cache

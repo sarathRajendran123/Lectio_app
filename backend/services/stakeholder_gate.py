@@ -22,7 +22,7 @@ PROMPT_VERSION = "stakeholder-gate/1"
 
 
 def assess(text: str, citations: list, *, content_type: str, target: str, intent: Optional[dict],
-           rejected_fingerprints: set = frozenset(), threshold: Optional[float] = None) -> dict:
+           rejected_fingerprints: set = frozenset(), threshold: Optional[float] = None, requirements: str = "") -> dict:
     """Score one draft in [0, 1] with named checks and plain-language issues."""
     threshold = settings.quality_threshold if threshold is None else threshold
     text = text or ""
@@ -32,12 +32,17 @@ def assess(text: str, citations: list, *, content_type: str, target: str, intent
     structure = 1.0
     if len(text.strip()) < 80:
         structure = 0.0; issues.append("The draft is too short to be usable.")
-    elif content_type in ("quiz", "assessment", "assessment_suggestion") and "?" not in text and not re.search(r"(?i)\b(question|aufgabe|frage)\b", text):
-        structure = 0.4; issues.append("No question was found in an assessment draft.")
+    elif content_type in ("exercise", "quiz", "assessment", "assessment_suggestion") and "?" not in text and not re.search(r"(?i)\b(question|aufgabe|frage)\b", text):
+        structure = 0.4; issues.append("No question was found in the exercise or assessment draft.")
     elif content_type == "slide_outline" and len(re.findall(r"(?im)^\s*(?:#{2,4}\s+\S|(?:slide|folie)\s*\d+)", text)) < 4:
         structure = 0.4; issues.append("A slide outline needs at least three slides with their own headings.")   # 4 = title + 3 slides
     elif content_type == "clo" and classify_text(text)[0] is None:
         structure = 0.5; issues.append("The objective has no measurable action verb.")
+    wants_answer = bool(re.search(r"(?i)\b(?:suggested|model|sample|expected)\s+answers?\b|\banswer\s+key\b|\b(?:musterl[oö]sung|l[oö]sungsvorschlag)\b", (target or "") + " " + requirements))
+    has_answer = bool(re.search(r"(?im)^\s*(?:#{1,6}\s*)?(?:\*\*)?(?:suggested|model|sample|expected)\s+answers?\b|^\s*(?:#{1,6}\s*)?(?:\*\*)?(?:answer\s+key|musterl[oö]sung|l[oö]sungsvorschlag)\b", text))
+    if content_type in ("exercise", "quiz", "assessment", "assessment_suggestion") and wants_answer and not has_answer:
+        structure = min(structure, 0.4)
+        issues.append("The requested suggested answers or answer key were not found; add a clearly labelled answer section.")
     checks["structure"] = structure
 
     # grounding: every draft must rest on supplied source excerpts (quotes are validated upstream)
@@ -52,7 +57,12 @@ def assess(text: str, citations: list, *, content_type: str, target: str, intent
     overlap = len(wanted & found) / len(wanted) if wanted else 1.0
     relevance = min(1.0, overlap / 0.3)
     if relevance < 0.5:
-        issues.append("The draft barely mentions the topic it was asked to address.")
+        from knowledge.language import detect
+        target_language, draft_language = detect([target or ""]), detect([text])
+        if target_language and draft_language and target_language != draft_language:
+            issues.append("Relevance could not be reliably checked across languages; lecturer review required.")
+        else:
+            issues.append("The draft has low word overlap with its target; lecturer review is needed to check relevance.")
     checks["relevance"] = round(relevance, 3)
 
     # intent: stay within the cognitive levels the lecturer intends (neutral when none are stated)
@@ -71,7 +81,7 @@ def assess(text: str, citations: list, *, content_type: str, target: str, intent
         issues.append("This is the same draft the lecturer already rejected.")
 
     score = round(sum(WEIGHTS[k] * checks[k] for k in WEIGHTS), 3)
-    hard_fail = repeated or grounding == 0.0 or structure == 0.0
+    hard_fail = repeated or grounding == 0.0 or structure < 0.5 or relevance < 0.5
     return {"score": score, "threshold": threshold, "passed": score >= threshold and not hard_fail,
             "issues": issues, "checks": checks, "bloom_level": level}
 
@@ -89,7 +99,7 @@ def rationale(*, content_type: str, style: str, model: str, target: str, citatio
 
 def produce(generate: Callable, *, content_type: str, target: str, intent: Optional[dict], constraint_ids: list,
             rejected_fingerprints: set, guidance: str = "", style: str = "", models: Optional[list] = None,
-            subject: Optional[tuple] = None) -> tuple:
+            subject: Optional[tuple] = None, requirements: str = "") -> tuple:
     """Run `generate(extra_instructions, model)` until a draft passes or the retry limit is reached.
 
     `generate` returns an object with `.content`, `.citations`, `.model` and `.tokens_used`.
@@ -109,7 +119,7 @@ def produce(generate: Callable, *, content_type: str, target: str, intent: Optio
             reason = f"generation failed: {str(exc)[:120]}"
         else:
             review = assess(item.content, item.citations, content_type=content_type, target=target, intent=intent,
-                            rejected_fingerprints=rejected_fingerprints)
+                            rejected_fingerprints=rejected_fingerprints, requirements=requirements)
             review["attempts"] = attempt + 1
             trace.emit("quality_check", {"attempt": attempt + 1, "passed": review["passed"], "score": review["score"],
                                          "threshold": review["threshold"], "issues": review["issues"], "checks": review["checks"],
@@ -126,6 +136,9 @@ def produce(generate: Callable, *, content_type: str, target: str, intent: Optio
                                  "switched_model": next_model != model, "next_model": next_model}, subject=subject)
             extra = (guidance + "\n\n" if guidance else "") + (
                 "QUALITY REVIEW of your previous attempt found these problems. Fix every one and do not repeat the earlier wording: " + reason)
+            if "quotation does not occur verbatim" in reason:
+                extra += ("\nFor each support, choose an offered excerpt ID belonging to its numbered source; "
+                          "do not copy or paraphrase the quotation. The application will insert the exact excerpt.")
     if best is None:
         raise last_error if last_error else RuntimeError("No draft was produced.")
     best_review["attempts"] = max(best_review.get("attempts", 1), attempt + 1)

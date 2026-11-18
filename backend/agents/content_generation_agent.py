@@ -77,7 +77,7 @@ class ContentGenerationAgent(BaseAgent):
             if isinstance(g, AlignmentGap)
             and g.severity in ("critical", "warning")
             and g.gap_type in (
-                "clo_not_covered", "clo_not_assessed",
+                "clo_not_assessed",
                 "topic_not_assessed", "bloom_level_mismatch",
                 "topic_not_delivered",
                 "live_missing_objective", "live_missing_assessment",
@@ -137,12 +137,16 @@ class ContentGenerationAgent(BaseAgent):
             from agents.graph.state import WorkflowError
             from datetime import datetime, timezone
             no_evidence = self._failure_reasons and all("Insufficient source evidence" in r for r in self._failure_reasons)
+            invalid_quotes = self._failure_reasons and all("Generated quotation does not occur verbatim" in r for r in self._failure_reasons)
             errors.append(WorkflowError(
                 agent=self.name,
                 message=(
                     f"No draft was written for {failures} finding(s): no supporting passage was found in the teaching "
                     "material, so nothing could be grounded. Upload the relevant material, or write the change yourself."
                     if no_evidence else
+                    f"No draft was written for {failures} finding(s): generated quotations could not be verified "
+                    "against their cited sources, even after any configured retry. Review the source evidence or try a different model."
+                    if invalid_quotes else
                     f"All {failures} content generation attempt(s) failed — "
                     "check backend logs for the underlying LLM error "
                     "(invalid/expired API key, decommissioned model, or rate limit)."
@@ -200,7 +204,8 @@ class ContentGenerationAgent(BaseAgent):
             # The Stakeholder gate checks every draft before the lecturer sees it and retries weak ones (bounded).
             with trace.context(task_id=task_id, agent=self.name):
                 best, review = stakeholder_gate.produce(
-                    generate, content_type=DRAFT_TYPE.get(gap.gap_type, "clo"), target=gap.description,
+                    generate, content_type=DRAFT_TYPE.get(gap.gap_type, "clo"),
+                    target=(self._objective(gap, state) or {}).get("text") or self._topic(gap) or gap.description,
                     intent=state.get("course_intent"), constraint_ids=constraint_ids,
                     rejected_fingerprints=getattr(self, "_rejected", set()), guidance=preferences, subject=("gap", gap.gap_id),
                     models=models)

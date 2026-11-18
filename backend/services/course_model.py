@@ -43,8 +43,9 @@ from knowledge.outline_rules import _WEEK_LINE, is_fragment_of, is_stated_outcom
 
 
 async def extract_course_model(course_id, db):
+    from db.chunk_visibility import current_chunk
     rows = (await db.execute(select(Chunk, CourseArtifact).join(CourseArtifact,Chunk.artifact_id == CourseArtifact.id)
-        .where(Chunk.course_id == course_id, CourseArtifact.processing_status == 'done')
+        .where(Chunk.course_id == course_id, CourseArtifact.processing_status == 'done', current_chunk())
         .order_by(Chunk.chunk_index))).all()
     modules = list((await db.scalars(select(Module).where(Module.course_id == course_id))).all())
     module = next((m for m in modules if m.title == 'Extracted source objectives'),None)
